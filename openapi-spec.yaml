@@ -1,0 +1,1121 @@
+openapi: 3.0.3
+info:
+  title: Teams API
+  description: API for managing soccer teams, players, trainers, events, and equipment
+  version: 1.0.0
+  contact:
+    name: Teams API Support
+    email: support@teams-api.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.teams.com
+    description: Production server
+
+# For now, this API does not require authentication
+security: []
+
+paths:
+  /health:
+    get:
+      operationId: healthCheck
+      summary: Health check endpoint
+      description: Returns the health status of the API and database connection
+      tags:
+        - Health
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  message:
+                    type: string
+                    example: "Teams API is running"
+                  database:
+                    type: object
+                    properties:
+                      connected:
+                        type: boolean
+                      collections:
+                        type: array
+                        items:
+                          type: string
+        '503':
+          description: Service unavailable - database unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/members:
+    get:
+      operationId: getAllMembers
+      summary: Get all members (players and/or trainers)
+      description: Retrieve members based on role filter
+      tags:
+        - Members
+      parameters:
+        - name: role
+          in: query
+          description: Filter by role
+          required: false
+          schema:
+            type: string
+            enum: [player, trainer]
+      responses:
+        '200':
+          description: Successfully retrieved members
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/PlayerWithRole'
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/TrainerWithRole'
+                  - type: object
+                    properties:
+                      players:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Player'
+                      trainers:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Trainer'
+        '400':
+          description: Invalid role parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      operationId: createMember
+      summary: Create a new member (player or trainer)
+      description: Create either a player or trainer based on the role field
+      tags:
+        - Members
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/CreatePlayerRequest'
+                - $ref: '#/components/schemas/CreateTrainerRequest'
+      responses:
+        '201':
+          description: Member created successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PlayerWithRole'
+                  - $ref: '#/components/schemas/TrainerWithRole'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/members/{id}:
+    get:
+      operationId: getMemberById
+      summary: Get member by ID
+      description: Retrieve a specific member (player or trainer) by ID
+      tags:
+        - Members
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      responses:
+        '200':
+          description: Member found
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PlayerWithRole'
+                  - $ref: '#/components/schemas/TrainerWithRole'
+        '404':
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      operationId: updateMemberById
+      summary: Update member by ID
+      description: Update a specific Member (player or trainer) by ID
+      tags:
+        - Members
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/UpdatePlayerRequest'
+                - $ref: '#/components/schemas/UpdateTrainerRequest'
+      responses:
+        '200':
+          description: Member updated successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/PlayerWithRole'
+                  - $ref: '#/components/schemas/TrainerWithRole'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      operationId: deleteMemberById
+      summary: Delete member by ID
+      description: Delete a specific Member (player or trainer) by ID
+      tags:
+        - Members
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      responses:
+        '204':
+          description: Member deleted successfully
+        '404':
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/events:
+    get:
+      operationId: getAllEvents
+      summary: Get all events
+      description: Retrieve all events
+      tags:
+        - Events
+      responses:
+        '200':
+          description: Successfully retrieved events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      operationId: createEvent
+      summary: Create a new event
+      description: Create a new event
+      tags:
+        - Events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/events/{id}:
+    get:
+      operationId: getEventById
+      summary: Get event by ID
+      description: Retrieve a specific event by ID
+      tags:
+        - Events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      responses:
+        '200':
+          description: Event found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      operationId: updateEventById
+      summary: Update event by ID
+      description: Update a specific event by ID
+      tags:
+        - Events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventRequest'
+      responses:
+        '200':
+          description: Event updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      operationId: deleteEventById
+      summary: Delete event by ID
+      description: Delete a specific event by ID
+      tags:
+        - Events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      responses:
+        '204':
+          description: Event deleted successfully
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/events/{id}/players:
+    put:
+      operationId: upsertEventInvitations
+      summary: Upsert event invitations
+      description: Add new player invitations to an event
+      tags:
+        - Events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                playerIds:
+                  type: array
+                  items:
+                    type: string
+                    
+              required:
+                - playerIds
+      responses:
+        '200':
+          description: Invitations updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/events/{id}/players/{player_id}/status:
+    put:
+      operationId: updateInvitationStatus
+      summary: Update invitation status
+      description: Update the status of a player's invitation
+      tags:
+        - Events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+        - name: player_id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [open, accepted, declined]
+              required:
+                - status
+      responses:
+        '200':
+          description: Invitation status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event or invitation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/events/{id}/selection:
+    put:
+      operationId: updateTeamSelection
+      summary: Update team selection
+      description: Update the team player selection for an event
+      tags:
+        - Events
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                teams:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Team'
+              required:
+                - teams
+      responses:
+        '200':
+          description: Team selection updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/shirtsets:
+    get:
+      operationId: getAllShirtSets
+      summary: Get all shirt sets
+      description: Retrieve all shirt sets
+      tags:
+        - Shirt Sets
+      responses:
+        '200':
+          description: Successfully retrieved shirt sets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShirtSet'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      operationId: createShirtSet
+      summary: Create a new shirt set
+      description: Create a new shirt set
+      tags:
+        - Shirt Sets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateShirtSetRequest'
+      responses:
+        '201':
+          description: Shirt set created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShirtSet'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/shirtsets/{id}:
+    get:
+      operationId: getShirtSetById
+      summary: Get shirt set by ID
+      description: Retrieve a specific shirt set by ID
+      tags:
+        - Shirt Sets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      responses:
+        '200':
+          description: Shirt set found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShirtSet'
+        '404':
+          description: Shirt set not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      operationId: updateShirtSetById
+      summary: Update shirt set by ID
+      description: Update a specific shirt set by ID
+      tags:
+        - Shirt Sets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateShirtSetRequest'
+      responses:
+        '200':
+          description: Shirt set updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShirtSet'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Shirt set not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      operationId: deleteShirtSetById
+      summary: Delete shirt set by ID
+      description: Delete a specific shirt set by ID
+      tags:
+        - Shirt Sets
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            
+      responses:
+        '204':
+          description: Shirt set deleted successfully
+        '404':
+          description: Shirt set not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+          
+        firstName:
+          type: string
+        lastName:
+          type: string
+        birthYear:
+          type: integer
+          minimum: 1900
+          maximum: 2030
+        level:
+          type: integer
+          minimum: 1
+          maximum: 5
+      required:
+        - id
+        - firstName
+        - lastName
+        - birthYear
+        - level
+
+    Trainer:
+      type: object
+      properties:
+        id:
+          type: string
+          
+        firstName:
+          type: string
+        lastName:
+          type: string
+      required:
+        - id
+        - firstName
+        - lastName
+
+    PlayerWithRole:
+      allOf:
+        - $ref: '#/components/schemas/Player'
+        - type: object
+          properties:
+            role:
+              type: string
+              enum: [player]
+          required:
+            - role
+
+    TrainerWithRole:
+      allOf:
+        - $ref: '#/components/schemas/Trainer'
+        - type: object
+          properties:
+            role:
+              type: string
+              enum: [trainer]
+          required:
+            - role
+
+    CreatePlayerRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [player]
+        firstName:
+          type: string
+        lastName:
+          type: string
+        birthYear:
+          type: integer
+          minimum: 1900
+          maximum: 2030
+        level:
+          type: integer
+          minimum: 1
+          maximum: 5
+      required:
+        - role
+        - firstName
+        - lastName
+        - birthYear
+        - level
+
+    CreateTrainerRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [trainer]
+        firstName:
+          type: string
+        lastName:
+          type: string
+      required:
+        - role
+        - firstName
+        - lastName
+
+    UpdatePlayerRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [player]
+        firstName:
+          type: string
+        lastName:
+          type: string
+        birthYear:
+          type: integer
+          minimum: 1900
+          maximum: 2030
+        level:
+          type: integer
+          minimum: 1
+          maximum: 5
+      required:
+        - role
+        - firstName
+        - lastName
+        - birthYear
+        - level
+
+    UpdateTrainerRequest:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [trainer]
+        firstName:
+          type: string
+        lastName:
+          type: string
+      required:
+        - role
+        - firstName
+        - lastName
+
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: string
+          
+        playerId:
+          type: string
+          
+        status:
+          type: string
+          enum: [open, accepted, declined]
+      required:
+        - id
+        - playerId
+        - status
+
+    ShirtAssignment:
+      type: object
+      properties:
+        playerId:
+          type: string
+          
+        shirtNumber:
+          type: integer
+          minimum: 1
+      required:
+        - playerId
+        - shirtNumber
+
+    Team:
+      type: object
+      properties:
+        id:
+          type: string
+          
+        name:
+          type: string
+        strength:
+          type: integer
+          minimum: 1
+          maximum: 3
+          default: 2
+        startTime:
+          type: string
+          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+          example: "14:30"
+        selectedPlayers:
+          type: array
+          items:
+            type: string
+            
+        trainerId:
+          type: string
+          
+          nullable: true
+        shirtSetId:
+          type: string
+          
+          nullable: true
+        shirtAssignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShirtAssignment'
+          nullable: true
+      required:
+        - id
+        - name
+        - strength
+        - startTime
+        - selectedPlayers
+
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        maxPlayersPerTeam:
+          type: integer
+          minimum: 1
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+        invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invitation'
+      required:
+        - id
+        - name
+        - date
+        - maxPlayersPerTeam
+        - teams
+        - invitations
+
+    CreateEventRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        maxPlayersPerTeam:
+          type: integer
+          minimum: 1
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+      required:
+        - name
+        - date
+        - maxPlayersPerTeam
+
+    UpdateEventRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          format: date
+        maxPlayersPerTeam:
+          type: integer
+          minimum: 1
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+        invitations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invitation'
+
+    Shirt:
+      type: object
+      properties:
+        number:
+          type: integer
+          minimum: 1
+        size:
+          type: string
+          enum: ['128', '140', '152', '164', 'XS', 'S', 'M', 'L', 'XL']
+        isGoalkeeper:
+          type: boolean
+      required:
+        - number
+        - size
+        - isGoalkeeper
+
+    ShirtSet:
+      type: object
+      properties:
+        id:
+          type: string
+          
+        sponsor:
+          type: string
+        color:
+          type: string
+        shirts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shirt'
+      required:
+        - id
+        - sponsor
+        - color
+        - shirts
+
+    CreateShirtSetRequest:
+      type: object
+      properties:
+        sponsor:
+          type: string
+        color:
+          type: string
+        shirts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shirt'
+      required:
+        - sponsor
+        - color
+        - shirts
+
+    UpdateShirtSetRequest:
+      type: object
+      properties:
+        sponsor:
+          type: string
+        color:
+          type: string
+        shirts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Shirt'
+      required:
+        - sponsor
+        - color
+        - shirts
+
+tags:
+  - name: Health
+    description: API health check endpoints
+  - name: Members
+    description: Operations on members (players and trainers)
+  - name: Events
+    description: Operations on events and team management
+  - name: Shirt Sets
+    description: Operations on shirt sets and equipment

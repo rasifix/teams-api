@@ -1,0 +1,16 @@
+{
+  "name": "view-api-docs",
+  "version": "1.0.0",
+  "description": "View and validate the Teams API OpenAPI specification",
+  "scripts": {
+    "docs": "swagger-ui-serve openapi-spec.yaml",
+    "validate": "swagger-codegen validate -i openapi-spec.yaml",
+    "generate-client": "openapi-generator-cli generate -i openapi-spec.yaml -g typescript-fetch -o ./generated-client",
+    "serve-docs": "redoc-cli serve openapi-spec.yaml"
+  },
+  "devDependencies": {
+    "@openapitools/openapi-generator-cli": "^2.7.0",
+    "redoc-cli": "^0.13.21",
+    "swagger-ui-serve": "^3.52.5"
+  }
+}
