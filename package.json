@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Express.js API for My Teams application",
   "main": "dist/server.js",
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
