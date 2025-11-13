@@ -18,6 +18,7 @@ export interface PersonDocument extends BaseDocument {
   groupId: string; // Reference to GroupDocument
   // Player-specific properties (only present when role === 'player')
   birthYear?: number;
+  birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
 }
 
@@ -78,6 +79,7 @@ export interface ShirtSetDocument extends BaseDocument {
 export type PlayerDocument = PersonDocument & {
   role: 'player';
   birthYear: number;
+  birthDate?: string;
   level: number;
 };
 

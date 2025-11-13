@@ -45,6 +45,7 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
     firstName: doc.firstName,
     lastName: doc.lastName,
     birthYear: doc.birthYear,
+    birthDate: doc.birthDate,
     level: doc.level
   };
 }
@@ -71,6 +72,7 @@ export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_i
     role: 'player',
     groupId: player.groupId,
     birthYear: player.birthYear,
+    birthDate: player.birthDate,
     level: player.level
   };
 }

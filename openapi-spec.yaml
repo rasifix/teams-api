@@ -763,7 +763,6 @@ components:
       properties:
         id:
           type: string
-          
         firstName:
           type: string
         lastName:
@@ -772,6 +771,9 @@ components:
           type: integer
           minimum: 1900
           maximum: 2030
+        birthDate:
+          type: string
+          format: date
         level:
           type: integer
           minimum: 1
@@ -819,7 +821,6 @@ components:
               enum: [trainer]
           required:
             - role
-
     CreatePlayerRequest:
       type: object
       properties:
@@ -834,6 +835,9 @@ components:
           type: integer
           minimum: 1900
           maximum: 2030
+        birthDate:
+          type: string
+          format: date
         level:
           type: integer
           minimum: 1
@@ -842,7 +846,7 @@ components:
         - role
         - firstName
         - lastName
-        - birthYear
+        - birthDate
         - level
 
     CreateTrainerRequest:
@@ -874,6 +878,9 @@ components:
           type: integer
           minimum: 1900
           maximum: 2030
+        birthDate:
+          type: string
+          format: date
         level:
           type: integer
           minimum: 1

@@ -63,7 +63,7 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthYear, level } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level } = req.body;
     
     if (!role || !firstName || !lastName) {
       res.status(400).json({ error: 'role, firstName, and lastName are required' });
@@ -76,8 +76,8 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
     }
     
     if (role === 'player') {
-      if (typeof birthYear !== 'number' || typeof level !== 'number') {
-        res.status(400).json({ error: 'birthYear and level are required for players' });
+      if (typeof birthDate !== 'string' || typeof level !== 'number') {
+        res.status(400).json({ error: 'birthDate and level are required for players' });
         return;
       }
       
@@ -91,7 +91,8 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
         groupId,
         firstName,
         lastName,
-        birthYear,
+        birthYear: birthYear || new Date(birthDate).getFullYear(),
+        birthDate,
         level
       };
       
@@ -118,7 +119,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthYear, level } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level } = req.body;
     
     if (!role || !firstName || !lastName) {
       res.status(400).json({ error: 'role, firstName, and lastName are required' });
@@ -145,6 +146,7 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
         firstName,
         lastName,
         birthYear,
+        birthDate,
         level
       });
       

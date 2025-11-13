@@ -3,7 +3,8 @@ export interface Player {
   groupId: string;
   firstName: string;
   lastName: string;
-  birthYear: number;
+  birthYear?: number;
+  birthDate?: string; // ISO date string (YYYY-MM-DD)
   level: number; // 1-5
 }
 
