@@ -34,7 +34,7 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
 export const createEvent = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { name, date, maxPlayersPerTeam, teams, invitations } = req.body;
+    const { name, date, maxPlayersPerTeam, location, teams, invitations } = req.body;
     
     // Validation
     if (!name || !date || !maxPlayersPerTeam || !teams) {
@@ -48,6 +48,7 @@ export const createEvent = async (req: Request, res: Response): Promise<void> =>
       name,
       date,
       maxPlayersPerTeam: Number(maxPlayersPerTeam),
+      location,
       teams: teams || [],
       invitations: invitations || []
     };
@@ -63,13 +64,14 @@ export const createEvent = async (req: Request, res: Response): Promise<void> =>
 export const updateEvent = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, date, maxPlayersPerTeam, teams, invitations } = req.body;
+    const { name, date, maxPlayersPerTeam, location, teams, invitations } = req.body;
     
     const updates: Partial<Omit<Event, 'id'>> = {};
     
     if (name !== undefined) updates.name = name;
     if (date !== undefined) updates.date = date;
     if (maxPlayersPerTeam !== undefined) updates.maxPlayersPerTeam = Number(maxPlayersPerTeam);
+    if (location !== undefined) updates.location = location;
     if (teams !== undefined) updates.teams = teams;
     if (invitations !== undefined) updates.invitations = invitations;
     

@@ -177,6 +177,7 @@ class DataStore {
     if (updates.name !== undefined) updateDoc.name = updates.name;
     if (updates.date !== undefined) updateDoc.eventDate = new Date(updates.date);
     if (updates.maxPlayersPerTeam !== undefined) updateDoc.maxPlayersPerTeam = updates.maxPlayersPerTeam;
+    if (updates.location !== undefined) updateDoc.location = updates.location;
     if (updates.teams !== undefined) {
       const { teamToEmbedded } = await import('../types/mappers');
       updateDoc.teams = updates.teams.map(teamToEmbedded);

@@ -984,7 +984,6 @@ components:
       properties:
         id:
           type: string
-          
         name:
           type: string
         date:
@@ -993,6 +992,8 @@ components:
         maxPlayersPerTeam:
           type: integer
           minimum: 1
+        location:
+          type: string
         teams:
           type: array
           items:
@@ -1020,6 +1021,8 @@ components:
         maxPlayersPerTeam:
           type: integer
           minimum: 1
+        location:
+          type: string
         teams:
           type: array
           items:
@@ -1040,6 +1043,8 @@ components:
         maxPlayersPerTeam:
           type: integer
           minimum: 1
+        location:
+          type: string
         teams:
           type: array
           items:
