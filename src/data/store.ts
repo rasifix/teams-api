@@ -1,10 +1,12 @@
 import { mongoConnection } from '../database/connection';
-import { Player, Event, Trainer, ShirtSet, Group } from '../types';
+import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset } from '../types';
 import { 
   GroupDocument,
   PersonDocument, 
   EventDocument, 
-  ShirtSetDocument
+  ShirtSetDocument,
+  UserDocument,
+  PasswordResetDocument
 } from '../types/mongodb';
 import {
   groupDocumentToGroup,
@@ -325,6 +327,127 @@ class DataStore {
     const result = await shirtSetsCollection.updateOne(
       { _id: id },
       { $set: { active: false, updatedAt: new Date() } }
+    );
+    
+    return result.modifiedCount > 0;
+  }
+
+  // User operations
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const usersCollection = mongoConnection.getUsersCollection();
+    const userDoc = await usersCollection.findOne({ email });
+    
+    if (!userDoc) return undefined;
+    
+    return {
+      id: userDoc._id,
+      email: userDoc.email,
+      password: userDoc.password,
+      createdAt: userDoc.createdAt.toISOString(),
+      updatedAt: userDoc.updatedAt.toISOString()
+    };
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const usersCollection = mongoConnection.getUsersCollection();
+    const userDoc = await usersCollection.findOne({ _id: id });
+    
+    if (!userDoc) return undefined;
+    
+    return {
+      id: userDoc._id,
+      email: userDoc.email,
+      password: userDoc.password,
+      createdAt: userDoc.createdAt.toISOString(),
+      updatedAt: userDoc.updatedAt.toISOString()
+    };
+  }
+
+  async createUser(user: User): Promise<User> {
+    const usersCollection = mongoConnection.getUsersCollection();
+    const now = new Date();
+    
+    const newDoc: UserDocument = {
+      _id: user.id,
+      email: user.email,
+      password: user.password,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    await usersCollection.insertOne(newDoc);
+    
+    return {
+      id: newDoc._id,
+      email: newDoc.email,
+      password: newDoc.password,
+      createdAt: newDoc.createdAt.toISOString(),
+      updatedAt: newDoc.updatedAt.toISOString()
+    };
+  }
+
+  // Password Reset operations
+  async createPasswordReset(resetData: PasswordReset): Promise<PasswordReset> {
+    const passwordResetsCollection = mongoConnection.getPasswordResetsCollection();
+    const now = new Date();
+    
+    const newDoc: PasswordResetDocument = {
+      _id: resetData.id,
+      email: resetData.email,
+      resetToken: resetData.resetToken,
+      expiresAt: new Date(resetData.expiresAt),
+      used: resetData.used,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    await passwordResetsCollection.insertOne(newDoc);
+    
+    return {
+      id: newDoc._id,
+      email: newDoc.email,
+      resetToken: newDoc.resetToken,
+      expiresAt: newDoc.expiresAt.toISOString(),
+      used: newDoc.used,
+      createdAt: newDoc.createdAt.toISOString()
+    };
+  }
+
+  async getPasswordResetByToken(resetToken: string, email: string): Promise<PasswordReset | undefined> {
+    const passwordResetsCollection = mongoConnection.getPasswordResetsCollection();
+    const resetDoc = await passwordResetsCollection.findOne({ 
+      resetToken,
+      email,
+      used: false
+    });
+    
+    if (!resetDoc) return undefined;
+    
+    return {
+      id: resetDoc._id,
+      email: resetDoc.email,
+      resetToken: resetDoc.resetToken,
+      expiresAt: resetDoc.expiresAt.toISOString(),
+      used: resetDoc.used,
+      createdAt: resetDoc.createdAt.toISOString()
+    };
+  }
+
+  async markPasswordResetAsUsed(id: string): Promise<boolean> {
+    const passwordResetsCollection = mongoConnection.getPasswordResetsCollection();
+    const result = await passwordResetsCollection.updateOne(
+      { _id: id },
+      { $set: { used: true, updatedAt: new Date() } }
+    );
+    
+    return result.modifiedCount > 0;
+  }
+
+  async updateUserPassword(email: string, hashedPassword: string): Promise<boolean> {
+    const usersCollection = mongoConnection.getUsersCollection();
+    const result = await usersCollection.updateOne(
+      { email },
+      { $set: { password: hashedPassword, updatedAt: new Date() } }
     );
     
     return result.modifiedCount > 0;

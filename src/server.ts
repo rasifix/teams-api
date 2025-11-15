@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { mongoConnection } from './database/connection';
 import groupRoutes from './routes/groupRoutes';
+import authRoutes from './routes/authRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,6 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // Routes
+app.use('/auth', authRoutes);
 app.use('/api/groups', groupRoutes);
 
 // Health check
@@ -50,6 +52,9 @@ async function startServer() {
       console.log(`🩺 Health check: http://localhost:${PORT}/health`);
       console.log('');
       console.log('Available endpoints:');
+      console.log('  POST   /auth/register');
+      console.log('  POST   /auth/login');
+      console.log('  GET    /auth/me (protected)');
       console.log('  GET    /api/groups');
       console.log('  POST   /api/groups');
       console.log('  GET    /api/groups/:groupId/members?role=player|trainer');

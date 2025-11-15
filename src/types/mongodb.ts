@@ -99,12 +99,28 @@ export function isTrainerDocument(person: PersonDocument): person is TrainerDocu
   return person.role === 'trainer';
 }
 
+// Users Collection
+export interface UserDocument extends BaseDocument {
+  email: string;
+  password: string; // Hashed password
+}
+
+// Password Reset Collection
+export interface PasswordResetDocument extends BaseDocument {
+  email: string;
+  resetToken: string; // Random token for verification
+  expiresAt: Date;
+  used: boolean;
+}
+
 // Collection names constants
 export const COLLECTIONS = {
   GROUPS: 'groups',
   MEMBERS: 'members',
   EVENTS: 'events',
-  SHIRT_SETS: 'shirt-sets'
+  SHIRT_SETS: 'shirt-sets',
+  USERS: 'users',
+  PASSWORD_RESETS: 'password-resets'
 } as const;
 
 export type CollectionName = typeof COLLECTIONS[keyof typeof COLLECTIONS];

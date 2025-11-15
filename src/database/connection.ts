@@ -4,6 +4,8 @@ import {
   PersonDocument, 
   EventDocument, 
   ShirtSetDocument,
+  UserDocument,
+  PasswordResetDocument,
   COLLECTIONS 
 } from '../types/mongodb';
 import { initializeSequences } from '../utils/sequence';
@@ -127,6 +129,14 @@ class DatabaseConnection {
     return this.getDb().collection<ShirtSetDocument>(COLLECTIONS.SHIRT_SETS);
   }
 
+  getUsersCollection(): Collection<UserDocument> {
+    return this.getDb().collection<UserDocument>(COLLECTIONS.USERS);
+  }
+
+  getPasswordResetsCollection(): Collection<PasswordResetDocument> {
+    return this.getDb().collection<PasswordResetDocument>(COLLECTIONS.PASSWORD_RESETS);
+  }
+
   private async initializeDatabase(): Promise<void> {
     try {
       console.log('🔧 Initializing database...');
@@ -191,6 +201,19 @@ class DatabaseConnection {
     await shirtSetsCollection.createIndex({ sponsor: 1, color: 1 });
     await shirtSetsCollection.createIndex({ active: 1 });
     await shirtSetsCollection.createIndex({ createdAt: -1 });
+
+    // Users collection indexes
+    const usersCollection = this.getUsersCollection();
+    await usersCollection.createIndex({ email: 1 }, { unique: true }); // Unique email
+    await usersCollection.createIndex({ createdAt: -1 });
+
+    // Password Resets collection indexes
+    const passwordResetsCollection = this.getPasswordResetsCollection();
+    await passwordResetsCollection.createIndex({ email: 1 }); // Lookup by email
+    await passwordResetsCollection.createIndex({ resetToken: 1 }); // Lookup by token
+    await passwordResetsCollection.createIndex({ expiresAt: 1 }); // For cleanup of expired tokens
+    await passwordResetsCollection.createIndex({ used: 1 }); // Filter used tokens
+    await passwordResetsCollection.createIndex({ createdAt: -1 });
 
     console.log('✅ Database indexes created');
   }

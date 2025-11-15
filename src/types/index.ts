@@ -69,3 +69,20 @@ export interface Trainer {
   firstName: string;
   lastName: string;
 }
+
+export interface User {
+  id: string;
+  email: string;
+  password: string; // Hashed password
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PasswordReset {
+  id: string;
+  email: string;
+  resetToken: string; // Random token for verification
+  expiresAt: string; // ISO date string
+  used: boolean;
+  createdAt?: string;
+}
