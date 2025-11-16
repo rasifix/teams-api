@@ -311,14 +311,189 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/members:
+  /api/groups:
+    get:
+      operationId: getAllGroups
+      summary: Get all groups
+      description: Retrieve all groups where the authenticated user is a trainer member
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Group'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      operationId: createGroup
+      summary: Create a new group
+      description: Create a new group
+      tags:
+        - Groups
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupRequest'
+      responses:
+        '201':
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/groups/{groupId}:
+    get:
+      operationId: getGroupById
+      summary: Get group by ID
+      description: Retrieve a specific group by ID
+      tags:
+        - Groups
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Group found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      operationId: updateGroupById
+      summary: Update group by ID
+      description: Update a specific group by ID
+      tags:
+        - Groups
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGroupRequest'
+      responses:
+        '200':
+          description: Group updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      operationId: deleteGroupById
+      summary: Delete group by ID
+      description: Delete a specific group by ID
+      tags:
+        - Groups
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Group deleted successfully
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/groups/{groupId}/members:
     get:
       operationId: getAllMembers
-      summary: Get all members (players and/or trainers)
-      description: Retrieve members based on role filter
+      summary: Get all members in a group
+      description: Retrieve members (players and/or trainers) in a specific group based on role filter
       tags:
         - Members
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: role
           in: query
           description: Filter by role
@@ -355,6 +530,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -364,10 +551,18 @@ paths:
 
     post:
       operationId: createMember
-      summary: Create a new member (player or trainer)
-      description: Create either a player or trainer based on the role field
+      summary: Create a new member in a group
+      description: Create either a player or trainer based on the role field in a specific group
       tags:
         - Members
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -391,6 +586,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -398,20 +605,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/members/{id}:
+  /api/groups/{groupId}/members/{id}:
     get:
       operationId: getMemberById
       summary: Get member by ID
-      description: Retrieve a specific member (player or trainer) by ID
+      description: Retrieve a specific member (player or trainer) by ID in a specific group
       tags:
         - Members
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       responses:
         '200':
           description: Member found
@@ -421,6 +634,18 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/PlayerWithRole'
                   - $ref: '#/components/schemas/TrainerWithRole'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Member not found
           content:
@@ -437,16 +662,22 @@ paths:
     put:
       operationId: updateMemberById
       summary: Update member by ID
-      description: Update a specific Member (player or trainer) by ID
+      description: Update a specific Member (player or trainer) by ID in a specific group
       tags:
         - Members
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       requestBody:
         required: true
         content:
@@ -470,6 +701,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Member not found
           content:
@@ -486,19 +729,37 @@ paths:
     delete:
       operationId: deleteMemberById
       summary: Delete member by ID
-      description: Delete a specific Member (player or trainer) by ID
+      description: Delete a specific Member (player or trainer) by ID in a specific group
       tags:
         - Members
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       responses:
         '204':
           description: Member deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Member not found
           content:
@@ -512,13 +773,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/events:
+  /api/groups/{groupId}/events:
     get:
       operationId: getAllEvents
-      summary: Get all events
-      description: Retrieve all events
+      summary: Get all events in a group
+      description: Retrieve all events in a specific group
       tags:
         - Events
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: Successfully retrieved events
@@ -528,6 +797,18 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Event'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -537,10 +818,18 @@ paths:
 
     post:
       operationId: createEvent
-      summary: Create a new event
-      description: Create a new event
+      summary: Create a new event in a group
+      description: Create a new event in a specific group
       tags:
         - Events
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -560,6 +849,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -567,20 +868,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/events/{id}:
+  /api/groups/{groupId}/events/{id}:
     get:
       operationId: getEventById
       summary: Get event by ID
-      description: Retrieve a specific event by ID
+      description: Retrieve a specific event by ID in a specific group
       tags:
         - Events
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       responses:
         '200':
           description: Event found
@@ -588,6 +895,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Event'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Event not found
           content:
@@ -604,16 +923,22 @@ paths:
     put:
       operationId: updateEventById
       summary: Update event by ID
-      description: Update a specific event by ID
+      description: Update a specific event by ID in a specific group
       tags:
         - Events
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       requestBody:
         required: true
         content:
@@ -629,6 +954,18 @@ paths:
                 $ref: '#/components/schemas/Event'
         '400':
           description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
           content:
             application/json:
               schema:
@@ -649,19 +986,37 @@ paths:
     delete:
       operationId: deleteEventById
       summary: Delete event by ID
-      description: Delete a specific event by ID
+      description: Delete a specific event by ID in a specific group
       tags:
         - Events
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       responses:
         '204':
           description: Event deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Event not found
           content:
@@ -675,20 +1030,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/events/{id}/players:
+  /api/groups/{groupId}/events/{id}/players:
     put:
       operationId: upsertEventInvitations
       summary: Upsert event invitations
       description: Add new player invitations to an event
       tags:
         - Events
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       requestBody:
         required: true
         content:
@@ -700,7 +1061,6 @@ paths:
                   type: array
                   items:
                     type: string
-                    
               required:
                 - playerIds
       responses:
@@ -716,6 +1076,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Event not found
           content:
@@ -729,26 +1101,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/events/{id}/players/{player_id}/status:
+  /api/groups/{groupId}/events/{id}/players/{player_id}/status:
     put:
       operationId: updateInvitationStatus
       summary: Update invitation status
       description: Update the status of a player's invitation
       tags:
         - Events
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
         - name: player_id
           in: path
           required: true
           schema:
             type: string
-            
       requestBody:
         required: true
         content:
@@ -774,6 +1151,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Event or invitation not found
           content:
@@ -787,20 +1176,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/events/{id}/selection:
+  /api/groups/{groupId}/events/{id}/selection:
     put:
       operationId: updateTeamSelection
       summary: Update team selection
       description: Update the team player selection for an event
       tags:
         - Events
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       requestBody:
         required: true
         content:
@@ -827,6 +1222,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Event not found
           content:
@@ -840,13 +1247,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/shirtsets:
+  /api/groups/{groupId}/shirtsets:
     get:
       operationId: getAllShirtSets
-      summary: Get all shirt sets
-      description: Retrieve all shirt sets
+      summary: Get all shirt sets in a group
+      description: Retrieve all shirt sets in a specific group
       tags:
         - Shirt Sets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         '200':
           description: Successfully retrieved shirt sets
@@ -856,6 +1271,18 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ShirtSet'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -865,10 +1292,18 @@ paths:
 
     post:
       operationId: createShirtSet
-      summary: Create a new shirt set
-      description: Create a new shirt set
+      summary: Create a new shirt set in a group
+      description: Create a new shirt set in a specific group
       tags:
         - Shirt Sets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
       requestBody:
         required: true
         content:
@@ -888,6 +1323,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Server error
           content:
@@ -895,20 +1342,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/shirtsets/{id}:
+  /api/groups/{groupId}/shirtsets/{id}:
     get:
       operationId: getShirtSetById
       summary: Get shirt set by ID
-      description: Retrieve a specific shirt set by ID
+      description: Retrieve a specific shirt set by ID in a specific group
       tags:
         - Shirt Sets
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       responses:
         '200':
           description: Shirt set found
@@ -916,6 +1369,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ShirtSet'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Shirt set not found
           content:
@@ -932,16 +1397,22 @@ paths:
     put:
       operationId: updateShirtSetById
       summary: Update shirt set by ID
-      description: Update a specific shirt set by ID
+      description: Update a specific shirt set by ID in a specific group
       tags:
         - Shirt Sets
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       requestBody:
         required: true
         content:
@@ -957,6 +1428,18 @@ paths:
                 $ref: '#/components/schemas/ShirtSet'
         '400':
           description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
           content:
             application/json:
               schema:
@@ -977,19 +1460,37 @@ paths:
     delete:
       operationId: deleteShirtSetById
       summary: Delete shirt set by ID
-      description: Delete a specific shirt set by ID
+      description: Delete a specific shirt set by ID in a specific group
       tags:
         - Shirt Sets
+      security:
+        - bearerAuth: []
       parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
         - name: id
           in: path
           required: true
           schema:
             type: string
-            
       responses:
         '204':
           description: Shirt set deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Shirt set not found
           content:
@@ -1045,6 +1546,82 @@ components:
       required:
         - id
         - email
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        trainers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              email:
+                type: string
+                format: email
+        members:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/Player'
+              - $ref: '#/components/schemas/Trainer'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+
+    CreateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        trainers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              email:
+                type: string
+                format: email
+      required:
+        - name
+
+    UpdateGroupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        trainers:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              email:
+                type: string
+                format: email
 
     Player:
       type: object
@@ -1424,9 +2001,11 @@ tags:
     description: User registration and authentication endpoints
   - name: Health
     description: API health check endpoints
+  - name: Groups
+    description: Operations on groups for organizing teams
   - name: Members
-    description: Operations on members (players and trainers)
+    description: Operations on members (players and trainers) within a group
   - name: Events
-    description: Operations on events and team management
+    description: Operations on events and team management within a group
   - name: Shirt Sets
-    description: Operations on shirt sets and equipment
+    description: Operations on shirt sets and equipment within a group
