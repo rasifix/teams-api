@@ -63,7 +63,7 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
     
     if (!role || !firstName || !lastName) {
       res.status(400).json({ error: 'role, firstName, and lastName are required' });
@@ -103,7 +103,8 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
         id: await getNextSequence('members'),
         groupId,
         firstName,
-        lastName
+        lastName,
+        email
       };
       
       const createdTrainer = await dataStore.createTrainer(newTrainer);
@@ -119,7 +120,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
     
     if (!role || !firstName || !lastName) {
       res.status(400).json({ error: 'role, firstName, and lastName are required' });
@@ -159,7 +160,8 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
     } else {
       const updatedTrainer = await dataStore.updateTrainer(id, {
         firstName,
-        lastName
+        lastName,
+        email
       });
       
       if (!updatedTrainer) {

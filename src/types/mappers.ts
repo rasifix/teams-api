@@ -60,7 +60,8 @@ export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
     id: doc._id,
     groupId: doc.groupId,
     firstName: doc.firstName,
-    lastName: doc.lastName
+    lastName: doc.lastName,
+    email: doc.email
   };
 }
 
@@ -83,7 +84,8 @@ export function trainerToPersonDocument(trainer: Trainer): Omit<PersonDocument, 
     firstName: trainer.firstName,
     lastName: trainer.lastName,
     role: 'trainer',
-    groupId: trainer.groupId
+    groupId: trainer.groupId,
+    email: trainer.email
   };
 }
 

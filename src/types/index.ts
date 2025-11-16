@@ -13,6 +13,7 @@ export interface Trainer {
   groupId: string;
   firstName: string;
   lastName: string;
+  email?: string;
 }
 
 export interface Group {
@@ -62,12 +63,6 @@ export interface ShirtSet {
   sponsor: string;
   color: string;
   shirts: Shirt[];
-}
-
-export interface Trainer {
-  id: string;
-  firstName: string;
-  lastName: string;
 }
 
 export interface User {

@@ -1071,6 +1071,10 @@ components:
           type: string
         lastName:
           type: string
+        email:
+          type: string
+          format: email
+          nullable: true
       required:
         - id
         - firstName
@@ -1135,6 +1139,9 @@ components:
           type: string
         lastName:
           type: string
+        email:
+          type: string
+          format: email
       required:
         - role
         - firstName
@@ -1178,6 +1185,9 @@ components:
           type: string
         lastName:
           type: string
+        email:
+          type: string
+          format: email
       required:
         - role
         - firstName
