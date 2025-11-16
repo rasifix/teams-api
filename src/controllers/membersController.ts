@@ -3,10 +3,10 @@ import { dataStore } from '../data/store';
 import { Player, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 
-// Helper function to populate trainer names from User if not present
+// Helper function to populate trainer names and email from User if not present
 async function populateTrainerNames(trainer: Trainer): Promise<Trainer> {
-  if (trainer.userId && (!trainer.firstName || !trainer.lastName)) {
-    const user = await dataStore.getUserById(trainer.userId);
+  if (trainer.email && ((!trainer.firstName || !trainer.lastName))) {
+    const user = await dataStore.getUserByEmail(trainer.email);
     if (user) {
       return {
         ...trainer,
@@ -87,7 +87,7 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email, userId } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -127,11 +127,19 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
       const createdPlayer = await dataStore.createPlayer(newPlayer);
       res.status(201).json({ ...createdPlayer, role: 'player' });
     } else {
+      // For trainers, validate email exists in users if provided
+      if (email) {
+        const linkedUser = await dataStore.getUserByEmail(email);
+        if (!linkedUser) {
+          res.status(400).json({ error: 'Email not found in users' });
+          return;
+        }
+      }
+      
       // For trainers, firstName and lastName are optional (can be populated from User)
       const newTrainer: Trainer = {
         id: await getNextSequence('members'),
         groupId,
-        userId,
         firstName,
         lastName,
         email
@@ -150,7 +158,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email, userId } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -192,9 +200,17 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
       
       res.json({ ...updatedPlayer, role: 'player' });
     } else {
+      // For trainers, validate email exists in users if provided
+      if (email) {
+        const linkedUser = await dataStore.getUserByEmail(email);
+        if (!linkedUser) {
+          res.status(400).json({ error: 'Email not found in users' });
+          return;
+        }
+      }
+      
       // For trainers, firstName and lastName are optional
       const updatedTrainer = await dataStore.updateTrainer(id, {
-        userId,
         firstName,
         lastName,
         email

@@ -59,7 +59,6 @@ export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
   const trainer: Trainer = {
     id: doc._id,
     groupId: doc.groupId,
-    userId: doc.userId,
     firstName: doc.firstName,
     lastName: doc.lastName,
     email: doc.email
@@ -88,7 +87,6 @@ export function trainerToPersonDocument(trainer: Trainer): Omit<PersonDocument, 
     lastName: trainer.lastName,
     role: 'trainer',
     groupId: trainer.groupId,
-    userId: trainer.userId,
     email: trainer.email
   };
 }

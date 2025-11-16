@@ -11,7 +11,6 @@ export interface Player {
 export interface Trainer {
   id: string;
   groupId: string;
-  userId?: string; // Reference to User for authorization and name population
   firstName?: string;
   lastName?: string;
   email?: string;

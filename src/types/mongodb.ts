@@ -16,7 +16,6 @@ export interface PersonDocument extends BaseDocument {
   lastName?: string;
   role: 'player' | 'trainer';
   groupId: string; // Reference to GroupDocument
-  userId?: string; // Optional reference to UserDocument for authorization
   email?: string; // Optional email for trainers
   // Player-specific properties (only present when role === 'player')
   birthYear?: number;
