@@ -224,7 +224,12 @@ class DataStore {
       role: 'trainer' 
     });
     
-    return trainerDoc ? personDocumentToTrainer(trainerDoc) || undefined : undefined;
+    if (!trainerDoc) return undefined;
+    
+    const trainer = personDocumentToTrainer(trainerDoc);
+    if (!trainer) return undefined;
+        
+    return trainer;
   }
 
   async createTrainer(trainer: Trainer): Promise<Trainer> {
@@ -335,7 +340,7 @@ class DataStore {
   // User operations
   async getUserByEmail(email: string): Promise<User | undefined> {
     const usersCollection = mongoConnection.getUsersCollection();
-    const userDoc = await usersCollection.findOne({ email });
+    const userDoc = await usersCollection.findOne({ email: email.toLowerCase() });
     
     if (!userDoc) return undefined;
     

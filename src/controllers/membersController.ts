@@ -142,7 +142,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
         groupId,
         firstName,
         lastName,
-        email
+        email: email ? email.toLowerCase() : undefined
       };
       
       const createdTrainer = await dataStore.createTrainer(newTrainer);
@@ -213,7 +213,7 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
       const updatedTrainer = await dataStore.updateTrainer(id, {
         firstName,
         lastName,
-        email
+        email: email ? email.toLowerCase() : undefined
       });
       
       if (!updatedTrainer) {

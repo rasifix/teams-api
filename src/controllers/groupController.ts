@@ -2,12 +2,45 @@ import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
 import { Group } from '../types';
 import { getNextSequence } from '../utils/sequence';
+import { AuthRequest } from '../middleware/auth';
 
-// GET /api/groups
-export const getAllGroups = async (_req: Request, res: Response): Promise<void> => {
+// GET /api/groups - Get all groups the authenticated user is a trainer in
+export const getAllGroups = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const groups = await dataStore.getAllGroups();
-    res.json(groups);
+    // User must be authenticated
+    if (!req.user?.id) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    // Get the current user
+    const user = await dataStore.getUserById(req.user.id);
+    if (!user) {
+      res.status(401).json({ error: 'User not found' });
+      return;
+    }
+
+    // Get all groups
+    const allGroups = await dataStore.getAllGroups();
+
+    // Filter groups: only return groups where user is a trainer member
+    const userGroups: Group[] = [];
+
+    for (const group of allGroups) {
+      // Get all trainers in this group
+      const trainers = await dataStore.getAllTrainers(group.id);
+
+      // Check if user is a trainer in this group (by email match)
+      const isTrainerInGroup = trainers.some(
+        trainer => trainer.email && trainer.email.toLowerCase() === user.email.toLowerCase()
+      );
+
+      if (isTrainerInGroup) {
+        userGroups.push(group);
+      }
+    }
+
+    res.json(userGroups);
   } catch (error) {
     console.error('Error fetching groups:', error);
     res.status(500).json({ error: 'Failed to fetch groups' });
