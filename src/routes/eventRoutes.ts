@@ -10,7 +10,7 @@ import {
   upsertSelection
 } from '../controllers/eventController';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 router.get('/', getAllEvents);
 router.get('/:id', getEventById);

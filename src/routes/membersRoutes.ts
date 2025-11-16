@@ -7,21 +7,21 @@ import {
   deleteMember
 } from '../controllers/membersController';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
-// GET /api/members?role=player|trainer
+// GET /api/groups/:groupId/members?role=player|trainer
 router.get('/', getAllMembers);
 
-// GET /api/members/:id
+// GET /api/groups/:groupId/members/:id
 router.get('/:id', getMemberById);
 
-// POST /api/members
+// POST /api/groups/:groupId/members
 router.post('/', createMember);
 
-// PUT /api/members/:id
+// PUT /api/groups/:groupId/members/:id
 router.put('/:id', updateMember);
 
-// DELETE /api/members/:id
+// DELETE /api/groups/:groupId/members/:id
 router.delete('/:id', deleteMember);
 
 export default router;

@@ -7,7 +7,7 @@ import {
   deleteShirtSet,
 } from '../controllers/shirtSetController';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 router.get('/', getShirtSets);
 router.get('/:id', getShirtSetById);
