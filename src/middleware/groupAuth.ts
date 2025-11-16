@@ -41,14 +41,10 @@ export const authorizeGroupAccess = async (
     // Get all trainers in the group
     const groupTrainers = await dataStore.getAllTrainers(groupId);
 
-    console.log('Group Trainers:', groupTrainers.map(t => ({ id: t.id, email: t.email })));
-
     // Find a trainer in this group that is linked to this user (by email)
     const isTrainerInGroup = groupTrainers.some(
       trainer => trainer.email && trainer.email.toLowerCase() === user.email.toLowerCase()
     );
-
-    console.log('Is Trainer in Group:', isTrainerInGroup);
 
     if (!isTrainerInGroup) {
       res.status(403).json({ error: 'You do not have access to this group' });
