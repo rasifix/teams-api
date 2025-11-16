@@ -3,6 +3,21 @@ import { dataStore } from '../data/store';
 import { Player, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 
+// Helper function to populate trainer names from User if not present
+async function populateTrainerNames(trainer: Trainer): Promise<Trainer> {
+  if (trainer.userId && (!trainer.firstName || !trainer.lastName)) {
+    const user = await dataStore.getUserById(trainer.userId);
+    if (user) {
+      return {
+        ...trainer,
+        firstName: trainer.firstName || user.firstName,
+        lastName: trainer.lastName || user.lastName
+      };
+    }
+  }
+  return trainer;
+}
+
 // GET /api/groups/:groupId/members?role=player|trainer or GET /api/groups/:groupId/members (returns all)
 export const getAllMembers = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -14,16 +29,24 @@ export const getAllMembers = async (req: Request, res: Response): Promise<void> 
       res.json(players);
     } else if (role === 'trainer') {
       const trainers = await dataStore.getAllTrainers(groupId);
-      res.json(trainers);
+      // Populate trainer names from User
+      const populatedTrainers = await Promise.all(
+        trainers.map(trainer => populateTrainerNames(trainer))
+      );
+      res.json(populatedTrainers);
     } else if (!role) {
       // Return both players and trainers
       const [players, trainers] = await Promise.all([
         dataStore.getAllPlayers(groupId),
         dataStore.getAllTrainers(groupId)
       ]);
+      // Populate trainer names from User
+      const populatedTrainers = await Promise.all(
+        trainers.map(trainer => populateTrainerNames(trainer))
+      );
       res.json({
         players,
-        trainers
+        trainers: populatedTrainers
       });
     } else {
       res.status(400).json({ error: 'Invalid role. Must be "player" or "trainer"' });
@@ -48,7 +71,8 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
     
     const trainer = await dataStore.getTrainerById(id);
     if (trainer) {
-      res.json({ ...trainer, role: 'trainer' });
+      const populatedTrainer = await populateTrainerNames(trainer);
+      res.json({ ...populatedTrainer, role: 'trainer' });
       return;
     }
     
@@ -63,10 +87,10 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email, userId } = req.body;
     
-    if (!role || !firstName || !lastName) {
-      res.status(400).json({ error: 'role, firstName, and lastName are required' });
+    if (!role) {
+      res.status(400).json({ error: 'role is required' });
       return;
     }
     
@@ -76,6 +100,10 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
     }
     
     if (role === 'player') {
+      if (!firstName || !lastName) {
+        res.status(400).json({ error: 'firstName and lastName are required for players' });
+        return;
+      }
       if (typeof birthDate !== 'string' || typeof level !== 'number') {
         res.status(400).json({ error: 'birthDate and level are required for players' });
         return;
@@ -99,9 +127,11 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
       const createdPlayer = await dataStore.createPlayer(newPlayer);
       res.status(201).json({ ...createdPlayer, role: 'player' });
     } else {
+      // For trainers, firstName and lastName are optional (can be populated from User)
       const newTrainer: Trainer = {
         id: await getNextSequence('members'),
         groupId,
+        userId,
         firstName,
         lastName,
         email
@@ -120,10 +150,10 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email, userId } = req.body;
     
-    if (!role || !firstName || !lastName) {
-      res.status(400).json({ error: 'role, firstName, and lastName are required' });
+    if (!role) {
+      res.status(400).json({ error: 'role is required' });
       return;
     }
     
@@ -133,6 +163,10 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
     }
     
     if (role === 'player') {
+      if (!firstName || !lastName) {
+        res.status(400).json({ error: 'firstName and lastName are required for players' });
+        return;
+      }
       if (typeof birthYear !== 'number' || typeof level !== 'number') {
         res.status(400).json({ error: 'birthYear and level are required for players' });
         return;
@@ -158,7 +192,9 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
       
       res.json({ ...updatedPlayer, role: 'player' });
     } else {
+      // For trainers, firstName and lastName are optional
       const updatedTrainer = await dataStore.updateTrainer(id, {
+        userId,
         firstName,
         lastName,
         email

@@ -343,6 +343,8 @@ class DataStore {
       id: userDoc._id,
       email: userDoc.email,
       password: userDoc.password,
+      firstName: userDoc.firstName,
+      lastName: userDoc.lastName,
       createdAt: userDoc.createdAt.toISOString(),
       updatedAt: userDoc.updatedAt.toISOString()
     };
@@ -358,6 +360,8 @@ class DataStore {
       id: userDoc._id,
       email: userDoc.email,
       password: userDoc.password,
+      firstName: userDoc.firstName,
+      lastName: userDoc.lastName,
       createdAt: userDoc.createdAt.toISOString(),
       updatedAt: userDoc.updatedAt.toISOString()
     };
@@ -371,6 +375,8 @@ class DataStore {
       _id: user.id,
       email: user.email,
       password: user.password,
+      firstName: user.firstName,
+      lastName: user.lastName,
       createdAt: now,
       updatedAt: now
     };
@@ -381,6 +387,8 @@ class DataStore {
       id: newDoc._id,
       email: newDoc.email,
       password: newDoc.password,
+      firstName: newDoc.firstName,
+      lastName: newDoc.lastName,
       createdAt: newDoc.createdAt.toISOString(),
       updatedAt: newDoc.updatedAt.toISOString()
     };

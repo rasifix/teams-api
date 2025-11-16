@@ -12,10 +12,11 @@ export interface GroupDocument extends BaseDocument {
 
 // Members Collection - Unified collection for players and trainers
 export interface PersonDocument extends BaseDocument {
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
   role: 'player' | 'trainer';
   groupId: string; // Reference to GroupDocument
+  userId?: string; // Optional reference to UserDocument for authorization
   email?: string; // Optional email for trainers
   // Player-specific properties (only present when role === 'player')
   birthYear?: number;
@@ -104,6 +105,8 @@ export function isTrainerDocument(person: PersonDocument): person is TrainerDocu
 export interface UserDocument extends BaseDocument {
   email: string;
   password: string; // Hashed password
+  firstName?: string;
+  lastName?: string;
 }
 
 // Password Reset Collection

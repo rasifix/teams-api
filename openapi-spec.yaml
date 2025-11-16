@@ -37,8 +37,14 @@ paths:
                   example: user@example.com
                 password:
                   type: string
-                  minLength: 6
+                  minLength: 16
                   example: mySecurePassword123
+                firstName:
+                  type: string
+                  example: John
+                lastName:
+                  type: string
+                  example: Doe
               required:
                 - email
                 - password
@@ -1024,6 +1030,12 @@ components:
         email:
           type: string
           format: email
+        firstName:
+          type: string
+          nullable: true
+        lastName:
+          type: string
+          nullable: true
         createdAt:
           type: string
           format: date-time

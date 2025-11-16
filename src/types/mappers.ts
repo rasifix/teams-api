@@ -42,8 +42,8 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
   return {
     id: doc._id,
     groupId: doc.groupId,
-    firstName: doc.firstName,
-    lastName: doc.lastName,
+    firstName: doc.firstName!,
+    lastName: doc.lastName!,
     birthYear: doc.birthYear,
     birthDate: doc.birthDate,
     level: doc.level
@@ -56,13 +56,16 @@ export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
     return null;
   }
   
-  return {
+  const trainer: Trainer = {
     id: doc._id,
     groupId: doc.groupId,
+    userId: doc.userId,
     firstName: doc.firstName,
     lastName: doc.lastName,
     email: doc.email
   };
+  
+  return trainer;
 }
 
 // Convert API Player to MongoDB PersonDocument (for create operations)
@@ -85,6 +88,7 @@ export function trainerToPersonDocument(trainer: Trainer): Omit<PersonDocument, 
     lastName: trainer.lastName,
     role: 'trainer',
     groupId: trainer.groupId,
+    userId: trainer.userId,
     email: trainer.email
   };
 }

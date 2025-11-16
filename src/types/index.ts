@@ -11,8 +11,9 @@ export interface Player {
 export interface Trainer {
   id: string;
   groupId: string;
-  firstName: string;
-  lastName: string;
+  userId?: string; // Reference to User for authorization and name population
+  firstName?: string;
+  lastName?: string;
   email?: string;
 }
 
@@ -69,6 +70,8 @@ export interface User {
   id: string;
   email: string;
   password: string; // Hashed password
+  firstName?: string;
+  lastName?: string;
   createdAt?: string;
   updatedAt?: string;
 }
