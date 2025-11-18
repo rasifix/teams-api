@@ -59,6 +59,9 @@ async function startServer() {
       console.log('  POST   /api/groups');
       console.log('  GET    /api/groups/:groupId/members?role=player|trainer');
       console.log('  POST   /api/groups/:groupId/members');
+      console.log('  GET    /api/groups/:groupId/members/:memberId/evaluations');
+      console.log('  POST   /api/groups/:groupId/members/:memberId/evaluations');
+      console.log('  PUT    /api/groups/:groupId/members/:memberId/evaluations/:evaluationId');
       console.log('  GET    /api/groups/:groupId/events');
       console.log('  POST   /api/groups/:groupId/events');
       console.log('  GET    /api/groups/:groupId/shirtsets');

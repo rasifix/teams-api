@@ -1,5 +1,5 @@
 import { mongoConnection } from '../database/connection';
-import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset } from '../types';
+import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation } from '../types';
 import { 
   GroupDocument,
   PersonDocument, 
@@ -115,14 +115,52 @@ class DataStore {
 
   async updatePlayer(id: string, updates: Partial<Omit<Player, 'id'>>): Promise<Player | null> {
     const membersCollection = mongoConnection.getMembersCollection();
+    // Filter out evaluations from updates since they should be managed separately
+    const { evaluations, ...safeUpdates } = updates;
     const updateDoc = {
-      ...updates,
+      ...safeUpdates,
       updatedAt: new Date()
     };
     
     const result = await membersCollection.findOneAndUpdate(
       { _id: id, role: 'player' },
       { $set: updateDoc },
+      { returnDocument: 'after' }
+    );
+    
+    return result ? personDocumentToPlayer(result) : null;
+  }
+
+  async addEvaluationToPlayer(playerId: string, evaluation: PlayerEvaluation): Promise<Player | null> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    const { playerEvaluationToEmbedded } = await import('../types/mappers');
+    const embeddedEvaluation = playerEvaluationToEmbedded(evaluation);
+    
+    const result = await membersCollection.findOneAndUpdate(
+      { _id: playerId, role: 'player' },
+      { 
+        $push: { evaluations: embeddedEvaluation },
+        $set: { updatedAt: new Date() }
+      },
+      { returnDocument: 'after' }
+    );
+    
+    return result ? personDocumentToPlayer(result) : null;
+  }
+
+  async updateEvaluationForPlayer(playerId: string, evaluationId: string, evaluation: PlayerEvaluation): Promise<Player | null> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    const { playerEvaluationToEmbedded } = await import('../types/mappers');
+    const embeddedEvaluation = playerEvaluationToEmbedded(evaluation);
+    
+    const result = await membersCollection.findOneAndUpdate(
+      { _id: playerId, role: 'player', 'evaluations.id': evaluationId },
+      { 
+        $set: { 
+          'evaluations.$': embeddedEvaluation,
+          updatedAt: new Date()
+        }
+      },
       { returnDocument: 'after' }
     );
     

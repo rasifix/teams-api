@@ -4,7 +4,8 @@ import type {
   EventDocument, 
   ShirtSetDocument,
   TeamEmbedded,
-  InvitationEmbedded
+  InvitationEmbedded,
+  EvaluationEmbedded
 } from './mongodb';
 import type { 
   Group,
@@ -13,7 +14,8 @@ import type {
   Event, 
   ShirtSet, 
   Team, 
-  Invitation 
+  Invitation,
+  PlayerEvaluation
 } from './index';
 
 // Convert MongoDB GroupDocument to API Group
@@ -33,6 +35,32 @@ export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 
   };
 }
 
+// Convert embedded evaluation from MongoDB to API format
+export function embeddedEvaluationToPlayerEvaluation(embedded: EvaluationEmbedded): PlayerEvaluation {
+  return {
+    id: embedded.id,
+    playerId: embedded.playerId,
+    evaluationDate: embedded.evaluationDate,
+    userId: embedded.userId,
+    score: embedded.score,
+    comments: embedded.comments,
+    createdAt: embedded.createdAt.toISOString()
+  };
+}
+
+// Convert API evaluation to embedded format
+export function playerEvaluationToEmbedded(evaluation: PlayerEvaluation): EvaluationEmbedded {
+  return {
+    id: evaluation.id,
+    playerId: evaluation.playerId,
+    evaluationDate: evaluation.evaluationDate,
+    userId: evaluation.userId,
+    score: evaluation.score,
+    comments: evaluation.comments,
+    createdAt: evaluation.createdAt ? new Date(evaluation.createdAt) : new Date()
+  };
+}
+
 // Convert MongoDB PersonDocument to API Player
 export function personDocumentToPlayer(doc: PersonDocument): Player | null {
   if (doc.role !== 'player' || !doc.birthYear || !doc.level) {
@@ -46,7 +74,8 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
     lastName: doc.lastName!,
     birthYear: doc.birthYear,
     birthDate: doc.birthDate,
-    level: doc.level
+    level: doc.level,
+    evaluations: doc.evaluations?.map(embeddedEvaluationToPlayerEvaluation)
   };
 }
 

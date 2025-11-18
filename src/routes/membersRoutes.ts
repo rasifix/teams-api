@@ -6,6 +6,7 @@ import {
   updateMember,
   deleteMember
 } from '../controllers/membersController';
+import evaluationRoutes from './evaluationRoutes';
 
 const router = Router({ mergeParams: true });
 
@@ -23,5 +24,9 @@ router.put('/:id', updateMember);
 
 // DELETE /api/groups/:groupId/members/:id
 router.delete('/:id', deleteMember);
+
+// Nested evaluation routes for members
+// /api/groups/:groupId/members/:memberId/evaluations
+router.use('/:memberId/evaluations', evaluationRoutes);
 
 export default router;

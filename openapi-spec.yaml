@@ -773,6 +773,150 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/groups/{groupId}/members/{memberId}/evaluations:
+    get:
+      operationId: getAllEvaluationsForMember
+      summary: Get all evaluations for a member
+      description: Retrieve all evaluations for a specific member (player) in a specific group
+      tags:
+        - Evaluations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Successfully retrieved evaluations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayerEvaluation'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createEvaluation
+      summary: Create a new evaluation for a player
+      description: Create a new evaluation for a specific player in a specific group
+      tags:
+        - Evaluations
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerEvaluation'
+      responses:
+        '201':
+          description: Evaluation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerEvaluation'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/members/{memberId}/evaluations/{evaluationId}:
+    put:
+      operationId: updateEvaluation
+      summary: Update evaluation by ID
+      description: Update a specific evaluation by ID for a specific member (player) in a specific group
+      tags:
+        - Evaluations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: evaluationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlayerEvaluation'
+      responses:
+        '200':
+          description: Evaluation updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayerEvaluation'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Evaluation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/groups/{groupId}/events:
     get:
       operationId: getAllEvents
@@ -1649,6 +1793,46 @@ components:
         - lastName
         - birthYear
         - level
+    
+    PlayerEvaluation:
+      type: object
+      properties:
+        id:
+          type: string
+        playerId:
+          type: string
+        evaluationDate:
+          type: string
+          format: date
+        userId:
+          type: string
+        score:
+          type: object
+          properties:
+            technical:
+              type: integer
+              minimum: 1
+              maximum: 5
+            intelligence:
+              type: integer
+              minimum: 1
+              maximum: 5
+            personality:
+              type: integer
+              minimum: 1
+              maximum: 5
+            speed:
+              type: integer
+              minimum: 1
+              maximum: 5
+        comments:
+          type: string
+          nullable: true
+      required:
+        - playerId
+        - evaluationDate
+        - score
+        - userId
 
     Trainer:
       type: object
@@ -2005,6 +2189,8 @@ tags:
     description: Operations on groups for organizing teams
   - name: Members
     description: Operations on members (players and trainers) within a group
+  - name: Evaluations
+    description: Operations on player evaluations within a group
   - name: Events
     description: Operations on events and team management within a group
   - name: Shirt Sets

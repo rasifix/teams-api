@@ -1,3 +1,18 @@
+export interface PlayerEvaluation {
+  id: string;
+  playerId: string;
+  evaluationDate: string; // ISO date string (YYYY-MM-DD)
+  userId: string; // ID of the trainer who created the evaluation
+  score: {
+    technical: number; // 1-5
+    intelligence: number; // 1-5
+    personality: number; // 1-5
+    speed: number; // 1-5
+  };
+  comments?: string;
+  createdAt?: string;
+}
+
 export interface Player {
   id: string;
   groupId: string;
@@ -6,6 +21,7 @@ export interface Player {
   birthYear?: number;
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level: number; // 1-5
+  evaluations?: PlayerEvaluation[];
 }
 
 export interface Trainer {

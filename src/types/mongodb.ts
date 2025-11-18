@@ -10,6 +10,22 @@ export interface GroupDocument extends BaseDocument {
   name: string;
 }
 
+// Embedded evaluation document (within player documents)
+export interface EvaluationEmbedded {
+  id: string;
+  playerId: string; // Reference to PersonDocument with role 'player'
+  evaluationDate: string; // ISO date string (YYYY-MM-DD)
+  userId: string; // Reference to UserDocument (trainer who created the evaluation)
+  score: {
+    technical: number; // 1-5
+    intelligence: number; // 1-5
+    personality: number; // 1-5
+    speed: number; // 1-5
+  };
+  comments?: string;
+  createdAt: Date;
+}
+
 // Members Collection - Unified collection for players and trainers
 export interface PersonDocument extends BaseDocument {
   firstName?: string;
@@ -21,6 +37,7 @@ export interface PersonDocument extends BaseDocument {
   birthYear?: number;
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
+  evaluations?: EvaluationEmbedded[]; // Player evaluations (only present when role === 'player')
 }
 
 // Embedded invitation document (within events)
