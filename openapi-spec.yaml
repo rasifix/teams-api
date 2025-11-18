@@ -917,6 +917,58 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+    delete:
+      operationId: deleteEvaluation
+      summary: Delete evaluation by ID
+      description: Delete a specific evaluation by ID for a specific member (player) in a specific group
+      tags:
+        - Evaluations
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: evaluationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Evaluation deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Evaluation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/groups/{groupId}/events:
     get:
       operationId: getAllEvents

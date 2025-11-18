@@ -187,3 +187,43 @@ export const updateEvaluation = async (req: AuthRequest, res: Response): Promise
     res.status(500).json({ error: 'Failed to update evaluation' });
   }
 };
+
+// DELETE /api/groups/:groupId/members/:memberId/evaluations/:evaluationId
+export const deleteEvaluation = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { groupId, memberId, evaluationId } = req.params;
+    
+    // Get the player to check if they exist and are in the correct group
+    const player = await dataStore.getPlayerById(memberId);
+    
+    if (!player) {
+      res.status(404).json({ error: 'Player not found' });
+      return;
+    }
+    
+    if (player.groupId !== groupId) {
+      res.status(404).json({ error: 'Player not found in this group' });
+      return;
+    }
+    
+    // Check if evaluation exists
+    const existingEvaluation = player.evaluations?.find(e => e.id === evaluationId);
+    if (!existingEvaluation) {
+      res.status(404).json({ error: 'Evaluation not found' });
+      return;
+    }
+    
+    // Delete the evaluation from the player document
+    const deleted = await dataStore.deleteEvaluationFromPlayer(memberId, evaluationId);
+    
+    if (!deleted) {
+      res.status(500).json({ error: 'Failed to delete evaluation' });
+      return;
+    }
+    
+    res.status(204).send();
+  } catch (error) {
+    console.error('Error deleting evaluation:', error);
+    res.status(500).json({ error: 'Failed to delete evaluation' });
+  }
+};

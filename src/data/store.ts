@@ -167,6 +167,20 @@ class DataStore {
     return result ? personDocumentToPlayer(result) : null;
   }
 
+  async deleteEvaluationFromPlayer(playerId: string, evaluationId: string): Promise<boolean> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    
+    const result = await membersCollection.updateOne(
+      { _id: playerId, role: 'player' },
+      { 
+        $pull: { evaluations: { id: evaluationId } },
+        $set: { updatedAt: new Date() }
+      }
+    );
+    
+    return result.modifiedCount > 0;
+  }
+
   async deletePlayer(id: string): Promise<boolean> {
     const membersCollection = mongoConnection.getMembersCollection();
     const result = await membersCollection.deleteOne({ 
