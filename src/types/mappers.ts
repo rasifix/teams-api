@@ -23,6 +23,7 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
   return {
     id: doc._id,
     name: doc.name,
+    club: doc.club,
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString()
   };
@@ -31,7 +32,8 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
 // Convert API Group to MongoDB GroupDocument (for create operations)
 export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 'createdAt' | 'updatedAt'> {
   return {
-    name: group.name
+    name: group.name,
+    club: group.club
   };
 }
 

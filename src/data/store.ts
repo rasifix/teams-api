@@ -52,7 +52,7 @@ class DataStore {
     return group;
   }
 
-  async updateGroup(id: string, updates: Partial<Pick<Group, 'name'>>): Promise<Group | null> {
+  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club'>>): Promise<Group | null> {
     const groupsCollection = mongoConnection.getGroupsCollection();
     const updateDoc = {
       ...updates,

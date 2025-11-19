@@ -68,7 +68,7 @@ export const getGroupById = async (req: Request, res: Response): Promise<void> =
 // POST /api/groups
 export const createGroup = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name } = req.body;
+    const { name, club } = req.body;
     
     if (!name) {
       res.status(400).json({ error: 'name is required' });
@@ -77,7 +77,8 @@ export const createGroup = async (req: Request, res: Response): Promise<void> =>
     
     const newGroup: Group = {
       id: await getNextSequence('groups'),
-      name
+      name,
+      club
     };
     
     const createdGroup = await dataStore.createGroup(newGroup);
@@ -92,14 +93,14 @@ export const createGroup = async (req: Request, res: Response): Promise<void> =>
 export const updateGroup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, club } = req.body;
     
     if (!name) {
       res.status(400).json({ error: 'name is required' });
       return;
     }
     
-    const updatedGroup = await dataStore.updateGroup(id, { name });
+    const updatedGroup = await dataStore.updateGroup(id, { name, club });
     
     if (!updatedGroup) {
       res.status(404).json({ error: 'Group not found' });

@@ -8,6 +8,7 @@ export interface BaseDocument {
 // Groups Collection
 export interface GroupDocument extends BaseDocument {
   name: string;
+  club?: string;
 }
 
 // Embedded evaluation document (within player documents)

@@ -35,6 +35,7 @@ export interface Trainer {
 export interface Group {
   id: string;
   name: string;
+  club?: string;
   createdAt?: string;
   updatedAt?: string;
 }

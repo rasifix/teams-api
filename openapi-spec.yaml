@@ -1750,6 +1750,9 @@ components:
           type: string
         name:
           type: string
+        club:
+          type: string
+          nullable: true
         description:
           type: string
           nullable: true
@@ -1784,6 +1787,9 @@ components:
       properties:
         name:
           type: string
+        club:
+          type: string
+          nullable: true
         description:
           type: string
           nullable: true
@@ -1805,6 +1811,9 @@ components:
       properties:
         name:
           type: string
+        club:
+          type: string
+          nullable: true
         description:
           type: string
           nullable: true
