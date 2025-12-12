@@ -1331,7 +1331,7 @@ paths:
               properties:
                 status:
                   type: string
-                  enum: [open, accepted, declined]
+                  enum: [open, accepted, declined, injured]
               required:
                 - status
       responses:
@@ -2037,7 +2037,7 @@ components:
           
         status:
           type: string
-          enum: [open, accepted, declined]
+          enum: [open, accepted, declined, injured]
       required:
         - id
         - playerId
