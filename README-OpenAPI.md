@@ -88,6 +88,7 @@ POST /api/events
   "name": "Saturday Practice",
   "date": "2025-11-15",
   "maxPlayersPerTeam": 11,
+  "minPlayersPerTeam": 7,
   "teams": [
     {
       "id": "uuid",

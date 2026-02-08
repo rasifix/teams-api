@@ -12,10 +12,8 @@ info:
 servers:
   - url: https://api.teams.com
     description: Production server
-
 # Authentication is optional for most endpoints, but required for some
 security: []
-
 paths:
   /auth/register:
     post:
@@ -79,7 +77,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /auth/login:
     post:
       operationId: loginUser
@@ -135,7 +132,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /auth/me:
     get:
       operationId: getCurrentUser
@@ -170,7 +166,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /auth/request-reset:
     post:
       operationId: requestPasswordReset
@@ -214,7 +209,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /auth/reset-password:
     post:
       operationId: resetPassword
@@ -273,7 +267,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /health:
     get:
       operationId: healthCheck
@@ -310,7 +303,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups:
     get:
       operationId: getAllGroups
@@ -341,7 +333,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     post:
       operationId: createGroup
       summary: Create a new group
@@ -373,7 +364,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}:
     get:
       operationId: getGroupById
@@ -406,7 +396,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     put:
       operationId: updateGroupById
       summary: Update group by ID
@@ -450,7 +439,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     delete:
       operationId: deleteGroupById
       summary: Delete group by ID
@@ -478,7 +466,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/members:
     get:
       operationId: getAllMembers
@@ -548,7 +535,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     post:
       operationId: createMember
       summary: Create a new member in a group
@@ -604,7 +590,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/members/{id}:
     get:
       operationId: getMemberById
@@ -658,7 +643,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     put:
       operationId: updateMemberById
       summary: Update member by ID
@@ -725,7 +709,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     delete:
       operationId: deleteMemberById
       summary: Delete member by ID
@@ -772,7 +755,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/members/{memberId}/evaluations:
     get:
       operationId: getAllEvaluationsForMember
@@ -916,7 +898,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     delete:
       operationId: deleteEvaluation
       summary: Delete evaluation by ID
@@ -968,7 +949,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/events:
     get:
       operationId: getAllEvents
@@ -1011,7 +991,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     post:
       operationId: createEvent
       summary: Create a new event in a group
@@ -1063,7 +1042,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/events/{id}:
     get:
       operationId: getEventById
@@ -1115,7 +1093,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     put:
       operationId: updateEventById
       summary: Update event by ID
@@ -1178,7 +1155,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     delete:
       operationId: deleteEventById
       summary: Delete event by ID
@@ -1225,7 +1201,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/events/{id}/players:
     put:
       operationId: upsertEventInvitations
@@ -1296,7 +1271,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/events/{id}/players/{player_id}/status:
     put:
       operationId: updateInvitationStatus
@@ -1371,7 +1345,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/events/{id}/selection:
     put:
       operationId: updateTeamSelection
@@ -1442,7 +1415,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/shirtsets:
     get:
       operationId: getAllShirtSets
@@ -1485,7 +1457,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     post:
       operationId: createShirtSet
       summary: Create a new shirt set in a group
@@ -1537,7 +1508,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
   /api/groups/{groupId}/shirtsets/{id}:
     get:
       operationId: getShirtSetById
@@ -1589,7 +1559,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     put:
       operationId: updateShirtSetById
       summary: Update shirt set by ID
@@ -1652,7 +1621,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
     delete:
       operationId: deleteShirtSetById
       summary: Delete shirt set by ID
@@ -1699,7 +1667,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-
 components:
   securitySchemes:
     bearerAuth:
@@ -1707,7 +1674,6 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: JWT token obtained from /auth/login or /auth/register
-
   schemas:
     Error:
       type: object
@@ -1718,7 +1684,6 @@ components:
           type: string
       required:
         - error
-
     UserResponse:
       type: object
       properties:
@@ -1742,7 +1707,6 @@ components:
       required:
         - id
         - email
-
     Group:
       type: object
       properties:
@@ -1781,7 +1745,6 @@ components:
       required:
         - id
         - name
-
     CreateGroupRequest:
       type: object
       properties:
@@ -1805,7 +1768,6 @@ components:
                 format: email
       required:
         - name
-
     UpdateGroupRequest:
       type: object
       properties:
@@ -1827,7 +1789,6 @@ components:
               email:
                 type: string
                 format: email
-
     Player:
       type: object
       properties:
@@ -1894,7 +1855,6 @@ components:
         - evaluationDate
         - score
         - userId
-
     Trainer:
       type: object
       properties:
@@ -1912,7 +1872,6 @@ components:
         - id
         - firstName
         - lastName
-
     PlayerWithRole:
       allOf:
         - $ref: '#/components/schemas/Player'
@@ -1923,7 +1882,6 @@ components:
               enum: [player]
           required:
             - role
-
     TrainerWithRole:
       allOf:
         - $ref: '#/components/schemas/Trainer'
@@ -1961,7 +1919,6 @@ components:
         - lastName
         - birthDate
         - level
-
     CreateTrainerRequest:
       type: object
       properties:
@@ -1979,7 +1936,6 @@ components:
         - role
         - firstName
         - lastName
-
     UpdatePlayerRequest:
       type: object
       properties:
@@ -2007,7 +1963,6 @@ components:
         - lastName
         - birthYear
         - level
-
     UpdateTrainerRequest:
       type: object
       properties:
@@ -2025,7 +1980,6 @@ components:
         - role
         - firstName
         - lastName
-
     Invitation:
       type: object
       properties:
@@ -2042,7 +1996,6 @@ components:
         - id
         - playerId
         - status
-
     ShirtAssignment:
       type: object
       properties:
@@ -2055,13 +2008,11 @@ components:
       required:
         - playerId
         - shirtNumber
-
     Team:
       type: object
       properties:
         id:
           type: string
-          
         name:
           type: string
         strength:
@@ -2077,14 +2028,11 @@ components:
           type: array
           items:
             type: string
-            
         trainerId:
           type: string
-          
           nullable: true
         shirtSetId:
           type: string
-          
           nullable: true
         shirtAssignments:
           type: array
@@ -2097,7 +2045,6 @@ components:
         - strength
         - startTime
         - selectedPlayers
-
     Event:
       type: object
       properties:
@@ -2109,6 +2056,9 @@ components:
           type: string
           format: date
         maxPlayersPerTeam:
+          type: integer
+          minimum: 1
+        minPlayersPerTeam:
           type: integer
           minimum: 1
         location:
@@ -2125,10 +2075,10 @@ components:
         - id
         - name
         - date
+        - minPlayersPerTeam
         - maxPlayersPerTeam
         - teams
         - invitations
-
     CreateEventRequest:
       type: object
       properties:
@@ -2140,6 +2090,10 @@ components:
         maxPlayersPerTeam:
           type: integer
           minimum: 1
+        minPlayersPerTeam:
+          type: integer
+          minimum: 1
+          default: 1
         location:
           type: string
         teams:
@@ -2150,7 +2104,7 @@ components:
         - name
         - date
         - maxPlayersPerTeam
-
+        - minPlayersPerTeam
     UpdateEventRequest:
       type: object
       properties:
@@ -2172,7 +2126,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Invitation'
-
     Shirt:
       type: object
       properties:
@@ -2188,7 +2141,6 @@ components:
         - number
         - size
         - isGoalkeeper
-
     ShirtSet:
       type: object
       properties:
@@ -2208,7 +2160,6 @@ components:
         - sponsor
         - color
         - shirts
-
     CreateShirtSetRequest:
       type: object
       properties:
@@ -2224,7 +2175,6 @@ components:
         - sponsor
         - color
         - shirts
-
     UpdateShirtSetRequest:
       type: object
       properties:
@@ -2240,7 +2190,6 @@ components:
         - sponsor
         - color
         - shirts
-
 tags:
   - name: Authentication
     description: User registration and authentication endpoints

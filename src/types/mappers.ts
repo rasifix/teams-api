@@ -184,6 +184,7 @@ export function eventDocumentToEvent(doc: EventDocument): Event {
     name: doc.name,
     date: doc.eventDate.toISOString().split('T')[0], // Convert Date to ISO string
     maxPlayersPerTeam: doc.maxPlayersPerTeam,
+    minPlayersPerTeam: doc.minPlayersPerTeam,
     location: doc.location,
     teams: doc.teams.map(embeddedTeamToTeam),
     invitations: doc.invitations.map(embeddedInvitationToInvitation)
@@ -196,6 +197,7 @@ export function eventToEventDocument(event: Omit<Event, 'id'>): Omit<EventDocume
     name: event.name,
     eventDate: new Date(event.date),
     maxPlayersPerTeam: event.maxPlayersPerTeam,
+    minPlayersPerTeam: event.minPlayersPerTeam,
     groupId: event.groupId,
     location: event.location,
     teams: event.teams.map(teamToEmbedded),

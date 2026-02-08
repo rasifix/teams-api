@@ -32,12 +32,6 @@ export const authorizeGroupAccess = async (
       return;
     }
 
-    console.log('Authorization Check:', {
-      userId: req.user.id,
-      userEmail: user.email,
-      groupId,
-    });
-
     // Get all trainers in the group
     const groupTrainers = await dataStore.getAllTrainers(groupId);
 

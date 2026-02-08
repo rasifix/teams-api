@@ -22,6 +22,7 @@ interface LocalStorageData {
     name: string;
     date: string;
     maxPlayersPerTeam: number;
+    minPlayersPerTeam: number;
     teams: Array<{
       id: string;
       name: string;
@@ -198,6 +199,7 @@ export const importLocalStorageData = async (req: Request, res: Response): Promi
             name: eventData.name,
             date: eventData.date,
             maxPlayersPerTeam: eventData.maxPlayersPerTeam,
+            minPlayersPerTeam: eventData.minPlayersPerTeam || 1, // Default to 1 if not provided for backward compatibility
             teams: updatedTeams,
             invitations: updatedInvitations
           };

@@ -73,6 +73,7 @@ export interface EventDocument extends BaseDocument {
   name: string;
   eventDate: Date; // Using Date instead of string for better MongoDB operations
   maxPlayersPerTeam: number;
+  minPlayersPerTeam: number;
   groupId: string; // Reference to GroupDocument
   location?: string; // Optional location field
   teams: TeamEmbedded[];
