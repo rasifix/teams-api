@@ -154,6 +154,7 @@ export const updateInvitationStatus = async (req: Request, res: Response): Promi
   try {
     const { id, player_id } = req.params;
     const { status } = req.body;
+    const validStatuses = ['open', 'accepted', 'declined', 'injured', 'sick', 'unavailable'];
     
     const event = await dataStore.getEventById(id);
     if (!event) {
@@ -161,8 +162,8 @@ export const updateInvitationStatus = async (req: Request, res: Response): Promi
       return;
     }
     
-    if (!['open', 'accepted', 'declined'].includes(status)) {
-      res.status(400).json({ error: 'Invalid status. Must be open, accepted, or declined' });
+    if (!validStatuses.includes(status)) {
+      res.status(400).json({ error: 'Invalid status. Must be open, accepted, declined, injured, sick, or unavailable' });
       return;
     }
     

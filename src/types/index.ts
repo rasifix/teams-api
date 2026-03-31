@@ -43,7 +43,7 @@ export interface Group {
 export interface Invitation {
   id: string;
   playerId: string;
-  status: 'open' | 'accepted' | 'declined' | 'injured';
+  status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
 }
 
 export interface Team {

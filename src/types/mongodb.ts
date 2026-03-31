@@ -45,7 +45,7 @@ export interface PersonDocument extends BaseDocument {
 export interface InvitationEmbedded {
   id: string;
   playerId: string; // Reference to PersonDocument with role 'player'
-  status: 'open' | 'accepted' | 'declined' | 'injured';
+  status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
   sentAt?: Date;
   respondedAt?: Date;
 }

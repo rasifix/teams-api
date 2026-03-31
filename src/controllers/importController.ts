@@ -36,7 +36,7 @@ interface LocalStorageData {
     invitations: Array<{
       id: string;
       playerId: string;
-      status: 'open' | 'accepted' | 'declined';
+      status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
     }>;
   }>;
   shirtSets?: Array<{
