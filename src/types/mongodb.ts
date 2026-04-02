@@ -62,6 +62,7 @@ export interface TeamEmbedded {
   name: string;
   strength: number; // 1 (highest) to 3 (lowest), default 2
   startTime: string; // HH:MM format
+  location?: string; // Optional team-specific location overriding event location
   selectedPlayers: string[]; // References to PersonDocument with role 'player'
   trainerId?: string; // Reference to PersonDocument with role 'trainer'
   shirtSetId?: string; // Reference to ShirtSetDocument

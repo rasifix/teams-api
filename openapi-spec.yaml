@@ -2024,6 +2024,9 @@ components:
           type: string
           pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
           example: "14:30"
+        location:
+          type: string
+          description: Optional location for the team (overrides event location)
         selectedPlayers:
           type: array
           items:
