@@ -6,9 +6,17 @@ export interface BaseDocument {
 }
 
 // Groups Collection
+export interface PeriodEmbedded {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
 export interface GroupDocument extends BaseDocument {
   name: string;
   club?: string;
+  periods?: PeriodEmbedded[];
 }
 
 // Embedded evaluation document (within player documents)

@@ -1,5 +1,6 @@
 import type { 
   GroupDocument,
+  PeriodEmbedded,
   PersonDocument, 
   EventDocument, 
   ShirtSetDocument,
@@ -9,6 +10,7 @@ import type {
 } from './mongodb';
 import type { 
   Group,
+  Period,
   Player, 
   Trainer, 
   Event, 
@@ -18,12 +20,31 @@ import type {
   PlayerEvaluation
 } from './index';
 
+export function embeddedPeriodToPeriod(embedded: PeriodEmbedded): Period {
+  return {
+    id: embedded.id,
+    name: embedded.name,
+    startDate: embedded.startDate,
+    endDate: embedded.endDate
+  };
+}
+
+export function periodToEmbedded(period: Period): PeriodEmbedded {
+  return {
+    id: period.id,
+    name: period.name,
+    startDate: period.startDate,
+    endDate: period.endDate
+  };
+}
+
 // Convert MongoDB GroupDocument to API Group
 export function groupDocumentToGroup(doc: GroupDocument): Group {
   return {
     id: doc._id,
     name: doc.name,
     club: doc.club,
+    periods: doc.periods?.map(embeddedPeriodToPeriod) ?? [],
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString()
   };
@@ -33,7 +54,8 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
 export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 'createdAt' | 'updatedAt'> {
   return {
     name: group.name,
-    club: group.club
+    club: group.club,
+    periods: group.periods?.map(periodToEmbedded) ?? []
   };
 }
 

@@ -1,5 +1,5 @@
 import { mongoConnection } from '../database/connection';
-import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation } from '../types';
+import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period } from '../types';
 import { 
   GroupDocument,
   PersonDocument, 
@@ -11,6 +11,7 @@ import {
 import {
   groupDocumentToGroup,
   groupToGroupDocument,
+  embeddedPeriodToPeriod,
   personDocumentToPlayer,
   personDocumentToTrainer,
   playerToPersonDocument,
@@ -72,6 +73,79 @@ class DataStore {
     const groupsCollection = mongoConnection.getGroupsCollection();
     const result = await groupsCollection.deleteOne({ _id: id });
     return result.deletedCount > 0;
+  }
+
+  async getGroupPeriods(groupId: string): Promise<Period[] | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupDoc = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { periods: 1 } }
+    );
+
+    if (!groupDoc) {
+      return null;
+    }
+
+    return (groupDoc.periods ?? []).map(embeddedPeriodToPeriod);
+  }
+
+  async addPeriodToGroup(groupId: string, period: Period): Promise<Period | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const { periodToEmbedded } = await import('../types/mappers');
+    const embeddedPeriod = periodToEmbedded(period);
+
+    const result = await groupsCollection.findOneAndUpdate(
+      { _id: groupId },
+      {
+        $push: { periods: embeddedPeriod },
+        $set: { updatedAt: new Date() }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    const createdPeriod = result.periods?.find(existingPeriod => existingPeriod.id === period.id);
+    return createdPeriod ? embeddedPeriodToPeriod(createdPeriod) : null;
+  }
+
+  async updatePeriodInGroup(groupId: string, periodId: string, updates: Partial<Omit<Period, 'id'>>): Promise<Period | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const updateDoc: Record<string, string | Date> = {
+      updatedAt: new Date()
+    };
+
+    if (updates.name !== undefined) updateDoc['periods.$.name'] = updates.name;
+    if (updates.startDate !== undefined) updateDoc['periods.$.startDate'] = updates.startDate;
+    if (updates.endDate !== undefined) updateDoc['periods.$.endDate'] = updates.endDate;
+
+    const result = await groupsCollection.findOneAndUpdate(
+      { _id: groupId, 'periods.id': periodId },
+      { $set: updateDoc },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    const updatedPeriod = result.periods?.find(existingPeriod => existingPeriod.id === periodId);
+    return updatedPeriod ? embeddedPeriodToPeriod(updatedPeriod) : null;
+  }
+
+  async deletePeriodFromGroup(groupId: string, periodId: string): Promise<boolean> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const result = await groupsCollection.updateOne(
+      { _id: groupId },
+      {
+        $pull: { periods: { id: periodId } },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    return result.modifiedCount > 0;
   }
 
   // Player operations (now scoped to groups)

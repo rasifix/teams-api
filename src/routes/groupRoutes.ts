@@ -14,6 +14,7 @@ import { authorizeGroupAccess } from '../middleware/groupAuth';
 import membersRoutes from './membersRoutes';
 import eventRoutes from './eventRoutes';
 import shirtSetRoutes from './shirtSetRoutes';
+import periodsRoutes from './periodsRoutes';
 
 const router = Router();
 
@@ -44,5 +45,10 @@ router.use('/:groupId/shirtsets', authenticateToken, authorizeGroupAccess, (req,
   req.params.groupId = req.params.groupId;
   next();
 }, shirtSetRoutes);
+
+router.use('/:groupId/periods', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
+  req.params.groupId = req.params.groupId;
+  next();
+}, periodsRoutes);
 
 export default router;

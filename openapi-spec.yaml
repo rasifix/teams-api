@@ -1189,6 +1189,196 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/periods:
+    get:
+      operationId: getGroupPeriods
+      summary: Get periods for a group
+      description: Retrieve all periods belonging to a specific group
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved periods
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Period'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createGroupPeriod
+      summary: Create period for a group
+      description: Add a new period to a specific group
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePeriodRequest'
+      responses:
+        '201':
+          description: Period created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Period'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/periods/{periodId}:
+    put:
+      operationId: updateGroupPeriod
+      summary: Update period for a group
+      description: Update an existing period belonging to a specific group
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: periodId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePeriodRequest'
+      responses:
+        '200':
+          description: Period updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Period'
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group or period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteGroupPeriod
+      summary: Delete period for a group
+      description: Delete an existing period from a specific group
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: periodId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Period deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group or period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           description: Event not found
           content:
@@ -1736,6 +1926,10 @@ components:
             oneOf:
               - $ref: '#/components/schemas/Player'
               - $ref: '#/components/schemas/Trainer'
+        periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/Period'
         createdAt:
           type: string
           format: date-time
@@ -1745,6 +1939,24 @@ components:
       required:
         - id
         - name
+    Period:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+      required:
+        - id
+        - name
+        - startDate
+        - endDate
     CreateGroupRequest:
       type: object
       properties:
@@ -1789,6 +2001,32 @@ components:
               email:
                 type: string
                 format: email
+    CreatePeriodRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+      required:
+        - name
+        - startDate
+        - endDate
+    UpdatePeriodRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
     Player:
       type: object
       properties:

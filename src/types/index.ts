@@ -32,10 +32,18 @@ export interface Trainer {
   email?: string;
 }
 
+export interface Period {
+  id: string;
+  name: string;
+  startDate: string; // ISO date string (YYYY-MM-DD)
+  endDate: string; // ISO date string (YYYY-MM-DD)
+}
+
 export interface Group {
   id: string;
   name: string;
   club?: string;
+  periods?: Period[];
   createdAt?: string;
   updatedAt?: string;
 }

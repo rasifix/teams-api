@@ -67,6 +67,10 @@ async function startServer() {
       console.log('  POST   /api/groups/:groupId/events');
       console.log('  GET    /api/groups/:groupId/shirtsets');
       console.log('  POST   /api/groups/:groupId/shirtsets');
+      console.log('  GET    /api/groups/:groupId/periods');
+      console.log('  POST   /api/groups/:groupId/periods');
+      console.log('  PUT    /api/groups/:groupId/periods/:periodId');
+      console.log('  DELETE /api/groups/:groupId/periods/:periodId');
     });
     
   } catch (error) {
