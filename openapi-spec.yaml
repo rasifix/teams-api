@@ -1379,18 +1379,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-        '404':
-          description: Event not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
   /api/groups/{groupId}/events/{id}/players:
     put:
       operationId: upsertEventInvitations
@@ -2047,6 +2035,9 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+        preferredShirtNumber:
+          type: integer
+          minimum: 1
       required:
         - id
         - firstName
@@ -2151,6 +2142,9 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+        preferredShirtNumber:
+          type: integer
+          minimum: 1
       required:
         - role
         - firstName
@@ -2195,6 +2189,9 @@ components:
           type: integer
           minimum: 1
           maximum: 5
+        preferredShirtNumber:
+          type: integer
+          minimum: 1
       required:
         - role
         - firstName

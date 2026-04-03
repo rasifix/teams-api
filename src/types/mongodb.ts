@@ -46,6 +46,7 @@ export interface PersonDocument extends BaseDocument {
   birthYear?: number;
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
+  preferredShirtNumber?: number;
   evaluations?: EvaluationEmbedded[]; // Player evaluations (only present when role === 'player')
 }
 
@@ -111,6 +112,7 @@ export type PlayerDocument = PersonDocument & {
   birthYear: number;
   birthDate?: string;
   level: number;
+  preferredShirtNumber?: number;
 };
 
 export type TrainerDocument = PersonDocument & {

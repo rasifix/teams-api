@@ -87,7 +87,7 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -113,6 +113,11 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
         res.status(400).json({ error: 'Player level must be between 1 and 5' });
         return;
       }
+
+      if (preferredShirtNumber !== undefined && (!Number.isInteger(preferredShirtNumber) || preferredShirtNumber < 1)) {
+        res.status(400).json({ error: 'preferredShirtNumber must be an integer greater than or equal to 1' });
+        return;
+      }
       
       const newPlayer: Player = {
         id: await getNextSequence('members'),
@@ -121,7 +126,8 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
         lastName,
         birthYear: birthYear || new Date(birthDate).getFullYear(),
         birthDate,
-        level
+        level,
+        preferredShirtNumber
       };
       
       const createdPlayer = await dataStore.createPlayer(newPlayer);
@@ -158,7 +164,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -184,13 +190,19 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
         res.status(400).json({ error: 'Player level must be between 1 and 5' });
         return;
       }
+
+      if (preferredShirtNumber !== undefined && (!Number.isInteger(preferredShirtNumber) || preferredShirtNumber < 1)) {
+        res.status(400).json({ error: 'preferredShirtNumber must be an integer greater than or equal to 1' });
+        return;
+      }
       
       const updatedPlayer = await dataStore.updatePlayer(id, {
         firstName,
         lastName,
         birthYear,
         birthDate,
-        level
+        level,
+        preferredShirtNumber
       });
       
       if (!updatedPlayer) {

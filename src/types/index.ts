@@ -21,6 +21,7 @@ export interface Player {
   birthYear?: number;
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level: number; // 1-5
+  preferredShirtNumber?: number;
   evaluations?: PlayerEvaluation[];
 }
 

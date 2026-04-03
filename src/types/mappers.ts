@@ -99,6 +99,7 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
     birthYear: doc.birthYear,
     birthDate: doc.birthDate,
     level: doc.level,
+    preferredShirtNumber: doc.preferredShirtNumber,
     evaluations: doc.evaluations?.map(embeddedEvaluationToPlayerEvaluation)
   };
 }
@@ -129,7 +130,8 @@ export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_i
     groupId: player.groupId,
     birthYear: player.birthYear,
     birthDate: player.birthDate,
-    level: player.level
+    level: player.level,
+    preferredShirtNumber: player.preferredShirtNumber
   };
 }
 
