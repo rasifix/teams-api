@@ -4,7 +4,9 @@ import {
   getMemberById,
   createMember,
   updateMember,
-  deleteMember
+  deleteMember,
+  addGuardianToPlayer,
+  deleteGuardianFromPlayer
 } from '../controllers/membersController';
 import evaluationRoutes from './evaluationRoutes';
 
@@ -21,6 +23,12 @@ router.post('/', createMember);
 
 // PUT /api/groups/:groupId/members/:id
 router.put('/:id', updateMember);
+
+// POST /api/groups/:groupId/members/:id/guardians
+router.post('/:id/guardians', addGuardianToPlayer);
+
+// DELETE /api/groups/:groupId/members/:id/guardians/:guardianId
+router.delete('/:id/guardians/:guardianId', deleteGuardianFromPlayer);
 
 // DELETE /api/groups/:groupId/members/:id
 router.delete('/:id', deleteMember);
