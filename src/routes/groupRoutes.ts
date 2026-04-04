@@ -21,7 +21,7 @@ const router = Router();
 // Group CRUD operations
 router.get('/', authenticateToken, getAllGroups);
 router.get('/:id', getGroupById);
-router.post('/', createGroup);
+router.post('/', authenticateToken, createGroup);
 router.put('/:id', updateGroup);
 router.delete('/:id', deleteGroup);
 

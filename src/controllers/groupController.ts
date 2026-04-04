@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
-import { Group } from '../types';
+import { Group, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 import { AuthRequest } from '../middleware/auth';
 
@@ -66,8 +66,21 @@ export const getGroupById = async (req: Request, res: Response): Promise<void> =
 };
 
 // POST /api/groups
-export const createGroup = async (req: Request, res: Response): Promise<void> => {
+export const createGroup = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    // User must be authenticated
+    if (!req.user?.id) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    // Get the current user that will be added as trainer
+    const user = await dataStore.getUserById(req.user.id);
+    if (!user) {
+      res.status(401).json({ error: 'User not found' });
+      return;
+    }
+
     const { name, club } = req.body;
     
     if (!name) {
@@ -82,6 +95,23 @@ export const createGroup = async (req: Request, res: Response): Promise<void> =>
     };
     
     const createdGroup = await dataStore.createGroup(newGroup);
+
+    const trainerMember: Trainer = {
+      id: await getNextSequence('members'),
+      groupId: createdGroup.id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email.toLowerCase()
+    };
+
+    try {
+      await dataStore.createTrainer(trainerMember);
+    } catch (trainerError) {
+      // Avoid orphan groups when automatic trainer creation fails.
+      await dataStore.deleteGroup(createdGroup.id);
+      throw trainerError;
+    }
+
     res.status(201).json(createdGroup);
   } catch (error) {
     console.error('Error creating group:', error);
