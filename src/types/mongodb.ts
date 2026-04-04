@@ -47,6 +47,13 @@ export interface PersonDocument extends BaseDocument {
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
   preferredShirtNumber?: number;
+  guardians?: Array<{
+    id: string;
+    groupId: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }>;
   evaluations?: EvaluationEmbedded[]; // Player evaluations (only present when role === 'player')
 }
 

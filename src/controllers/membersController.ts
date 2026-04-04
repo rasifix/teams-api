@@ -87,7 +87,7 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber, guardians } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -127,7 +127,8 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
         birthYear: birthYear || new Date(birthDate).getFullYear(),
         birthDate,
         level,
-        preferredShirtNumber
+        preferredShirtNumber,
+        guardians
       };
       
       const createdPlayer = await dataStore.createPlayer(newPlayer);
@@ -164,7 +165,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber } = req.body;
+    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber, guardians } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -202,7 +203,8 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
         birthYear,
         birthDate,
         level,
-        preferredShirtNumber
+        preferredShirtNumber,
+        guardians
       });
       
       if (!updatedPlayer) {

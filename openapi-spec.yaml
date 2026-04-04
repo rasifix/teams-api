@@ -2038,13 +2038,16 @@ components:
         preferredShirtNumber:
           type: integer
           minimum: 1
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/Guardian'
       required:
         - id
         - firstName
         - lastName
         - birthYear
         - level
-    
     PlayerEvaluation:
       type: object
       properties:
@@ -2101,6 +2104,9 @@ components:
         - id
         - firstName
         - lastName
+    Guardian:
+      allOf:
+        - $ref: '#/components/schemas/Trainer'
     PlayerWithRole:
       allOf:
         - $ref: '#/components/schemas/Player'
@@ -2145,6 +2151,10 @@ components:
         preferredShirtNumber:
           type: integer
           minimum: 1
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/Guardian'
       required:
         - role
         - firstName
@@ -2192,6 +2202,10 @@ components:
         preferredShirtNumber:
           type: integer
           minimum: 1
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/Guardian'
       required:
         - role
         - firstName

@@ -100,6 +100,7 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
     birthDate: doc.birthDate,
     level: doc.level,
     preferredShirtNumber: doc.preferredShirtNumber,
+    guardians: doc.guardians,
     evaluations: doc.evaluations?.map(embeddedEvaluationToPlayerEvaluation)
   };
 }
@@ -131,7 +132,8 @@ export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_i
     birthYear: player.birthYear,
     birthDate: player.birthDate,
     level: player.level,
-    preferredShirtNumber: player.preferredShirtNumber
+    preferredShirtNumber: player.preferredShirtNumber,
+    guardians: player.guardians
   };
 }
 

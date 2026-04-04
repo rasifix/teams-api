@@ -22,10 +22,19 @@ export interface Player {
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level: number; // 1-5
   preferredShirtNumber?: number;
+  guardians?: Guardian[];
   evaluations?: PlayerEvaluation[];
 }
 
 export interface Trainer {
+  id: string;
+  groupId: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export interface Guardian {
   id: string;
   groupId: string;
   firstName?: string;
