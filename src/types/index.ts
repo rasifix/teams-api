@@ -13,6 +13,8 @@ export interface PlayerEvaluation {
   createdAt?: string;
 }
 
+export type PlayerStatus = 'active' | 'trial' | 'inactive';
+
 export interface Player {
   id: string;
   groupId: string;
@@ -22,6 +24,7 @@ export interface Player {
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level: number; // 1-5
   preferredShirtNumber?: number;
+  status?: PlayerStatus;
   guardians?: Guardian[];
   evaluations?: PlayerEvaluation[];
 }

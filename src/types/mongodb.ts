@@ -47,6 +47,7 @@ export interface PersonDocument extends BaseDocument {
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
   preferredShirtNumber?: number;
+  status?: 'active' | 'trial' | 'inactive';
   guardians?: Array<{
     id: string;
     groupId: string;
@@ -120,6 +121,7 @@ export type PlayerDocument = PersonDocument & {
   birthDate?: string;
   level: number;
   preferredShirtNumber?: number;
+  status?: 'active' | 'trial' | 'inactive';
 };
 
 export type TrainerDocument = PersonDocument & {

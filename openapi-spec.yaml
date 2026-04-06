@@ -2163,6 +2163,10 @@ components:
         preferredShirtNumber:
           type: integer
           minimum: 1
+        status:
+          type: string
+          enum: [active, trial, inactive]
+          default: active
         guardians:
           type: array
           items:
@@ -2306,6 +2310,10 @@ components:
         preferredShirtNumber:
           type: integer
           minimum: 1
+        status:
+          type: string
+          enum: [active, trial, inactive]
+          default: active
       required:
         - role
         - firstName
@@ -2353,6 +2361,10 @@ components:
         preferredShirtNumber:
           type: integer
           minimum: 1
+        status:
+          type: string
+          enum: [active, trial, inactive]
+          default: active
       required:
         - role
         - firstName
