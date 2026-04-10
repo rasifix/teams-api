@@ -58,6 +58,13 @@ export interface PersonDocument extends BaseDocument {
   evaluations?: EvaluationEmbedded[]; // Player evaluations (only present when role === 'player')
 }
 
+// Canonical guardian-child relationship collection
+export interface GuardianChildLinkDocument extends BaseDocument {
+  groupId: string; // Reference to GroupDocument
+  guardianMemberId: string; // Reference to PersonDocument (_id)
+  childMemberId: string; // Reference to PersonDocument (_id) with role 'player'
+}
+
 // Embedded invitation document (within events)
 export interface InvitationEmbedded {
   id: string;
@@ -157,6 +164,7 @@ export interface PasswordResetDocument extends BaseDocument {
 export const COLLECTIONS = {
   GROUPS: 'groups',
   MEMBERS: 'members',
+  GUARDIAN_CHILD_LINKS: 'guardian-child-links',
   EVENTS: 'events',
   SHIRT_SETS: 'shirt-sets',
   USERS: 'users',

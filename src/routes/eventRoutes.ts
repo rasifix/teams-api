@@ -7,20 +7,21 @@ import {
   deleteEvent,
   upsertInvitations,
   updateInvitationStatus,
-  upsertSelection
+  upsertSelection,
 } from '../controllers/eventController';
+import { requireGroupRole } from '../middleware/groupAuth';
 
 const router = Router({ mergeParams: true });
 
 router.get('/', getAllEvents);
 router.get('/:id', getEventById);
-router.post('/', createEvent);
-router.put('/:id', updateEvent);
-router.delete('/:id', deleteEvent);
+router.post('/', requireGroupRole(['admin', 'trainer']), createEvent);
+router.put('/:id', requireGroupRole(['admin', 'trainer']), updateEvent);
+router.delete('/:id', requireGroupRole(['admin', 'trainer']), deleteEvent);
 
 // Special event routes
-router.put('/:id/players', upsertInvitations);
-router.put('/:id/players/:player_id/status', updateInvitationStatus);
-router.put('/:id/selection', upsertSelection);
+router.put('/:id/players', requireGroupRole(['admin', 'trainer']), upsertInvitations);
+router.put('/:id/players/:player_id/status', requireGroupRole(['admin', 'trainer']), updateInvitationStatus);
+router.put('/:id/selection', requireGroupRole(['admin', 'trainer']), upsertSelection);
 
 export default router;

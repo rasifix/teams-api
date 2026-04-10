@@ -2,6 +2,7 @@ import { MongoClient, Db, Collection } from 'mongodb';
 import { 
   GroupDocument,
   PersonDocument, 
+  GuardianChildLinkDocument,
   EventDocument, 
   ShirtSetDocument,
   UserDocument,
@@ -9,6 +10,7 @@ import {
   COLLECTIONS 
 } from '../types/mongodb';
 import { initializeSequences } from '../utils/sequence';
+import { migrateEmbeddedGuardiansToLinks } from '../utils/guardianMigration';
 
 // MongoDB connection configuration from environment variables
 interface MongoConfig {
@@ -121,6 +123,10 @@ class DatabaseConnection {
     return this.getDb().collection<PersonDocument>(COLLECTIONS.MEMBERS);
   }
 
+  getGuardianChildLinksCollection(): Collection<GuardianChildLinkDocument> {
+    return this.getDb().collection<GuardianChildLinkDocument>(COLLECTIONS.GUARDIAN_CHILD_LINKS);
+  }
+
   getEventsCollection(): Collection<EventDocument> {
     return this.getDb().collection<EventDocument>(COLLECTIONS.EVENTS);
   }
@@ -159,6 +165,9 @@ class DatabaseConnection {
       
       // Initialize sequence counters
       await initializeSequences();
+
+      // Data migrations
+      await migrateEmbeddedGuardiansToLinks(db);
       
       console.log('✅ Database initialization completed');
       
@@ -184,6 +193,15 @@ class DatabaseConnection {
     await membersCollection.createIndex({ role: 1, level: 1 }); // For player queries
     await membersCollection.createIndex({ email: 1 }); // Email lookup for trainers
     await membersCollection.createIndex({ createdAt: -1 });
+
+    // Guardian-child links collection indexes
+    const guardianLinksCollection = this.getGuardianChildLinksCollection();
+    await guardianLinksCollection.createIndex(
+      { groupId: 1, guardianMemberId: 1, childMemberId: 1 },
+      { unique: true }
+    );
+    await guardianLinksCollection.createIndex({ groupId: 1, guardianMemberId: 1 });
+    await guardianLinksCollection.createIndex({ groupId: 1, childMemberId: 1 });
 
     // Events collection indexes
     const eventsCollection = this.getEventsCollection();

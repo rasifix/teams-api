@@ -73,3 +73,52 @@ export const requireGroupRole = (allowedRoles: GroupRole[]) => {
     next();
   };
 };
+
+export const requireAssignedTrainerOrAdmin = async (
+  req: GroupAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const groupAccess = req.groupAccess;
+    if (!groupAccess) {
+      res.status(403).json({ error: 'Group access context missing' });
+      return;
+    }
+
+    if (groupAccess.roles.includes('admin')) {
+      next();
+      return;
+    }
+
+    const eventId = req.params.id;
+    const { teamId } = req.params;
+
+    if (!eventId || !teamId) {
+      res.status(400).json({ error: 'Event ID and team ID are required' });
+      return;
+    }
+
+    const event = await dataStore.getEventById(eventId);
+    if (!event || event.groupId !== groupAccess.groupId) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const team = event.teams.find(existingTeam => existingTeam.id === teamId);
+    if (!team) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    if (team.trainerId !== groupAccess.memberId) {
+      res.status(403).json({ error: 'Only the assigned trainer or a group admin can access this team' });
+      return;
+    }
+
+    next();
+  } catch (error) {
+    console.error('Error checking assigned trainer permissions:', error);
+    res.status(500).json({ error: 'Authorization check failed' });
+  }
+};

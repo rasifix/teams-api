@@ -6,9 +6,10 @@ import {
   updateMember,
   deleteMember,
   addGuardianToPlayer,
-  deleteGuardianFromPlayer
+  deleteGuardianFromPlayer,
 } from '../controllers/membersController';
 import evaluationRoutes from './evaluationRoutes';
+import { requireGroupRole } from '../middleware/groupAuth';
 
 const router = Router({ mergeParams: true });
 
@@ -19,19 +20,19 @@ router.get('/', getAllMembers);
 router.get('/:id', getMemberById);
 
 // POST /api/groups/:groupId/members
-router.post('/', createMember);
+router.post('/', requireGroupRole(['admin', 'trainer']), createMember);
 
 // PUT /api/groups/:groupId/members/:id
-router.put('/:id', updateMember);
+router.put('/:id', requireGroupRole(['admin', 'trainer']), updateMember);
 
 // POST /api/groups/:groupId/members/:id/guardians
-router.post('/:id/guardians', addGuardianToPlayer);
+router.post('/:id/guardians', requireGroupRole(['admin', 'trainer']), addGuardianToPlayer);
 
 // DELETE /api/groups/:groupId/members/:id/guardians/:guardianId
-router.delete('/:id/guardians/:guardianId', deleteGuardianFromPlayer);
+router.delete('/:id/guardians/:guardianId', requireGroupRole(['admin', 'trainer']), deleteGuardianFromPlayer);
 
 // DELETE /api/groups/:groupId/members/:id
-router.delete('/:id', deleteMember);
+router.delete('/:id', requireGroupRole(['admin', 'trainer']), deleteMember);
 
 // Nested evaluation routes for members
 // /api/groups/:groupId/members/:memberId/evaluations

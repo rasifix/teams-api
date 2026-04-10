@@ -293,23 +293,15 @@ export const addGuardianToPlayer = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const guardianId = await getNextSequence('members');
-    const guardianGroupId = player.groupId;
-
-    const newGuardian: Guardian = {
-      id: guardianId,
-      groupId: guardianGroupId,
+    const guardianMember = await dataStore.upsertGuardianMember(player.groupId, {
       firstName: guardian.firstName,
       lastName: guardian.lastName,
       email: normalizedGuardianEmail
-    };
-
-    const updatedPlayer = await dataStore.updatePlayer(id, {
-      guardians: [
-        ...currentGuardians,
-        newGuardian
-      ]
     });
+
+    await dataStore.addGuardianLink(player.groupId, guardianMember.id, id);
+
+    const updatedPlayer = await dataStore.getPlayerById(id);
 
     if (!updatedPlayer) {
       res.status(404).json({ error: 'Player not found' });
@@ -335,14 +327,19 @@ export const deleteGuardianFromPlayer = async (req: Request, res: Response): Pro
     }
 
     const currentGuardians = player.guardians ?? [];
-    const updatedGuardians = currentGuardians.filter(guardian => guardian.id !== guardianId);
-
-    if (updatedGuardians.length === currentGuardians.length) {
+    const guardianExists = currentGuardians.some(guardian => guardian.id === guardianId);
+    if (!guardianExists) {
       res.status(404).json({ error: 'Guardian not found' });
       return;
     }
 
-    const updatedPlayer = await dataStore.updatePlayer(id, { guardians: updatedGuardians });
+    const removed = await dataStore.removeGuardianLink(player.groupId, guardianId, id);
+    if (!removed) {
+      res.status(404).json({ error: 'Guardian not found' });
+      return;
+    }
+
+    const updatedPlayer = await dataStore.getPlayerById(id);
     if (!updatedPlayer) {
       res.status(404).json({ error: 'Player not found' });
       return;

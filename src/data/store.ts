@@ -1,13 +1,15 @@
 import { mongoConnection } from '../database/connection';
-import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole } from '../types';
+import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole, Guardian } from '../types';
 import { 
   GroupDocument,
   PersonDocument, 
+  GuardianChildLinkDocument,
   EventDocument, 
   ShirtSetDocument,
   UserDocument,
   PasswordResetDocument
 } from '../types/mongodb';
+import { getNextSequence } from '../utils/sequence';
 import {
   groupDocumentToGroup,
   groupToGroupDocument,
@@ -34,6 +36,94 @@ class DataStore {
     }
 
     return ['trainer'];
+  }
+
+  private toGuardianMember(person: Pick<PersonDocument, '_id' | 'groupId' | 'firstName' | 'lastName' | 'email'>): Guardian {
+    return {
+      id: person._id,
+      groupId: person.groupId,
+      firstName: person.firstName,
+      lastName: person.lastName,
+      email: person.email
+    };
+  }
+
+  private async getGuardiansByPlayerIds(groupId: string, playerIds: string[]): Promise<Map<string, Guardian[]>> {
+    const result = new Map<string, Guardian[]>();
+    for (const playerId of playerIds) {
+      result.set(playerId, []);
+    }
+
+    if (playerIds.length === 0) {
+      return result;
+    }
+
+    const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
+    const membersCollection = mongoConnection.getMembersCollection();
+
+    const linkDocs = await guardianLinksCollection.find({
+      groupId,
+      childMemberId: { $in: playerIds }
+    }).toArray();
+
+    if (linkDocs.length === 0) {
+      return result;
+    }
+
+    const guardianMemberIds = [...new Set(linkDocs.map(link => link.guardianMemberId))];
+    const guardianMemberDocs = await membersCollection.find({
+      _id: { $in: guardianMemberIds },
+      groupId,
+      role: 'trainer'
+    }).toArray();
+
+    const guardianById = new Map<string, Guardian>(
+      guardianMemberDocs.map(doc => [doc._id, this.toGuardianMember(doc)])
+    );
+
+    for (const link of linkDocs) {
+      const guardian = guardianById.get(link.guardianMemberId);
+      if (!guardian) {
+        continue;
+      }
+
+      const guardians = result.get(link.childMemberId) ?? [];
+      guardians.push(guardian);
+      result.set(link.childMemberId, guardians);
+    }
+
+    return result;
+  }
+
+  private async populateGuardiansForPlayers(players: Player[]): Promise<Player[]> {
+    if (players.length === 0) {
+      return players;
+    }
+
+    const playersByGroup = new Map<string, Player[]>();
+    for (const player of players) {
+      const existing = playersByGroup.get(player.groupId) ?? [];
+      existing.push(player);
+      playersByGroup.set(player.groupId, existing);
+    }
+
+    const guardianMapByPlayerKey = new Map<string, Guardian[]>();
+    for (const [groupId, groupPlayers] of playersByGroup.entries()) {
+      const guardiansByPlayer = await this.getGuardiansByPlayerIds(groupId, groupPlayers.map(player => player.id));
+      for (const groupPlayer of groupPlayers) {
+        const key = `${groupId}:${groupPlayer.id}`;
+        guardianMapByPlayerKey.set(key, guardiansByPlayer.get(groupPlayer.id) ?? []);
+      }
+    }
+
+    return players.map(player => {
+      const key = `${player.groupId}:${player.id}`;
+      const guardians = guardianMapByPlayerKey.get(key) ?? [];
+      return {
+        ...player,
+        guardians: guardians.length > 0 ? guardians : undefined
+      };
+    });
   }
 
   async getGroupAdminCount(groupId: string): Promise<number> {
@@ -206,9 +296,11 @@ class DataStore {
       filter.groupId = groupId;
     }
     const playerDocs = await membersCollection.find(filter).toArray();
-    return playerDocs
+    const players = playerDocs
       .map(personDocumentToPlayer)
       .filter((player): player is Player => player !== null);
+
+    return this.populateGuardiansForPlayers(players);
   }
 
   async getPlayerById(id: string): Promise<Player | undefined> {
@@ -218,7 +310,13 @@ class DataStore {
       role: 'player' 
     });
     
-    return playerDoc ? personDocumentToPlayer(playerDoc) || undefined : undefined;
+    const player = playerDoc ? personDocumentToPlayer(playerDoc) || undefined : undefined;
+    if (!player) {
+      return undefined;
+    }
+
+    const [populatedPlayer] = await this.populateGuardiansForPlayers([player]);
+    return populatedPlayer;
   }
 
   async createPlayer(player: Player): Promise<Player> {
@@ -239,8 +337,8 @@ class DataStore {
 
   async updatePlayer(id: string, updates: Partial<Omit<Player, 'id'>>): Promise<Player | null> {
     const membersCollection = mongoConnection.getMembersCollection();
-    // Filter out evaluations from updates since they should be managed separately
-    const { evaluations, ...safeUpdates } = updates;
+    // Filter out evaluations and guardians from updates since they are managed separately
+    const { evaluations, guardians, ...safeUpdates } = updates;
     const updateDoc = {
       ...safeUpdates,
       updatedAt: new Date()
@@ -252,7 +350,17 @@ class DataStore {
       { returnDocument: 'after' }
     );
     
-    return result ? personDocumentToPlayer(result) : null;
+    if (!result) {
+      return null;
+    }
+
+    const player = personDocumentToPlayer(result);
+    if (!player) {
+      return null;
+    }
+
+    const [populatedPlayer] = await this.populateGuardiansForPlayers([player]);
+    return populatedPlayer;
   }
 
   async addEvaluationToPlayer(playerId: string, evaluation: PlayerEvaluation): Promise<Player | null> {
@@ -269,7 +377,17 @@ class DataStore {
       { returnDocument: 'after' }
     );
     
-    return result ? personDocumentToPlayer(result) : null;
+    if (!result) {
+      return null;
+    }
+
+    const player = personDocumentToPlayer(result);
+    if (!player) {
+      return null;
+    }
+
+    const [populatedPlayer] = await this.populateGuardiansForPlayers([player]);
+    return populatedPlayer;
   }
 
   async updateEvaluationForPlayer(playerId: string, evaluationId: string, evaluation: PlayerEvaluation): Promise<Player | null> {
@@ -288,7 +406,17 @@ class DataStore {
       { returnDocument: 'after' }
     );
     
-    return result ? personDocumentToPlayer(result) : null;
+    if (!result) {
+      return null;
+    }
+
+    const player = personDocumentToPlayer(result);
+    if (!player) {
+      return null;
+    }
+
+    const [populatedPlayer] = await this.populateGuardiansForPlayers([player]);
+    return populatedPlayer;
   }
 
   async deleteEvaluationFromPlayer(playerId: string, evaluationId: string): Promise<boolean> {
@@ -307,10 +435,15 @@ class DataStore {
 
   async deletePlayer(id: string): Promise<boolean> {
     const membersCollection = mongoConnection.getMembersCollection();
+    const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
     const result = await membersCollection.deleteOne({ 
       _id: id, 
       role: 'player' 
     });
+
+    if (result.deletedCount > 0) {
+      await guardianLinksCollection.deleteMany({ childMemberId: id });
+    }
     
     return result.deletedCount > 0;
   }
@@ -390,6 +523,10 @@ class DataStore {
     }
     const trainerDocs = await membersCollection.find(filter).toArray();
     return trainerDocs
+      .filter(doc => {
+        const roles = this.resolveLegacyRoles(doc);
+        return roles.includes('trainer') || roles.includes('admin');
+      })
       .map(personDocumentToTrainer)
       .filter((trainer): trainer is Trainer => trainer !== null);
   }
@@ -450,6 +587,7 @@ class DataStore {
 
   async deleteTrainer(id: string): Promise<{ deleted: boolean; reason?: 'not-found' | 'last-admin' }> {
     const membersCollection = mongoConnection.getMembersCollection();
+    const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
     const trainerDoc = await membersCollection.findOne({
       _id: id,
       role: 'trainer'
@@ -476,7 +614,99 @@ class DataStore {
       return { deleted: false, reason: 'not-found' };
     }
 
+    await guardianLinksCollection.deleteMany({ guardianMemberId: id });
+
     return { deleted: true };
+  }
+
+  async upsertGuardianMember(groupId: string, guardian: Partial<Guardian>): Promise<Guardian> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    const normalizedEmail = guardian.email?.toLowerCase();
+
+    let existingGuardianMember: PersonDocument | null = null;
+    if (normalizedEmail) {
+      existingGuardianMember = await membersCollection.findOne({
+        groupId,
+        role: 'trainer',
+        email: normalizedEmail
+      });
+    }
+
+    if (existingGuardianMember) {
+      const roles = new Set(existingGuardianMember.roles ?? []);
+      roles.add('guardian');
+      const updatedRoles = Array.from(roles) as GroupRole[];
+
+      const updates: Partial<PersonDocument> = {
+        updatedAt: new Date(),
+        roles: updatedRoles
+      };
+
+      if (!existingGuardianMember.firstName && guardian.firstName) {
+        updates.firstName = guardian.firstName;
+      }
+      if (!existingGuardianMember.lastName && guardian.lastName) {
+        updates.lastName = guardian.lastName;
+      }
+
+      await membersCollection.updateOne(
+        { _id: existingGuardianMember._id },
+        { $set: updates }
+      );
+
+      return this.toGuardianMember({
+        _id: existingGuardianMember._id,
+        groupId: existingGuardianMember.groupId,
+        firstName: updates.firstName ?? existingGuardianMember.firstName,
+        lastName: updates.lastName ?? existingGuardianMember.lastName,
+        email: existingGuardianMember.email
+      });
+    }
+
+    const now = new Date();
+    const guardianMemberId = await getNextSequence('members');
+    const guardianMember: PersonDocument = {
+      _id: guardianMemberId,
+      role: 'trainer',
+      roles: ['guardian'],
+      groupId,
+      firstName: guardian.firstName,
+      lastName: guardian.lastName,
+      email: normalizedEmail,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    await membersCollection.insertOne(guardianMember);
+    return this.toGuardianMember(guardianMember);
+  }
+
+  async addGuardianLink(groupId: string, guardianMemberId: string, childMemberId: string): Promise<void> {
+    const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
+    const now = new Date();
+
+    await guardianLinksCollection.updateOne(
+      { groupId, guardianMemberId, childMemberId },
+      {
+        $setOnInsert: {
+          _id: `${groupId}:${guardianMemberId}:${childMemberId}`,
+          groupId,
+          guardianMemberId,
+          childMemberId,
+          createdAt: now
+        } as GuardianChildLinkDocument,
+        $set: {
+          updatedAt: now
+        }
+      },
+      { upsert: true }
+    );
+  }
+
+  async removeGuardianLink(groupId: string, guardianMemberId: string, childMemberId: string): Promise<boolean> {
+    const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
+    const result = await guardianLinksCollection.deleteOne({ groupId, guardianMemberId, childMemberId });
+    return result.deletedCount > 0;
   }
 
   // Shirt Set operations

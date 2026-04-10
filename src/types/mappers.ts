@@ -100,7 +100,6 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
     level: doc.level,
     preferredShirtNumber: doc.preferredShirtNumber,
     status: doc.status ?? 'active',
-    guardians: doc.guardians,
     evaluations: doc.evaluations?.map(embeddedEvaluationToPlayerEvaluation)
   };
 }
@@ -133,8 +132,7 @@ export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_i
     birthDate: player.birthDate,
     level: player.level,
     preferredShirtNumber: player.preferredShirtNumber,
-    status: player.status ?? 'active',
-    guardians: player.guardians
+    status: player.status ?? 'active'
   };
 }
 

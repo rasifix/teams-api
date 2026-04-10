@@ -5,6 +5,7 @@ import {
   updateEvaluation,
   deleteEvaluation
 } from '../controllers/evaluationController';
+import { requireGroupRole } from '../middleware/groupAuth';
 
 const router = Router({ mergeParams: true });
 
@@ -12,12 +13,12 @@ const router = Router({ mergeParams: true });
 router.get('/', getAllEvaluationsForMember);
 
 // POST /api/groups/:groupId/members/:memberId/evaluations
-router.post('/', createEvaluation);
+router.post('/', requireGroupRole(['admin', 'trainer']), createEvaluation);
 
 // PUT /api/groups/:groupId/members/:memberId/evaluations/:evaluationId
-router.put('/:evaluationId', updateEvaluation);
+router.put('/:evaluationId', requireGroupRole(['admin', 'trainer']), updateEvaluation);
 
 // DELETE /api/groups/:groupId/members/:memberId/evaluations/:evaluationId
-router.delete('/:evaluationId', deleteEvaluation);
+router.delete('/:evaluationId', requireGroupRole(['admin', 'trainer']), deleteEvaluation);
 
 export default router;

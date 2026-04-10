@@ -5,12 +5,13 @@ import {
   updatePeriod,
   deletePeriod
 } from '../controllers/periodController';
+import { requireGroupRole } from '../middleware/groupAuth';
 
 const router = Router({ mergeParams: true });
 
 router.get('/', getPeriods);
-router.post('/', createPeriod);
-router.put('/:periodId', updatePeriod);
-router.delete('/:periodId', deletePeriod);
+router.post('/', requireGroupRole(['admin']), createPeriod);
+router.put('/:periodId', requireGroupRole(['admin']), updatePeriod);
+router.delete('/:periodId', requireGroupRole(['admin']), deletePeriod);
 
 export default router;
