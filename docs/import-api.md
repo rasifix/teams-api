@@ -18,7 +18,7 @@ The request body should contain the localStorage data structure from the teams-a
       "id": "uuid-or-existing-id",
       "firstName": "John",
       "lastName": "Doe",
-      "birthYear": 2010,
+      "birthDate": "2010-01-01",
       "level": 3
     }
   ],

@@ -87,7 +87,7 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber, status } = req.body;
+    const { role, firstName, lastName, birthDate, level, email, preferredShirtNumber, status } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -129,7 +129,6 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
         groupId,
         firstName,
         lastName,
-        birthYear: birthYear || new Date(birthDate).getFullYear(),
         birthDate,
         level,
         preferredShirtNumber,
@@ -170,7 +169,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthYear, birthDate, level, email, preferredShirtNumber, status } = req.body;
+    const { role, firstName, lastName, birthDate, level, email, preferredShirtNumber, status } = req.body;
     
     if (!role) {
       res.status(400).json({ error: 'role is required' });
@@ -187,8 +186,8 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
         res.status(400).json({ error: 'firstName and lastName are required for players' });
         return;
       }
-      if (typeof birthYear !== 'number' || typeof level !== 'number') {
-        res.status(400).json({ error: 'birthYear and level are required for players' });
+      if (typeof birthDate !== 'string' || typeof level !== 'number') {
+        res.status(400).json({ error: 'birthDate and level are required for players' });
         return;
       }
       
@@ -210,7 +209,6 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
       const updatedPlayer = await dataStore.updatePlayer(id, {
         firstName,
         lastName,
-        birthYear,
         birthDate,
         level,
         preferredShirtNumber,

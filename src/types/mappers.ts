@@ -87,7 +87,7 @@ export function playerEvaluationToEmbedded(evaluation: PlayerEvaluation): Evalua
 
 // Convert MongoDB PersonDocument to API Player
 export function personDocumentToPlayer(doc: PersonDocument): Player | null {
-  if (doc.role !== 'player' || !doc.birthYear || !doc.level) {
+  if (doc.role !== 'player' || !doc.level) {
     return null;
   }
   
@@ -96,7 +96,6 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
     groupId: doc.groupId,
     firstName: doc.firstName!,
     lastName: doc.lastName!,
-    birthYear: doc.birthYear,
     birthDate: doc.birthDate,
     level: doc.level,
     preferredShirtNumber: doc.preferredShirtNumber,
@@ -130,7 +129,6 @@ export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_i
     lastName: player.lastName,
     role: 'player',
     groupId: player.groupId,
-    birthYear: player.birthYear,
     birthDate: player.birthDate,
     level: player.level,
     preferredShirtNumber: player.preferredShirtNumber,

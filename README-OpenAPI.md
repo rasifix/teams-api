@@ -66,7 +66,7 @@ POST /api/Members
   "role": "player",
   "firstName": "John",
   "lastName": "Doe",
-  "birthYear": 2010,
+  "birthDate": "2010-01-01",
   "level": 3
 }
 ```

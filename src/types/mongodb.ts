@@ -43,7 +43,6 @@ export interface PersonDocument extends BaseDocument {
   groupId: string; // Reference to GroupDocument
   email?: string; // Optional email for trainers
   // Player-specific properties (only present when role === 'player')
-  birthYear?: number;
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
   preferredShirtNumber?: number;
@@ -117,7 +116,6 @@ export interface ShirtSetDocument extends BaseDocument {
 // Helper types for queries and operations
 export type PlayerDocument = PersonDocument & {
   role: 'player';
-  birthYear: number;
   birthDate?: string;
   level: number;
   preferredShirtNumber?: number;
@@ -131,7 +129,6 @@ export type TrainerDocument = PersonDocument & {
 // Type guards for runtime type checking
 export function isPlayerDocument(person: PersonDocument): person is PlayerDocument {
   return person.role === 'player' && 
-         typeof person.birthYear === 'number' && 
          typeof person.level === 'number';
 }
 

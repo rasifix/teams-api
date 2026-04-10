@@ -7,14 +7,14 @@ const exampleLocalStorageData = {
       id: "550e8400-e29b-41d4-a716-446655440000",
       firstName: "John",
       lastName: "Doe",
-      birthYear: 2010,
+      birthDate: "2010-01-01",
       level: 3
     },
     {
       id: "550e8400-e29b-41d4-a716-446655440001", 
       firstName: "Jane",
       lastName: "Smith", 
-      birthYear: 2011,
+      birthDate: "2011-01-01",
       level: 4
     }
   ],

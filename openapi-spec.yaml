@@ -2149,10 +2149,6 @@ components:
           type: string
         lastName:
           type: string
-        birthYear:
-          type: integer
-          minimum: 1900
-          maximum: 2030
         birthDate:
           type: string
           format: date
@@ -2175,7 +2171,6 @@ components:
         - id
         - firstName
         - lastName
-        - birthYear
         - level
     PlayerEvaluation:
       type: object
@@ -2296,10 +2291,6 @@ components:
           type: string
         lastName:
           type: string
-        birthYear:
-          type: integer
-          minimum: 1900
-          maximum: 2030
         birthDate:
           type: string
           format: date
@@ -2347,10 +2338,6 @@ components:
           type: string
         lastName:
           type: string
-        birthYear:
-          type: integer
-          minimum: 1900
-          maximum: 2030
         birthDate:
           type: string
           format: date
@@ -2369,7 +2356,7 @@ components:
         - role
         - firstName
         - lastName
-        - birthYear
+        - birthDate
         - level
     UpdateTrainerRequest:
       type: object

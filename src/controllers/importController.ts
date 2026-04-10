@@ -9,7 +9,7 @@ interface LocalStorageData {
     id: string;
     firstName: string;
     lastName: string;
-    birthYear: number;
+    birthDate: string;
     level: number;
   }>;
   trainers?: Array<{
@@ -101,7 +101,7 @@ export const importLocalStorageData = async (req: Request, res: Response): Promi
             groupId,
             firstName: playerData.firstName,
             lastName: playerData.lastName,
-            birthYear: playerData.birthYear,
+            birthDate: playerData.birthDate,
             level: playerData.level
           };
 

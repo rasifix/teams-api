@@ -140,7 +140,7 @@ The API uses MongoDB with three collections:
   "id": "string",
   "firstName": "string",
   "lastName": "string",
-  "birthYear": "number",
+  "birthDate": "string (ISO date)",
   "level": "number (1-5)"
 }
 ```
