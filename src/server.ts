@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { mongoConnection } from './database/connection';
-import { dataStore } from './data/store';
 import groupRoutes from './routes/groupRoutes';
 import authRoutes from './routes/authRoutes';
 
@@ -45,19 +44,6 @@ async function startServer() {
   try {
     // Connect to MongoDB first
     await mongoConnection.connect();
-
-    // Backfill member roles at startup to keep authorization data consistent.
-    const migrationResult = await dataStore.backfillMemberRoles();
-    console.log('🔄 Role backfill completed at startup');
-    console.log(`   players updated: ${migrationResult.playersUpdated}`);
-    console.log(`   trainers updated: ${migrationResult.trainersUpdated}`);
-    console.log(`   admins promoted: ${migrationResult.adminsPromoted}`);
-    if (migrationResult.groupsWithoutTrainers.length > 0) {
-      console.warn('⚠️ Groups without trainers (manual intervention required):');
-      for (const groupId of migrationResult.groupsWithoutTrainers) {
-        console.warn(`   - ${groupId}`);
-      }
-    }
     
     // Start the Express server
     app.listen(PORT, () => {
