@@ -10,7 +10,6 @@ import {
   COLLECTIONS 
 } from '../types/mongodb';
 import { initializeSequences } from '../utils/sequence';
-import { migrateEmbeddedGuardiansToLinks } from '../utils/guardianMigration';
 
 // MongoDB connection configuration from environment variables
 interface MongoConfig {
@@ -165,9 +164,6 @@ class DatabaseConnection {
       
       // Initialize sequence counters
       await initializeSequences();
-
-      // Data migrations
-      await migrateEmbeddedGuardiansToLinks(db);
       
       console.log('✅ Database initialization completed');
       
