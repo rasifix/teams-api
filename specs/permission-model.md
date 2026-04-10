@@ -5,6 +5,7 @@
   * e.g. guardian, admin, and trainer
 * depending on the role, different APIs are available
 * depending on the role, more or less information shall be returned
+* when creating a new group, the authenticated user must become the admin
 
 ## Admin
 

@@ -4,13 +4,6 @@ import { Group, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 import { AuthRequest } from '../middleware/auth';
 
-const normalizeNameForRoleMatch = (value?: string): string =>
-  (value ?? '')
-    .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-
 // GET /api/groups - Get all groups the authenticated user is a trainer in
 export const getAllGroups = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -102,11 +95,7 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
       firstName: user.firstName,
       lastName: user.lastName,
       email: user.email.toLowerCase(),
-      roles:
-        normalizeNameForRoleMatch(user.firstName) === 'simon' &&
-        normalizeNameForRoleMatch(user.lastName) === 'rass'
-          ? ['admin', 'trainer']
-          : ['trainer']
+      roles: ['admin', 'trainer']
     };
 
     try {
