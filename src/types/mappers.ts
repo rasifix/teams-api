@@ -116,7 +116,8 @@ export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
     groupId: doc.groupId,
     firstName: doc.firstName,
     lastName: doc.lastName,
-    email: doc.email
+    email: doc.email,
+    roles: doc.roles
   };
   
   return trainer;
@@ -143,6 +144,7 @@ export function trainerToPersonDocument(trainer: Trainer): Omit<PersonDocument, 
     firstName: trainer.firstName,
     lastName: trainer.lastName,
     role: 'trainer',
+    roles: trainer.roles,
     groupId: trainer.groupId,
     email: trainer.email
   };

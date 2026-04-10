@@ -1,6 +1,19 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from './auth';
 import { dataStore } from '../data/store';
+import { GroupRole } from '../types';
+
+type GroupAccessContext = {
+  memberId: string;
+  groupId: string;
+  roles: GroupRole[];
+};
+
+export interface GroupAuthRequest extends AuthRequest {
+  groupAccess?: GroupAccessContext;
+}
+
+const resolveGroupId = (req: GroupAuthRequest): string | undefined => req.params.groupId || req.params.id;
 
 /**
  * Middleware to authorize group access
@@ -8,7 +21,7 @@ import { dataStore } from '../data/store';
  * Returns HTTP 403 if authorization is not granted
  */
 export const authorizeGroupAccess = async (
-  req: AuthRequest,
+  req: GroupAuthRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
@@ -19,31 +32,22 @@ export const authorizeGroupAccess = async (
       return;
     }
 
-    const groupId = req.params.groupId;
+    const groupId = resolveGroupId(req);
     if (!groupId) {
       res.status(400).json({ error: 'Group ID is required' });
       return;
     }
 
-    // Get the current user
-    const user = await dataStore.getUserById(req.user.id);
-    if (!user) {
-      res.status(401).json({ error: 'User not found' });
-      return;
-    }
-
-    // Get all trainers in the group
-    const groupTrainers = await dataStore.getAllTrainers(groupId);
-
-    // Find a trainer in this group that is linked to this user (by email)
-    const isTrainerInGroup = groupTrainers.some(
-      trainer => trainer.email && trainer.email.toLowerCase() === user.email.toLowerCase()
-    );
-
-    if (!isTrainerInGroup) {
+    const groupAccess = await dataStore.getUserGroupAccess(req.user.id, groupId);
+    if (!groupAccess) {
       res.status(403).json({ error: 'You do not have access to this group' });
       return;
     }
+
+    req.groupAccess = {
+      ...groupAccess,
+      groupId
+    };
 
     // Authorization successful, proceed to next middleware
     next();
@@ -51,4 +55,21 @@ export const authorizeGroupAccess = async (
     console.error('Error authorizing group access:', error);
     res.status(500).json({ error: 'Authorization check failed' });
   }
+};
+
+export const requireGroupRole = (allowedRoles: GroupRole[]) => {
+  return (req: GroupAuthRequest, res: Response, next: NextFunction): void => {
+    const groupRoles = req.groupAccess?.roles ?? [];
+    const hasRequiredRole = groupRoles.some(role => allowedRoles.includes(role));
+
+    if (!hasRequiredRole) {
+      res.status(403).json({
+        error: 'Insufficient permissions for this operation',
+        requiredRoles: allowedRoles
+      });
+      return;
+    }
+
+    next();
+  };
 };

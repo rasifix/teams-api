@@ -40,6 +40,7 @@ export interface PersonDocument extends BaseDocument {
   firstName?: string;
   lastName?: string;
   role: 'player' | 'trainer';
+  roles?: Array<'admin' | 'trainer' | 'guardian' | 'player'>;
   groupId: string; // Reference to GroupDocument
   email?: string; // Optional email for trainers
   // Player-specific properties (only present when role === 'player')

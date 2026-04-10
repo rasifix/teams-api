@@ -14,6 +14,7 @@ export interface PlayerEvaluation {
 }
 
 export type PlayerStatus = 'active' | 'trial' | 'inactive';
+export type GroupRole = 'admin' | 'trainer' | 'guardian' | 'player';
 
 export interface Player {
   id: string;
@@ -34,6 +35,7 @@ export interface Trainer {
   firstName?: string;
   lastName?: string;
   email?: string;
+  roles?: GroupRole[];
 }
 
 export interface Guardian {
