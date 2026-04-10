@@ -367,9 +367,14 @@ export const deleteMember = async (req: Request, res: Response): Promise<void> =
       return;
     }
     
-    const trainerDeleted = await dataStore.deleteTrainer(id);
-    if (trainerDeleted) {
+    const trainerDeleteResult = await dataStore.deleteTrainer(id);
+    if (trainerDeleteResult.deleted) {
       res.status(204).send();
+      return;
+    }
+
+    if (trainerDeleteResult.reason === 'last-admin') {
+      res.status(409).json({ error: 'Cannot delete the last admin in a group' });
       return;
     }
     

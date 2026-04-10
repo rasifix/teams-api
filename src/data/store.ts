@@ -24,14 +24,6 @@ import {
 
 // MongoDB-based data store
 class DataStore {
-  private normalizeNameForRoleMatch(value?: string): string {
-    return (value ?? '')
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .trim()
-      .toLowerCase();
-  }
-
   private resolveLegacyRoles(person: Pick<PersonDocument, 'role' | 'roles' | 'firstName' | 'lastName'>): GroupRole[] {
     if (Array.isArray(person.roles) && person.roles.length > 0) {
       return person.roles;
@@ -41,13 +33,92 @@ class DataStore {
       return ['player'];
     }
 
-    const normalizedFirstName = this.normalizeNameForRoleMatch(person.firstName);
-    const normalizedLastName = this.normalizeNameForRoleMatch(person.lastName);
-    if (normalizedFirstName === 'simon' && normalizedLastName === 'rass') {
-      return ['admin', 'trainer'];
+    return ['trainer'];
+  }
+
+  async getGroupAdminCount(groupId: string): Promise<number> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    const trainerDocs = await membersCollection.find({ groupId, role: 'trainer' }).toArray();
+
+    return trainerDocs.filter(doc => this.resolveLegacyRoles(doc).includes('admin')).length;
+  }
+
+  async backfillMemberRoles(): Promise<{
+    playersUpdated: number;
+    trainersUpdated: number;
+    adminsPromoted: number;
+    groupsWithoutTrainers: string[];
+  }> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    const now = new Date();
+
+    const playersResult = await membersCollection.updateMany(
+      {
+        role: 'player',
+        $or: [
+          { roles: { $exists: false } },
+          { roles: { $size: 0 } }
+        ]
+      },
+      {
+        $set: {
+          roles: ['player'],
+          updatedAt: now
+        }
+      }
+    );
+
+    const trainersResult = await membersCollection.updateMany(
+      {
+        role: 'trainer',
+        $or: [
+          { roles: { $exists: false } },
+          { roles: { $size: 0 } }
+        ]
+      },
+      {
+        $set: {
+          roles: ['trainer'],
+          updatedAt: now
+        }
+      }
+    );
+
+    const groups = await this.getAllGroups();
+    const groupsWithoutTrainers: string[] = [];
+    let adminsPromoted = 0;
+
+    for (const group of groups) {
+      const trainers = await membersCollection.find({
+        groupId: group.id,
+        role: 'trainer'
+      }).sort({ createdAt: 1 }).toArray();
+
+      if (trainers.length === 0) {
+        groupsWithoutTrainers.push(group.id);
+        continue;
+      }
+
+      const hasAdmin = trainers.some(trainer => this.resolveLegacyRoles(trainer).includes('admin'));
+      if (hasAdmin) {
+        continue;
+      }
+
+      const fallbackTrainer = trainers[0];
+      const fallbackRoles = Array.from(new Set([...this.resolveLegacyRoles(fallbackTrainer), 'admin', 'trainer'])) as GroupRole[];
+      await membersCollection.updateOne(
+        { _id: fallbackTrainer._id },
+        { $set: { roles: fallbackRoles, updatedAt: new Date() } }
+      );
+      adminsPromoted++;
     }
 
-    return ['trainer'];
+    return {
+      playersUpdated: playersResult.modifiedCount,
+      trainersUpdated: trainersResult.modifiedCount,
+      adminsPromoted,
+      groupsWithoutTrainers
+    };
   }
 
   async getUserGroupAccess(userId: string, groupId: string): Promise<{ memberId: string; roles: GroupRole[] } | null> {
@@ -455,14 +526,35 @@ class DataStore {
     return result ? personDocumentToTrainer(result) : null;
   }
 
-  async deleteTrainer(id: string): Promise<boolean> {
+  async deleteTrainer(id: string): Promise<{ deleted: boolean; reason?: 'not-found' | 'last-admin' }> {
     const membersCollection = mongoConnection.getMembersCollection();
+    const trainerDoc = await membersCollection.findOne({
+      _id: id,
+      role: 'trainer'
+    });
+
+    if (!trainerDoc) {
+      return { deleted: false, reason: 'not-found' };
+    }
+
+    const trainerRoles = this.resolveLegacyRoles(trainerDoc);
+    if (trainerRoles.includes('admin')) {
+      const adminCount = await this.getGroupAdminCount(trainerDoc.groupId);
+      if (adminCount <= 1) {
+        return { deleted: false, reason: 'last-admin' };
+      }
+    }
+
     const result = await membersCollection.deleteOne({ 
       _id: id, 
       role: 'trainer' 
     });
-    
-    return result.deletedCount > 0;
+
+    if (result.deletedCount === 0) {
+      return { deleted: false, reason: 'not-found' };
+    }
+
+    return { deleted: true };
   }
 
   // Shirt Set operations
