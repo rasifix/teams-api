@@ -1,5 +1,6 @@
 import { getAllGroups } from '../src/controllers/groupController';
 import { getAllEvents, updateInvitationStatus } from '../src/controllers/eventController';
+import { revokeRoleFromMember } from '../src/controllers/membersController';
 import { requireGroupRole, GroupAuthRequest } from '../src/middleware/groupAuth';
 import { dataStore } from '../src/data/store';
 import { AuthRequest } from '../src/middleware/auth';
@@ -288,6 +289,72 @@ const testGuardianSeesOnlyChildRelevantEvents = async (): Promise<void> => {
   assert(selectionEvent?.teams?.[0]?.shirtAssignments === undefined, 'Guardian should not see shirt assignment details');
 };
 
+const testRevokeRoleRules = async (): Promise<void> => {
+  const makeReq = (role: string): GroupAuthRequest => asGroupAuthRequest({
+    params: {
+      groupId: 'g-1',
+      id: 'm-1',
+      role
+    }
+  });
+
+  const baseMember = {
+    id: 'm-1',
+    groupId: 'g-1',
+    roles: ['admin', 'trainer'] as Array<'admin' | 'trainer' | 'guardian'>,
+    email: 'member@example.com'
+  };
+
+  await withPatchedDataStore(
+    {
+      getTrainerById: async () => baseMember,
+      revokeRoleFromTrainer: async (_id: string, role: string) => {
+        if (role === 'guardian') {
+          return { reason: 'guardian-derived' as const };
+        }
+
+        if (role === 'admin') {
+          return { reason: 'last-admin' as const };
+        }
+
+        return {
+          updatedTrainer: {
+            ...baseMember,
+            roles: ['admin']
+          }
+        };
+      }
+    },
+    async () => {
+      const guardianRes = createMockResponse();
+      await revokeRoleFromMember(makeReq('guardian') as any, guardianRes as any);
+      assert(guardianRes.statusCode === 409, 'Guardian role revocation should be rejected');
+
+      const adminRes = createMockResponse();
+      await revokeRoleFromMember(makeReq('admin') as any, adminRes as any);
+      assert(adminRes.statusCode === 409, 'Last admin role revocation should be rejected');
+
+      const trainerRes = createMockResponse();
+      await revokeRoleFromMember(makeReq('trainer') as any, trainerRes as any);
+      assert(trainerRes.statusCode === 200, 'Trainer role revocation should be allowed when at least one role remains');
+      const trainerBody = trainerRes.body as { roles?: string[] };
+      assert(Array.isArray(trainerBody.roles) && trainerBody.roles.length === 1 && trainerBody.roles[0] === 'admin', 'Trainer role revocation should return member with remaining role');
+    }
+  );
+
+  await withPatchedDataStore(
+    {
+      getTrainerById: async () => baseMember,
+      revokeRoleFromTrainer: async () => ({ reason: 'last-role' as const })
+    },
+    async () => {
+      const lastRoleRes = createMockResponse();
+      await revokeRoleFromMember(makeReq('trainer') as any, lastRoleRes as any);
+      assert(lastRoleRes.statusCode === 409, 'Role revocation should be rejected when it would leave member without roles');
+    }
+  );
+};
+
 const run = async (): Promise<void> => {
   const tests: Array<{ name: string; run: () => Promise<void> }> = [
     {
@@ -305,6 +372,10 @@ const run = async (): Promise<void> => {
     {
       name: '4) Guardian sees only child-relevant events',
       run: testGuardianSeesOnlyChildRelevantEvents
+    },
+    {
+      name: '5) Revoke role enforces role constraints',
+      run: testRevokeRoleRules
     }
   ];
 

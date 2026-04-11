@@ -606,6 +606,71 @@ class DataStore {
     return { deleted: true };
   }
 
+  async revokeRoleFromTrainer(
+    id: string,
+    role: GroupRole
+  ): Promise<{
+    updatedTrainer?: Trainer;
+    reason?: 'not-found' | 'guardian-derived' | 'last-admin' | 'role-not-assigned' | 'last-role';
+  }> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    const trainerDoc = await membersCollection.findOne({
+      _id: id,
+      roles: { $in: ['trainer', 'admin', 'guardian'] }
+    });
+
+    if (!trainerDoc) {
+      return { reason: 'not-found' };
+    }
+
+    if (role === 'guardian') {
+      return { reason: 'guardian-derived' };
+    }
+
+    const roles = this.resolveRoles(trainerDoc);
+    if (!roles.includes(role)) {
+      return { reason: 'role-not-assigned' };
+    }
+
+    if (roles.length <= 1) {
+      return { reason: 'last-role' };
+    }
+
+    if (role === 'admin') {
+      const adminCount = await this.getGroupAdminCount(trainerDoc.groupId);
+      if (adminCount <= 1) {
+        return { reason: 'last-admin' };
+      }
+    }
+
+    const updatedRoles = roles.filter(existingRole => existingRole !== role);
+    if (updatedRoles.length === 0) {
+      return { reason: 'last-role' };
+    }
+
+    const updatedDoc = await membersCollection.findOneAndUpdate(
+      { _id: id, roles: { $in: ['trainer', 'admin', 'guardian'] } },
+      {
+        $set: {
+          roles: updatedRoles,
+          updatedAt: new Date()
+        }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!updatedDoc) {
+      return { reason: 'not-found' };
+    }
+
+    const updatedTrainer = personDocumentToTrainer(updatedDoc);
+    if (!updatedTrainer) {
+      return { reason: 'not-found' };
+    }
+
+    return { updatedTrainer };
+  }
+
   async addGuardianLink(groupId: string, guardianMemberId: string, childMemberId: string): Promise<void> {
     const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
     const now = new Date();

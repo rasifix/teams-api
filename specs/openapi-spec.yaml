@@ -755,6 +755,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/members/{id}/roles/{role}:
+    delete:
+      operationId: revokeMemberRole
+      summary: Revoke role from a member
+      description: Revoke an admin, trainer, or guardian role from a member in a specific group.
+      tags:
+        - Members
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: role
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [admin, trainer, guardian]
+      responses:
+        '200':
+          description: Role revoked successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerWithRole'
+        '400':
+          description: Invalid role parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Member not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Role revocation conflict (last admin, last role, guardian role, or role not assigned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/groups/{groupId}/members/{id}/guardians:
     post:
       operationId: linkGuardianToPlayer

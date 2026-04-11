@@ -7,6 +7,7 @@ import {
   deleteMember,
   addGuardianToPlayer,
   deleteGuardianFromPlayer,
+  revokeRoleFromMember,
 } from '../controllers/membersController';
 import evaluationRoutes from './evaluationRoutes';
 import { requireGroupRole } from '../middleware/groupAuth';
@@ -30,6 +31,9 @@ router.post('/:id/guardians', requireGroupRole(['admin', 'trainer']), addGuardia
 
 // DELETE /api/groups/:groupId/members/:id/guardians/:guardianId
 router.delete('/:id/guardians/:guardianId', requireGroupRole(['admin', 'trainer']), deleteGuardianFromPlayer);
+
+// DELETE /api/groups/:groupId/members/:id/roles/:role
+router.delete('/:id/roles/:role', requireGroupRole(['admin', 'trainer']), revokeRoleFromMember);
 
 // DELETE /api/groups/:groupId/members/:id
 router.delete('/:id', requireGroupRole(['admin', 'trainer']), deleteMember);

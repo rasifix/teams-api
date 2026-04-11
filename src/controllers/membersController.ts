@@ -4,6 +4,7 @@ import { GroupRole, Player, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 
 const VALID_MEMBER_ROLES: GroupRole[] = ['admin', 'trainer', 'guardian', 'player'];
+const REVOKEABLE_MEMBER_ROLES: GroupRole[] = ['admin', 'trainer', 'guardian'];
 
 const normalizeRoles = (roles: unknown): GroupRole[] | null => {
   if (!Array.isArray(roles) || roles.length === 0) {
@@ -360,6 +361,55 @@ export const deleteGuardianFromPlayer = async (req: Request, res: Response): Pro
   } catch (error) {
     console.error('Error deleting guardian:', error);
     res.status(500).json({ error: 'Failed to delete guardian' });
+  }
+};
+
+// DELETE /api/groups/:groupId/members/:id/roles/:role
+export const revokeRoleFromMember = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { groupId, id, role } = req.params;
+
+    if (!REVOKEABLE_MEMBER_ROLES.includes(role as GroupRole)) {
+      res.status(400).json({ error: 'role must be one of admin, trainer, or guardian' });
+      return;
+    }
+
+    const trainer = await dataStore.getTrainerById(id);
+    if (!trainer || trainer.groupId !== groupId) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+
+    const revokeResult = await dataStore.revokeRoleFromTrainer(id, role as GroupRole);
+    if (revokeResult.reason === 'guardian-derived') {
+      res.status(409).json({ error: 'guardian role cannot be revoked because it is derived from guardian relations' });
+      return;
+    }
+
+    if (revokeResult.reason === 'last-admin') {
+      res.status(409).json({ error: 'admin role can only be revoked when at least one other admin exists' });
+      return;
+    }
+
+    if (revokeResult.reason === 'last-role') {
+      res.status(409).json({ error: 'member must have at least one remaining role' });
+      return;
+    }
+
+    if (revokeResult.reason === 'role-not-assigned') {
+      res.status(409).json({ error: 'member does not currently have the specified role' });
+      return;
+    }
+
+    if (revokeResult.reason === 'not-found' || !revokeResult.updatedTrainer) {
+      res.status(404).json({ error: 'Member not found' });
+      return;
+    }
+
+    res.json(revokeResult.updatedTrainer);
+  } catch (error) {
+    console.error('Error revoking member role:', error);
+    res.status(500).json({ error: 'Failed to revoke member role' });
   }
 };
 
