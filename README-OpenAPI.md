@@ -4,7 +4,7 @@ This directory contains the OpenAPI 3.0.3 specification for the Teams API.
 
 ## Files
 
-- `openapi-spec.yaml` - Complete OpenAPI specification for the Teams API
+- `spec/openapi-spec.yaml` - Complete OpenAPI specification for the Teams API
 
 ## Overview
 

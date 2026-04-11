@@ -57,7 +57,7 @@ async function startServer() {
       console.log('  GET    /auth/me (protected)');
       console.log('  GET    /api/groups');
       console.log('  POST   /api/groups');
-      console.log('  GET    /api/groups/:groupId/members?role=player|trainer');
+      console.log('  GET    /api/groups/:groupId/members?roles=player|trainer');
       console.log('  POST   /api/groups/:groupId/members');
       console.log('  GET    /api/groups/:groupId/members/:memberId/evaluations');
       console.log('  POST   /api/groups/:groupId/members/:memberId/evaluations');

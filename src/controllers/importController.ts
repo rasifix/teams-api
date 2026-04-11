@@ -99,6 +99,7 @@ export const importLocalStorageData = async (req: Request, res: Response): Promi
           const player: Player = {
             id: newId,
             groupId,
+            roles: ['player'],
             firstName: playerData.firstName,
             lastName: playerData.lastName,
             birthDate: playerData.birthDate,
@@ -123,6 +124,7 @@ export const importLocalStorageData = async (req: Request, res: Response): Promi
           const trainer: Trainer = {
             id: newId,
             groupId,
+            roles: ['trainer'],
             firstName: trainerData.firstName,
             lastName: trainerData.lastName
           };

@@ -39,11 +39,10 @@ export interface EvaluationEmbedded {
 export interface PersonDocument extends BaseDocument {
   firstName?: string;
   lastName?: string;
-  role: 'player' | 'trainer';
   roles?: Array<'admin' | 'trainer' | 'guardian' | 'player'>;
   groupId: string; // Reference to GroupDocument
-  email?: string; // Optional email for trainers
-  // Player-specific properties (only present when role === 'player')
+  email?: string;
+  // Player-specific properties (present when roles contains 'player')
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
   preferredShirtNumber?: number;
@@ -55,20 +54,20 @@ export interface PersonDocument extends BaseDocument {
     lastName?: string;
     email?: string;
   }>;
-  evaluations?: EvaluationEmbedded[]; // Player evaluations (only present when role === 'player')
+  evaluations?: EvaluationEmbedded[]; // Player evaluations (present when roles contains 'player')
 }
 
 // Canonical guardian-child relationship collection
 export interface GuardianChildLinkDocument extends BaseDocument {
   groupId: string; // Reference to GroupDocument
   guardianMemberId: string; // Reference to PersonDocument (_id)
-  childMemberId: string; // Reference to PersonDocument (_id) with role 'player'
+  childMemberId: string; // Reference to PersonDocument (_id) with roles containing 'player'
 }
 
 // Embedded invitation document (within events)
 export interface InvitationEmbedded {
   id: string;
-  playerId: string; // Reference to PersonDocument with role 'player'
+  playerId: string; // Reference to PersonDocument with roles containing 'player'
   status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
   sentAt?: Date;
   respondedAt?: Date;
@@ -76,7 +75,7 @@ export interface InvitationEmbedded {
 
 // Embedded shirt assignment (within teams)
 export interface ShirtAssignmentEmbedded {
-  playerId: string; // Reference to PersonDocument with role 'player'
+  playerId: string; // Reference to PersonDocument with roles containing 'player'
   shirtNumber: number;
 }
 
@@ -87,8 +86,8 @@ export interface TeamEmbedded {
   strength: number; // 1 (highest) to 3 (lowest), default 2
   startTime: string; // HH:MM format
   location?: string; // Optional team-specific location overriding event location
-  selectedPlayers: string[]; // References to PersonDocument with role 'player'
-  trainerId?: string; // Reference to PersonDocument with role 'trainer'
+  selectedPlayers: string[]; // References to PersonDocument with roles containing 'player'
+  trainerId?: string; // Reference to PersonDocument with roles containing trainer/admin/guardian
   shirtSetId?: string; // Reference to ShirtSetDocument
   shirtAssignments?: ShirtAssignmentEmbedded[];
 }
@@ -123,7 +122,7 @@ export interface ShirtSetDocument extends BaseDocument {
 
 // Helper types for queries and operations
 export type PlayerDocument = PersonDocument & {
-  role: 'player';
+  roles: Array<'admin' | 'trainer' | 'guardian' | 'player'>;
   birthDate?: string;
   level: number;
   preferredShirtNumber?: number;
@@ -131,17 +130,19 @@ export type PlayerDocument = PersonDocument & {
 };
 
 export type TrainerDocument = PersonDocument & {
-  role: 'trainer';
+  roles: Array<'admin' | 'trainer' | 'guardian' | 'player'>;
 };
 
 // Type guards for runtime type checking
 export function isPlayerDocument(person: PersonDocument): person is PlayerDocument {
-  return person.role === 'player' && 
+  return Array.isArray(person.roles) &&
+         person.roles.includes('player') &&
          typeof person.level === 'number';
 }
 
 export function isTrainerDocument(person: PersonDocument): person is TrainerDocument {
-  return person.role === 'trainer';
+  return Array.isArray(person.roles) &&
+         (person.roles.includes('trainer') || person.roles.includes('admin') || person.roles.includes('guardian'));
 }
 
 // Users Collection

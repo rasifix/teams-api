@@ -26,22 +26,20 @@ import {
 
 // MongoDB-based data store
 class DataStore {
-  private resolveLegacyRoles(person: Pick<PersonDocument, 'role' | 'roles' | 'firstName' | 'lastName'>): GroupRole[] {
+  private resolveRoles(person: Pick<PersonDocument, 'roles'>): GroupRole[] {
     if (Array.isArray(person.roles) && person.roles.length > 0) {
       return person.roles;
     }
 
-    if (person.role === 'player') {
-      return ['player'];
-    }
-
-    return ['trainer'];
+    return [];
   }
 
-  private toGuardianMember(person: Pick<PersonDocument, '_id' | 'groupId' | 'firstName' | 'lastName' | 'email'>): Guardian {
+  private toGuardianMember(person: Pick<PersonDocument, '_id' | 'groupId' | 'firstName' | 'lastName' | 'email' | 'roles'>): Guardian {
+    const roles = this.resolveRoles(person);
     return {
       id: person._id,
       groupId: person.groupId,
+      roles: roles.length > 0 ? roles : ['guardian'],
       firstName: person.firstName,
       lastName: person.lastName,
       email: person.email
@@ -74,7 +72,7 @@ class DataStore {
     const guardianMemberDocs = await membersCollection.find({
       _id: { $in: guardianMemberIds },
       groupId,
-      role: 'trainer'
+      roles: { $in: ['guardian', 'trainer', 'admin'] }
     }).toArray();
 
     const guardianById = new Map<string, Guardian>(
@@ -128,9 +126,7 @@ class DataStore {
 
   async getGroupAdminCount(groupId: string): Promise<number> {
     const membersCollection = mongoConnection.getMembersCollection();
-    const trainerDocs = await membersCollection.find({ groupId, role: 'trainer' }).toArray();
-
-    return trainerDocs.filter(doc => this.resolveLegacyRoles(doc).includes('admin')).length;
+    return membersCollection.countDocuments({ groupId, roles: 'admin' });
   }
 
   async getUserGroupAccess(userId: string, groupId: string): Promise<{ memberId: string; roles: GroupRole[] } | null> {
@@ -142,7 +138,7 @@ class DataStore {
     const membersCollection = mongoConnection.getMembersCollection();
     const trainerDoc = await membersCollection.findOne({
       groupId,
-      role: 'trainer',
+      roles: { $in: ['admin', 'trainer', 'guardian'] },
       email: user.email.toLowerCase()
     });
 
@@ -150,7 +146,7 @@ class DataStore {
       return null;
     }
 
-    const roles = this.resolveLegacyRoles(trainerDoc);
+    const roles = this.resolveRoles(trainerDoc);
     if (!trainerDoc.roles || trainerDoc.roles.length === 0) {
       await membersCollection.updateOne(
         { _id: trainerDoc._id },
@@ -291,7 +287,7 @@ class DataStore {
   // Player operations (now scoped to groups)
   async getAllPlayers(groupId?: string): Promise<Player[]> {
     const membersCollection = mongoConnection.getMembersCollection();
-    const filter: any = { role: 'player' as const };
+    const filter: any = { roles: 'player' };
     if (groupId) {
       filter.groupId = groupId;
     }
@@ -307,7 +303,7 @@ class DataStore {
     const membersCollection = mongoConnection.getMembersCollection();
     const playerDoc = await membersCollection.findOne({ 
       _id: id, 
-      role: 'player' 
+      roles: 'player'
     });
     
     const player = playerDoc ? personDocumentToPlayer(playerDoc) || undefined : undefined;
@@ -345,7 +341,7 @@ class DataStore {
     };
     
     const result = await membersCollection.findOneAndUpdate(
-      { _id: id, role: 'player' },
+      { _id: id, roles: 'player' },
       { $set: updateDoc },
       { returnDocument: 'after' }
     );
@@ -369,7 +365,7 @@ class DataStore {
     const embeddedEvaluation = playerEvaluationToEmbedded(evaluation);
     
     const result = await membersCollection.findOneAndUpdate(
-      { _id: playerId, role: 'player' },
+      { _id: playerId, roles: 'player' },
       { 
         $push: { evaluations: embeddedEvaluation },
         $set: { updatedAt: new Date() }
@@ -396,7 +392,7 @@ class DataStore {
     const embeddedEvaluation = playerEvaluationToEmbedded(evaluation);
     
     const result = await membersCollection.findOneAndUpdate(
-      { _id: playerId, role: 'player', 'evaluations.id': evaluationId },
+      { _id: playerId, roles: 'player', 'evaluations.id': evaluationId },
       { 
         $set: { 
           'evaluations.$': embeddedEvaluation,
@@ -423,7 +419,7 @@ class DataStore {
     const membersCollection = mongoConnection.getMembersCollection();
     
     const result = await membersCollection.updateOne(
-      { _id: playerId, role: 'player' },
+      { _id: playerId, roles: 'player' },
       { 
         $pull: { evaluations: { id: evaluationId } },
         $set: { updatedAt: new Date() }
@@ -438,7 +434,7 @@ class DataStore {
     const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
     const result = await membersCollection.deleteOne({ 
       _id: id, 
-      role: 'player' 
+      roles: 'player'
     });
 
     if (result.deletedCount > 0) {
@@ -517,16 +513,12 @@ class DataStore {
   // Trainer operations
   async getAllTrainers(groupId: string): Promise<Trainer[]> {
     const membersCollection = mongoConnection.getMembersCollection();
-    const filter: any = { role: 'trainer' as const };
+    const filter: any = { roles: { $in: ['trainer', 'admin'] } };
     if (groupId) {
       filter.groupId = groupId;
     }
     const trainerDocs = await membersCollection.find(filter).toArray();
     return trainerDocs
-      .filter(doc => {
-        const roles = this.resolveLegacyRoles(doc);
-        return roles.includes('trainer') || roles.includes('admin');
-      })
       .map(personDocumentToTrainer)
       .filter((trainer): trainer is Trainer => trainer !== null);
   }
@@ -535,7 +527,7 @@ class DataStore {
     const membersCollection = mongoConnection.getMembersCollection();
     const trainerDoc = await membersCollection.findOne({ 
       _id: id, 
-      role: 'trainer' 
+      roles: { $in: ['trainer', 'admin', 'guardian'] }
     });
     
     if (!trainerDoc) return undefined;
@@ -548,13 +540,9 @@ class DataStore {
 
   async createTrainer(trainer: Trainer): Promise<Trainer> {
     const membersCollection = mongoConnection.getMembersCollection();
-    const roles = trainer.roles && trainer.roles.length > 0
+    const roles: GroupRole[] = trainer.roles && trainer.roles.length > 0
       ? trainer.roles
-      : this.resolveLegacyRoles({
-          role: 'trainer',
-          firstName: trainer.firstName,
-          lastName: trainer.lastName
-        });
+      : ['trainer'];
     const personDoc = trainerToPersonDocument({ ...trainer, roles });
     const now = new Date();
     
@@ -577,7 +565,7 @@ class DataStore {
     };
     
     const result = await membersCollection.findOneAndUpdate(
-      { _id: id, role: 'trainer' },
+      { _id: id, roles: { $in: ['trainer', 'admin', 'guardian'] } },
       { $set: updateDoc },
       { returnDocument: 'after' }
     );
@@ -590,14 +578,14 @@ class DataStore {
     const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
     const trainerDoc = await membersCollection.findOne({
       _id: id,
-      role: 'trainer'
+      roles: { $in: ['trainer', 'admin', 'guardian'] }
     });
 
     if (!trainerDoc) {
       return { deleted: false, reason: 'not-found' };
     }
 
-    const trainerRoles = this.resolveLegacyRoles(trainerDoc);
+    const trainerRoles = this.resolveRoles(trainerDoc);
     if (trainerRoles.includes('admin')) {
       const adminCount = await this.getGroupAdminCount(trainerDoc.groupId);
       if (adminCount <= 1) {
@@ -607,7 +595,7 @@ class DataStore {
 
     const result = await membersCollection.deleteOne({ 
       _id: id, 
-      role: 'trainer' 
+      roles: { $in: ['trainer', 'admin', 'guardian'] }
     });
 
     if (result.deletedCount === 0) {
@@ -627,7 +615,7 @@ class DataStore {
     if (normalizedEmail) {
       existingGuardianMember = await membersCollection.findOne({
         groupId,
-        role: 'trainer',
+        roles: { $in: ['trainer', 'admin', 'guardian'] },
         email: normalizedEmail
       });
     }
@@ -667,7 +655,6 @@ class DataStore {
     const guardianMemberId = await getNextSequence('members');
     const guardianMember: PersonDocument = {
       _id: guardianMemberId,
-      role: 'trainer',
       roles: ['guardian'],
       groupId,
       firstName: guardian.firstName,

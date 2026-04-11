@@ -13,7 +13,7 @@ import { requireGroupRole } from '../middleware/groupAuth';
 
 const router = Router({ mergeParams: true });
 
-// GET /api/groups/:groupId/members?role=player|trainer
+// GET /api/groups/:groupId/members?roles=player|trainer
 router.get('/', getAllMembers);
 
 // GET /api/groups/:groupId/members/:id

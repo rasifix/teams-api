@@ -10,6 +10,7 @@ import type {
 } from './mongodb';
 import type { 
   Group,
+  GroupRole,
   Period,
   Player, 
   Trainer, 
@@ -87,13 +88,18 @@ export function playerEvaluationToEmbedded(evaluation: PlayerEvaluation): Evalua
 
 // Convert MongoDB PersonDocument to API Player
 export function personDocumentToPlayer(doc: PersonDocument): Player | null {
-  if (doc.role !== 'player' || !doc.level) {
+  const normalizedRoles: GroupRole[] = doc.roles && doc.roles.length > 0
+    ? doc.roles
+    : (typeof doc.level === 'number' ? ['player'] : []);
+
+  if (!normalizedRoles.includes('player') || !doc.level) {
     return null;
   }
   
   return {
     id: doc._id,
     groupId: doc.groupId,
+    roles: normalizedRoles,
     firstName: doc.firstName!,
     lastName: doc.lastName!,
     birthDate: doc.birthDate,
@@ -106,7 +112,11 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
 
 // Convert MongoDB PersonDocument to API Trainer
 export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
-  if (doc.role !== 'trainer') {
+  const normalizedRoles: GroupRole[] = doc.roles && doc.roles.length > 0
+    ? doc.roles
+    : ['trainer'];
+
+  if (!normalizedRoles.some(role => role === 'trainer' || role === 'admin' || role === 'guardian')) {
     return null;
   }
   
@@ -116,7 +126,7 @@ export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
     firstName: doc.firstName,
     lastName: doc.lastName,
     email: doc.email,
-    roles: doc.roles
+    roles: normalizedRoles
   };
   
   return trainer;
@@ -127,7 +137,7 @@ export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_i
   return {
     firstName: player.firstName,
     lastName: player.lastName,
-    role: 'player',
+    roles: player.roles,
     groupId: player.groupId,
     birthDate: player.birthDate,
     level: player.level,
@@ -141,7 +151,6 @@ export function trainerToPersonDocument(trainer: Trainer): Omit<PersonDocument, 
   return {
     firstName: trainer.firstName,
     lastName: trainer.lastName,
-    role: 'trainer',
     roles: trainer.roles,
     groupId: trainer.groupId,
     email: trainer.email

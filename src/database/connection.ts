@@ -184,9 +184,9 @@ class DatabaseConnection {
     // Members collection indexes
     const membersCollection = this.getMembersCollection();
     await membersCollection.createIndex({ groupId: 1 }); // Group membership lookup
-    await membersCollection.createIndex({ role: 1 });
+    await membersCollection.createIndex({ roles: 1 });
     await membersCollection.createIndex({ firstName: 1, lastName: 1 });
-    await membersCollection.createIndex({ role: 1, level: 1 }); // For player queries
+    await membersCollection.createIndex({ roles: 1, level: 1 }); // For player queries
     await membersCollection.createIndex({ email: 1 }); // Email lookup for trainers
     await membersCollection.createIndex({ createdAt: -1 });
 

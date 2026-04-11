@@ -19,6 +19,7 @@ export type GroupRole = 'admin' | 'trainer' | 'guardian' | 'player';
 export interface Player {
   id: string;
   groupId: string;
+  roles: GroupRole[];
   firstName: string;
   lastName: string;
   birthDate?: string; // ISO date string (YYYY-MM-DD)
@@ -32,15 +33,16 @@ export interface Player {
 export interface Trainer {
   id: string;
   groupId: string;
+  roles: GroupRole[];
   firstName?: string;
   lastName?: string;
   email?: string;
-  roles?: GroupRole[];
 }
 
 export interface Guardian {
   id: string;
   groupId: string;
+  roles: GroupRole[];
   firstName?: string;
   lastName?: string;
   email?: string;

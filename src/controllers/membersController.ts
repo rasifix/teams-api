@@ -1,7 +1,22 @@
 import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
-import { Guardian, Player, Trainer } from '../types';
+import { Guardian, GroupRole, Player, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
+
+const VALID_MEMBER_ROLES: GroupRole[] = ['admin', 'trainer', 'guardian', 'player'];
+
+const normalizeRoles = (roles: unknown): GroupRole[] | null => {
+  if (!Array.isArray(roles) || roles.length === 0) {
+    return null;
+  }
+
+  const unique = Array.from(new Set(roles));
+  if (!unique.every(role => typeof role === 'string' && VALID_MEMBER_ROLES.includes(role as GroupRole))) {
+    return null;
+  }
+
+  return unique as GroupRole[];
+};
 
 // Helper function to populate trainer names and email from User if not present
 async function populateTrainerNames(trainer: Trainer): Promise<Trainer> {
@@ -18,11 +33,12 @@ async function populateTrainerNames(trainer: Trainer): Promise<Trainer> {
   return trainer;
 }
 
-// GET /api/groups/:groupId/members?role=player|trainer or GET /api/groups/:groupId/members (returns all)
+// GET /api/groups/:groupId/members?roles=player|trainer or GET /api/groups/:groupId/members (returns all)
 export const getAllMembers = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role } = req.query;
+    const rolesFilter = req.query.roles;
+    const role = typeof rolesFilter === 'string' ? rolesFilter : undefined;
     
     if (role === 'player') {
       const players = await dataStore.getAllPlayers(groupId);
@@ -65,14 +81,14 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
     // Try to find as player first, then as trainer
     const player = await dataStore.getPlayerById(id);
     if (player) {
-      res.json({ ...player, role: 'player' });
+      res.json(player);
       return;
     }
     
     const trainer = await dataStore.getTrainerById(id);
     if (trainer) {
       const populatedTrainer = await populateTrainerNames(trainer);
-      res.json({ ...populatedTrainer, role: 'trainer' });
+      res.json(populatedTrainer);
       return;
     }
     
@@ -87,19 +103,22 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { role, firstName, lastName, birthDate, level, email, preferredShirtNumber, status } = req.body;
+    const { roles, firstName, lastName, birthDate, level, email, preferredShirtNumber, status } = req.body;
+    const normalizedRoles = normalizeRoles(roles);
     
-    if (!role) {
-      res.status(400).json({ error: 'role is required' });
+    if (!normalizedRoles) {
+      res.status(400).json({ error: 'roles must be a non-empty array containing valid roles' });
+      return;
+    }
+
+    const isPlayer = normalizedRoles.includes('player');
+    const isTrainerLike = normalizedRoles.some(role => role === 'admin' || role === 'trainer' || role === 'guardian');
+    if (isPlayer && isTrainerLike) {
+      res.status(400).json({ error: 'player role cannot be combined with admin, trainer, or guardian roles' });
       return;
     }
     
-    if (!['player', 'trainer'].includes(role)) {
-      res.status(400).json({ error: 'role must be "player" or "trainer"' });
-      return;
-    }
-    
-    if (role === 'player') {
+    if (isPlayer) {
       if (!firstName || !lastName) {
         res.status(400).json({ error: 'firstName and lastName are required for players' });
         return;
@@ -127,6 +146,7 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
       const newPlayer: Player = {
         id: await getNextSequence('members'),
         groupId,
+        roles: ['player'],
         firstName,
         lastName,
         birthDate,
@@ -136,8 +156,13 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
       };
       
       const createdPlayer = await dataStore.createPlayer(newPlayer);
-      res.status(201).json({ ...createdPlayer, role: 'player' });
+      res.status(201).json(createdPlayer);
     } else {
+      if (!isTrainerLike) {
+        res.status(400).json({ error: 'roles must include at least one of admin, trainer, or guardian' });
+        return;
+      }
+
       // For trainers, validate email exists in users if provided
       if (email) {
         const linkedUser = await dataStore.getUserByEmail(email);
@@ -151,13 +176,14 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
       const newTrainer: Trainer = {
         id: await getNextSequence('members'),
         groupId,
+        roles: normalizedRoles,
         firstName,
         lastName,
         email: email ? email.toLowerCase() : undefined
       };
       
       const createdTrainer = await dataStore.createTrainer(newTrainer);
-      res.status(201).json({ ...createdTrainer, role: 'trainer' });
+      res.status(201).json(createdTrainer);
     }
   } catch (error) {
     console.error('Error creating member:', error);
@@ -169,19 +195,22 @@ export const createMember = async (req: Request, res: Response): Promise<void> =
 export const updateMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { role, firstName, lastName, birthDate, level, email, preferredShirtNumber, status } = req.body;
+    const { roles, firstName, lastName, birthDate, level, email, preferredShirtNumber, status } = req.body;
+    const normalizedRoles = normalizeRoles(roles);
     
-    if (!role) {
-      res.status(400).json({ error: 'role is required' });
+    if (!normalizedRoles) {
+      res.status(400).json({ error: 'roles must be a non-empty array containing valid roles' });
+      return;
+    }
+
+    const isPlayer = normalizedRoles.includes('player');
+    const isTrainerLike = normalizedRoles.some(role => role === 'admin' || role === 'trainer' || role === 'guardian');
+    if (isPlayer && isTrainerLike) {
+      res.status(400).json({ error: 'player role cannot be combined with admin, trainer, or guardian roles' });
       return;
     }
     
-    if (!['player', 'trainer'].includes(role)) {
-      res.status(400).json({ error: 'role must be "player" or "trainer"' });
-      return;
-    }
-    
-    if (role === 'player') {
+    if (isPlayer) {
       if (!firstName || !lastName) {
         res.status(400).json({ error: 'firstName and lastName are required for players' });
         return;
@@ -207,6 +236,7 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
       }
       
       const updatedPlayer = await dataStore.updatePlayer(id, {
+        roles: ['player'],
         firstName,
         lastName,
         birthDate,
@@ -220,8 +250,13 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
         return;
       }
       
-      res.json({ ...updatedPlayer, role: 'player' });
+      res.json(updatedPlayer);
     } else {
+      if (!isTrainerLike) {
+        res.status(400).json({ error: 'roles must include at least one of admin, trainer, or guardian' });
+        return;
+      }
+
       // For trainers, validate email exists in users if provided
       if (email) {
         const linkedUser = await dataStore.getUserByEmail(email);
@@ -233,6 +268,7 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
       
       // For trainers, firstName and lastName are optional
       const updatedTrainer = await dataStore.updateTrainer(id, {
+        roles: normalizedRoles,
         firstName,
         lastName,
         email: email ? email.toLowerCase() : undefined
@@ -243,7 +279,7 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
         return;
       }
       
-      res.json({ ...updatedTrainer, role: 'trainer' });
+      res.json(updatedTrainer);
     }
   } catch (error) {
     console.error('Error updating member:', error);
@@ -308,7 +344,7 @@ export const addGuardianToPlayer = async (req: Request, res: Response): Promise<
       return;
     }
 
-    res.json({ ...updatedPlayer, role: 'player' });
+    res.json(updatedPlayer);
   } catch (error) {
     console.error('Error adding guardian:', error);
     res.status(500).json({ error: 'Failed to add guardian' });
@@ -345,7 +381,7 @@ export const deleteGuardianFromPlayer = async (req: Request, res: Response): Pro
       return;
     }
 
-    res.json({ ...updatedPlayer, role: 'player' });
+    res.json(updatedPlayer);
   } catch (error) {
     console.error('Error deleting guardian:', error);
     res.status(500).json({ error: 'Failed to delete guardian' });
