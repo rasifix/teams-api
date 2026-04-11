@@ -9,7 +9,6 @@ import {
   UserDocument,
   PasswordResetDocument
 } from '../types/mongodb';
-import { getNextSequence } from '../utils/sequence';
 import {
   groupDocumentToGroup,
   groupToGroupDocument,
@@ -605,67 +604,6 @@ class DataStore {
     await guardianLinksCollection.deleteMany({ guardianMemberId: id });
 
     return { deleted: true };
-  }
-
-  async upsertGuardianMember(groupId: string, guardian: Partial<Guardian>): Promise<Guardian> {
-    const membersCollection = mongoConnection.getMembersCollection();
-    const normalizedEmail = guardian.email?.toLowerCase();
-
-    let existingGuardianMember: PersonDocument | null = null;
-    if (normalizedEmail) {
-      existingGuardianMember = await membersCollection.findOne({
-        groupId,
-        roles: { $in: ['trainer', 'admin', 'guardian'] },
-        email: normalizedEmail
-      });
-    }
-
-    if (existingGuardianMember) {
-      const roles = new Set(existingGuardianMember.roles ?? []);
-      roles.add('guardian');
-      const updatedRoles = Array.from(roles) as GroupRole[];
-
-      const updates: Partial<PersonDocument> = {
-        updatedAt: new Date(),
-        roles: updatedRoles
-      };
-
-      if (!existingGuardianMember.firstName && guardian.firstName) {
-        updates.firstName = guardian.firstName;
-      }
-      if (!existingGuardianMember.lastName && guardian.lastName) {
-        updates.lastName = guardian.lastName;
-      }
-
-      await membersCollection.updateOne(
-        { _id: existingGuardianMember._id },
-        { $set: updates }
-      );
-
-      return this.toGuardianMember({
-        _id: existingGuardianMember._id,
-        groupId: existingGuardianMember.groupId,
-        firstName: updates.firstName ?? existingGuardianMember.firstName,
-        lastName: updates.lastName ?? existingGuardianMember.lastName,
-        email: existingGuardianMember.email
-      });
-    }
-
-    const now = new Date();
-    const guardianMemberId = await getNextSequence('members');
-    const guardianMember: PersonDocument = {
-      _id: guardianMemberId,
-      roles: ['guardian'],
-      groupId,
-      firstName: guardian.firstName,
-      lastName: guardian.lastName,
-      email: normalizedEmail,
-      createdAt: now,
-      updatedAt: now
-    };
-
-    await membersCollection.insertOne(guardianMember);
-    return this.toGuardianMember(guardianMember);
   }
 
   async addGuardianLink(groupId: string, guardianMemberId: string, childMemberId: string): Promise<void> {
