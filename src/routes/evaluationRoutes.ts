@@ -10,7 +10,7 @@ import { requireGroupRole } from '../middleware/groupAuth';
 const router = Router({ mergeParams: true });
 
 // GET /api/groups/:groupId/members/:memberId/evaluations
-router.get('/', getAllEvaluationsForMember);
+router.get('/', requireGroupRole(['admin', 'trainer']), getAllEvaluationsForMember);
 
 // POST /api/groups/:groupId/members/:memberId/evaluations
 router.post('/', requireGroupRole(['admin', 'trainer']), createEvaluation);

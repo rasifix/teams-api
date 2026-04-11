@@ -10,8 +10,8 @@ import { requireGroupRole } from '../middleware/groupAuth';
 
 const router = Router({ mergeParams: true });
 
-router.get('/', getShirtSets);
-router.get('/:id', getShirtSetById);
+router.get('/', requireGroupRole(['admin', 'trainer']), getShirtSets);
+router.get('/:id', requireGroupRole(['admin', 'trainer']), getShirtSetById);
 router.post('/', requireGroupRole(['admin']), createShirtSet);
 router.put('/:id', requireGroupRole(['admin']), updateShirtSet);
 router.delete('/:id', requireGroupRole(['admin']), deleteShirtSet);

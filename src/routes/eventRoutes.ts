@@ -21,7 +21,7 @@ router.delete('/:id', requireGroupRole(['admin', 'trainer']), deleteEvent);
 
 // Special event routes
 router.put('/:id/players', requireGroupRole(['admin', 'trainer']), upsertInvitations);
-router.put('/:id/players/:player_id/status', requireGroupRole(['admin', 'trainer']), updateInvitationStatus);
+router.put('/:id/players/:player_id/status', requireGroupRole(['admin', 'trainer', 'guardian']), updateInvitationStatus);
 router.put('/:id/selection', requireGroupRole(['admin', 'trainer']), upsertSelection);
 
 export default router;

@@ -696,6 +696,12 @@ class DataStore {
     return result.deletedCount > 0;
   }
 
+  async getGuardianChildPlayerIds(groupId: string, guardianMemberId: string): Promise<string[]> {
+    const guardianLinksCollection = mongoConnection.getGuardianChildLinksCollection();
+    const links = await guardianLinksCollection.find({ groupId, guardianMemberId }).toArray();
+    return links.map(link => link.childMemberId);
+  }
+
   // Shirt Set operations
   async getAllShirtSets(groupId?: string): Promise<ShirtSet[]> {
     const shirtSetsCollection = mongoConnection.getShirtSetsCollection();

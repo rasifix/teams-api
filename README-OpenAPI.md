@@ -19,9 +19,9 @@ The Teams API provides endpoints for managing:
 Instead of separate `/players` and `/trainers` endpoints, the API uses a single `/members` endpoint with role-based filtering:
 
 ```
-GET /api/members?role=player    # Get all players
-GET /api/members?role=trainer   # Get all trainers
-GET /api/members                # Get both players and trainers
+GET /api/members?roles=player    # Get all players
+GET /api/members?roles=trainer   # Get all trainers
+GET /api/members                 # Get both players and trainers
 ```
 
 ### Event Management

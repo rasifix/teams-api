@@ -2,12 +2,53 @@ import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
 import { Event, Invitation } from '../types';
 import { getNextSequence } from '../utils/sequence';
+import { GroupAuthRequest } from '../middleware/groupAuth';
+
+const isGuardianOnlyAccess = (roles: string[]): boolean => {
+  const isPrivileged = roles.includes('admin') || roles.includes('trainer');
+  return roles.includes('guardian') && !isPrivileged;
+};
+
+const filterEventForGuardian = (event: Event, childIds: Set<string>): Event => {
+  const filteredInvitations = event.invitations.filter(invitation => childIds.has(invitation.playerId));
+  const filteredTeams = event.teams
+    .filter(team => team.selectedPlayers.some(playerId => childIds.has(playerId)))
+    .map(team => ({
+      ...team,
+      selectedPlayers: team.selectedPlayers.filter(playerId => childIds.has(playerId)),
+      shirtSetId: undefined,
+      shirtAssignments: undefined
+    }));
+
+  return {
+    ...event,
+    invitations: filteredInvitations,
+    teams: filteredTeams
+  };
+};
 
 export const getAllEvents = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
     const events = await dataStore.getAllEvents(groupId);
-    res.json(events);
+    const authReq = req as GroupAuthRequest;
+    const groupAccess = authReq.groupAccess;
+
+    if (!groupAccess || !isGuardianOnlyAccess(groupAccess.roles)) {
+      res.json(events);
+      return;
+    }
+
+    const childIds = await dataStore.getGuardianChildPlayerIds(groupId, groupAccess.memberId);
+    const childIdSet = new Set(childIds);
+    const visibleEvents = events
+      .filter(event =>
+        event.invitations.some(invitation => childIdSet.has(invitation.playerId)) ||
+        event.teams.some(team => team.selectedPlayers.some(playerId => childIdSet.has(playerId)))
+      )
+      .map(event => filterEventForGuardian(event, childIdSet));
+
+    res.json(visibleEvents);
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).json({ error: 'Failed to fetch events' });
@@ -16,7 +57,7 @@ export const getAllEvents = async (req: Request, res: Response): Promise<void> =
 
 export const getEventById = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params;
+    const { id, groupId } = req.params;
     const event = await dataStore.getEventById(id);
     
     if (!event) {
@@ -24,7 +65,30 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
       return;
     }
     
-    res.json(event);
+    if (event.groupId !== groupId) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const authReq = req as GroupAuthRequest;
+    const groupAccess = authReq.groupAccess;
+    if (!groupAccess || !isGuardianOnlyAccess(groupAccess.roles)) {
+      res.json(event);
+      return;
+    }
+
+    const childIds = await dataStore.getGuardianChildPlayerIds(groupId, groupAccess.memberId);
+    const childIdSet = new Set(childIds);
+    const isVisible =
+      event.invitations.some(invitation => childIdSet.has(invitation.playerId)) ||
+      event.teams.some(team => team.selectedPlayers.some(playerId => childIdSet.has(playerId)));
+
+    if (!isVisible) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    res.json(filterEventForGuardian(event, childIdSet));
   } catch (error) {
     console.error('Error fetching event:', error);
     res.status(500).json({ error: 'Failed to fetch event' });
@@ -152,7 +216,7 @@ export const upsertInvitations = async (req: Request, res: Response): Promise<vo
 // PUT /api/events/:id/players/:player_id/status - update the invitation status
 export const updateInvitationStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id, player_id } = req.params;
+    const { id, player_id, groupId } = req.params;
     const { status } = req.body;
     const validStatuses = ['open', 'accepted', 'declined', 'injured', 'sick', 'unavailable'];
     
@@ -165,6 +229,26 @@ export const updateInvitationStatus = async (req: Request, res: Response): Promi
     if (!validStatuses.includes(status)) {
       res.status(400).json({ error: 'Invalid status. Must be open, accepted, declined, injured, sick, or unavailable' });
       return;
+    }
+
+    if (event.groupId !== groupId) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const authReq = req as GroupAuthRequest;
+    const groupAccess = authReq.groupAccess;
+    if (groupAccess && isGuardianOnlyAccess(groupAccess.roles)) {
+      const childIds = await dataStore.getGuardianChildPlayerIds(groupId, groupAccess.memberId);
+      if (!childIds.includes(player_id)) {
+        res.status(403).json({ error: 'Guardians can only update invitations for their children' });
+        return;
+      }
+
+      if (!['accepted', 'declined'].includes(status)) {
+        res.status(403).json({ error: 'Guardians can only set invitation status to accepted or declined' });
+        return;
+      }
     }
     
     const invitationIndex = event.invitations.findIndex(inv => inv.playerId === player_id);
