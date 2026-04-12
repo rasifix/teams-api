@@ -267,6 +267,10 @@ const testGuardianInvitationStatusRestrictions = async (): Promise<void> => {
       await updateInvitationStatus(makeReq('child-1', 'accepted') as any, allowedRes as any);
       assert(allowedRes.statusCode === 200, 'Guardian should be allowed to accept invitation for own child');
 
+      const allowedDeclineRes = createMockResponse();
+      await updateInvitationStatus(makeReq('child-1', 'declined') as any, allowedDeclineRes as any);
+      assert(allowedDeclineRes.statusCode === 200, 'Guardian should be allowed to decline invitation for own child');
+
       const forbiddenStatusRes = createMockResponse();
       await updateInvitationStatus(makeReq('child-1', 'injured') as any, forbiddenStatusRes as any);
       assert(forbiddenStatusRes.statusCode === 403, 'Guardian should not set invitation status beyond accepted/declined');

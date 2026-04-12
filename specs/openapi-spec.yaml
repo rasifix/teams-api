@@ -1647,7 +1647,7 @@ paths:
     put:
       operationId: updateInvitationStatus
       summary: Update invitation status
-      description: Update the status of a player's invitation
+      description: Update the status of a player's invitation. Guardians can update only invitations for their own children and only to accepted or declined.
       tags:
         - Events
       security:
