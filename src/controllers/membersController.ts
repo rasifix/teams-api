@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
 import { GroupRole, Player, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
+import { GroupAuthRequest } from '../middleware/groupAuth';
 
 const VALID_MEMBER_ROLES: GroupRole[] = ['admin', 'trainer', 'guardian', 'player'];
 const REVOKEABLE_MEMBER_ROLES: GroupRole[] = ['admin', 'trainer', 'guardian'];
@@ -34,16 +35,28 @@ async function populateTrainerNames(trainer: Trainer): Promise<Trainer> {
   return trainer;
 }
 
+const isGuardianOnlyRequest = (req: Request): boolean => {
+  const roles = (req as GroupAuthRequest).groupAccess?.roles ?? [];
+  const hasElevatedRead = roles.includes('admin') || roles.includes('trainer');
+  return roles.includes('guardian') && !hasElevatedRead;
+};
+
+const sanitizePlayerForGuardian = (player: Player): Omit<Player, 'birthDate' | 'level' | 'evaluations'> => {
+  const { birthDate, level, evaluations, ...safePlayer } = player;
+  return safePlayer;
+};
+
 // GET /api/groups/:groupId/members?roles=player|trainer or GET /api/groups/:groupId/members (returns all)
 export const getAllMembers = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
     const rolesFilter = req.query.roles;
     const role = typeof rolesFilter === 'string' ? rolesFilter : undefined;
+    const guardianOnly = isGuardianOnlyRequest(req);
     
     if (role === 'player') {
       const players = await dataStore.getAllPlayers(groupId);
-      res.json(players);
+      res.json(guardianOnly ? players.map(sanitizePlayerForGuardian) : players);
     } else if (role === 'trainer') {
       const trainers = await dataStore.getAllTrainers(groupId);
       // Populate trainer names from User
@@ -62,7 +75,7 @@ export const getAllMembers = async (req: Request, res: Response): Promise<void> 
         trainers.map(trainer => populateTrainerNames(trainer))
       );
       res.json({
-        players,
+        players: guardianOnly ? players.map(sanitizePlayerForGuardian) : players,
         trainers: populatedTrainers
       });
     } else {
@@ -78,11 +91,12 @@ export const getAllMembers = async (req: Request, res: Response): Promise<void> 
 export const getMemberById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
+    const guardianOnly = isGuardianOnlyRequest(req);
     
     // Try to find as player first, then as trainer
     const player = await dataStore.getPlayerById(id);
     if (player) {
-      res.json(player);
+      res.json(guardianOnly ? sanitizePlayerForGuardian(player) : player);
       return;
     }
     

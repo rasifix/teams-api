@@ -1,6 +1,6 @@
 import { getAllGroups } from '../src/controllers/groupController';
 import { getAllEvents, updateInvitationStatus } from '../src/controllers/eventController';
-import { revokeRoleFromMember } from '../src/controllers/membersController';
+import { getAllMembers, getMemberById, revokeRoleFromMember } from '../src/controllers/membersController';
 import { requireGroupRole, GroupAuthRequest } from '../src/middleware/groupAuth';
 import { dataStore } from '../src/data/store';
 import { AuthRequest } from '../src/middleware/auth';
@@ -100,7 +100,7 @@ const testGetGroupsIsFilteredByMembership = async (): Promise<void> => {
   assert(groups[0].id === 'g-1', 'GET /api/groups should include only accessible group');
 };
 
-const runRequireRoleGuard = (allowedRoles: Array<'admin' | 'trainer'>): { statusCode: number; body: unknown; nextCalled: boolean } => {
+const runRequireRoleGuard = (allowedRoles: Array<'admin' | 'trainer' | 'guardian'>): { statusCode: number; body: unknown; nextCalled: boolean } => {
   const middleware = requireGroupRole(allowedRoles);
   const req = {
     groupAccess: {
@@ -123,14 +123,108 @@ const runRequireRoleGuard = (allowedRoles: Array<'admin' | 'trainer'>): { status
   };
 };
 
-const testGuardianCannotReadMembersShirtSetsEvaluations = async (): Promise<void> => {
-  const membersGuard = runRequireRoleGuard(['admin', 'trainer']);
+const testGuardianCanReadMembersButNotShirtSetsEvaluations = async (): Promise<void> => {
+  const membersGuard = runRequireRoleGuard(['admin', 'trainer', 'guardian']);
   const shirtSetsGuard = runRequireRoleGuard(['admin', 'trainer']);
   const evaluationsGuard = runRequireRoleGuard(['admin', 'trainer']);
 
-  assert(!membersGuard.nextCalled && membersGuard.statusCode === 403, 'Guardian must not pass members read guard');
+  assert(membersGuard.nextCalled, 'Guardian must pass members read guard');
   assert(!shirtSetsGuard.nextCalled && shirtSetsGuard.statusCode === 403, 'Guardian must not pass shirt sets read guard');
   assert(!evaluationsGuard.nextCalled && evaluationsGuard.statusCode === 403, 'Guardian must not pass evaluations read guard');
+};
+
+const testGuardianMemberReadHidesSensitiveFields = async (): Promise<void> => {
+  const reqAllMembers = asGroupAuthRequest({
+    params: { groupId: 'g-1' },
+    query: {},
+    groupAccess: {
+      memberId: 'guardian-member',
+      groupId: 'g-1',
+      roles: ['guardian']
+    }
+  });
+
+  const reqMemberById = asGroupAuthRequest({
+    params: { groupId: 'g-1', id: 'p-1' },
+    groupAccess: {
+      memberId: 'guardian-member',
+      groupId: 'g-1',
+      roles: ['guardian']
+    }
+  });
+
+  await withPatchedDataStore(
+    {
+      getAllPlayers: async () => [
+        {
+          id: 'p-1',
+          groupId: 'g-1',
+          roles: ['player'],
+          firstName: 'Child',
+          lastName: 'One',
+          birthDate: '2014-04-01',
+          level: 3,
+          evaluations: [
+            {
+              id: 'e-1',
+              playerId: 'p-1',
+              evaluationDate: '2026-04-10',
+              userId: 'u-1',
+              score: { technical: 3, intelligence: 4, personality: 4, speed: 3 }
+            }
+          ]
+        }
+      ],
+      getAllTrainers: async () => [
+        {
+          id: 't-1',
+          groupId: 'g-1',
+          roles: ['trainer'],
+          firstName: 'Coach',
+          lastName: 'One',
+          email: 'coach@example.com'
+        }
+      ],
+      getPlayerById: async () => ({
+        id: 'p-1',
+        groupId: 'g-1',
+        roles: ['player'],
+        firstName: 'Child',
+        lastName: 'One',
+        birthDate: '2014-04-01',
+        level: 3,
+        evaluations: [
+          {
+            id: 'e-1',
+            playerId: 'p-1',
+            evaluationDate: '2026-04-10',
+            userId: 'u-1',
+            score: { technical: 3, intelligence: 4, personality: 4, speed: 3 }
+          }
+        ]
+      }),
+      getTrainerById: async () => undefined,
+      getUserByEmail: async () => undefined
+    },
+    async () => {
+      const allMembersRes = createMockResponse();
+      await getAllMembers(reqAllMembers as any, allMembersRes as any);
+      assert(allMembersRes.statusCode === 200, 'Guardian member list should return 200');
+      const allMembersBody = allMembersRes.body as { players: Array<Record<string, unknown>> };
+      const listedPlayer = allMembersBody.players[0];
+      assert(listedPlayer.birthDate === undefined, 'Guardian member list should hide player birthDate');
+      assert(listedPlayer.level === undefined, 'Guardian member list should hide player level');
+      assert(listedPlayer.evaluations === undefined, 'Guardian member list should hide player evaluations');
+
+      const memberByIdRes = createMockResponse();
+      await getMemberById(reqMemberById as any, memberByIdRes as any);
+      assert(memberByIdRes.statusCode === 200, 'Guardian member-by-id should return 200');
+      const memberBody = memberByIdRes.body as Record<string, unknown>;
+      assert(memberBody.birthDate === undefined, 'Guardian member-by-id should hide player birthDate');
+      assert(memberBody.level === undefined, 'Guardian member-by-id should hide player level');
+      assert(memberBody.evaluations === undefined, 'Guardian member-by-id should hide player evaluations');
+    }
+  );
 };
 
 const testGuardianInvitationStatusRestrictions = async (): Promise<void> => {
@@ -362,19 +456,23 @@ const run = async (): Promise<void> => {
       run: testGetGroupsIsFilteredByMembership
     },
     {
-      name: '2) Guardian cannot read members/shirt sets/evaluations',
-      run: testGuardianCannotReadMembersShirtSetsEvaluations
+      name: '2) Guardian can read members but not shirt sets/evaluations',
+      run: testGuardianCanReadMembersButNotShirtSetsEvaluations
     },
     {
-      name: '3) Guardian can only set accepted/declined for own children',
+      name: '3) Guardian member reads hide sensitive player fields',
+      run: testGuardianMemberReadHidesSensitiveFields
+    },
+    {
+      name: '4) Guardian can only set accepted/declined for own children',
       run: testGuardianInvitationStatusRestrictions
     },
     {
-      name: '4) Guardian sees only child-relevant events',
+      name: '5) Guardian sees only child-relevant events',
       run: testGuardianSeesOnlyChildRelevantEvents
     },
     {
-      name: '5) Revoke role enforces role constraints',
+      name: '6) Revoke role enforces role constraints',
       run: testRevokeRoleRules
     }
   ];

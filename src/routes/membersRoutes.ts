@@ -15,10 +15,10 @@ import { requireGroupRole } from '../middleware/groupAuth';
 const router = Router({ mergeParams: true });
 
 // GET /api/groups/:groupId/members?roles=player|trainer
-router.get('/', requireGroupRole(['admin', 'trainer']), getAllMembers);
+router.get('/', requireGroupRole(['admin', 'trainer', 'guardian']), getAllMembers);
 
 // GET /api/groups/:groupId/members/:id
-router.get('/:id', requireGroupRole(['admin', 'trainer']), getMemberById);
+router.get('/:id', requireGroupRole(['admin', 'trainer', 'guardian']), getMemberById);
 
 // POST /api/groups/:groupId/members
 router.post('/', requireGroupRole(['admin', 'trainer']), createMember);

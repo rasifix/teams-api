@@ -470,7 +470,7 @@ paths:
     get:
       operationId: getAllMembers
       summary: Get all members in a group
-      description: Retrieve members (players and/or trainers) in a specific group based on role filter
+      description: Retrieve members (players and/or trainers) in a specific group based on role filter. Guardians can read this endpoint, but sensitive player fields are hidden.
       tags:
         - Members
       security:
@@ -594,7 +594,7 @@ paths:
     get:
       operationId: getMemberById
       summary: Get member by ID
-      description: Retrieve a specific member (player or trainer) by ID in a specific group
+      description: Retrieve a specific member (player or trainer) by ID in a specific group. Guardians can read this endpoint, but sensitive player fields are hidden.
       tags:
         - Members
       security:

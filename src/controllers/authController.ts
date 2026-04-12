@@ -62,7 +62,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // Check if email already exists
     const existingUserByEmail = await dataStore.getUserByEmail(email.toLowerCase());
     if (existingUserByEmail) {
-      res.status(409).json({ error: 'Email already registered' });
+      res.status(409).json({ error: 'Email already registered', email: email.toLowerCase() });
       return;
     }
     
