@@ -94,10 +94,13 @@ export interface Event {
   invitations: Invitation[];
 }
 
+export type ShirtStatus = 'available' | 'unavailable';
+
 export interface Shirt {
   number: number;
   size: '128' | '140' | '152' | '164' | 'XS' | 'S' | 'M' | 'L' | 'XL';
   isGoalkeeper: boolean;
+  status?: ShirtStatus;
 }
 
 export interface ShirtSet {

@@ -249,7 +249,10 @@ export function shirtSetDocumentToShirtSet(doc: ShirtSetDocument): ShirtSet {
     groupId: doc.groupId,
     sponsor: doc.sponsor,
     color: doc.color,
-    shirts: doc.shirts // Shirts are embedded and have the same structure
+    shirts: doc.shirts.map(shirt => ({
+      ...shirt,
+      status: shirt.status ?? 'available'
+    }))
   };
 }
 
@@ -259,7 +262,10 @@ export function shirtSetToShirtSetDocument(shirtSet: Omit<ShirtSet, 'id'>): Omit
     sponsor: shirtSet.sponsor,
     color: shirtSet.color,
     groupId: shirtSet.groupId,
-    shirts: shirtSet.shirts, // Shirts have the same structure
+    shirts: shirtSet.shirts.map(shirt => ({
+      ...shirt,
+      status: shirt.status ?? 'available'
+    })),
     active: true
   };
 }

@@ -2039,6 +2039,81 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/shirtsets/{id}/shirts/{shirtNumber}/status:
+    put:
+      operationId: updateShirtStatus
+      summary: Update shirt status
+      description: Update the availability status of a single shirt within a shirt set
+      tags:
+        - Shirt Sets
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: shirtNumber
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [available, unavailable]
+              required:
+                - status
+      responses:
+        '200':
+          description: Shirt status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShirtSet'
+        '400':
+          description: Invalid shirtNumber or status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Shirt set or shirt not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
   securitySchemes:
     bearerAuth:
@@ -2602,6 +2677,10 @@ components:
           enum: ['128', '140', '152', '164', 'XS', 'S', 'M', 'L', 'XL']
         isGoalkeeper:
           type: boolean
+        status:
+          type: string
+          enum: [available, unavailable]
+          default: available
       required:
         - number
         - size

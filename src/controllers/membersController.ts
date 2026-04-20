@@ -46,7 +46,7 @@ const sanitizePlayerForGuardian = (player: Player): Omit<Player, 'birthDate' | '
   return safePlayer;
 };
 
-// GET /api/groups/:groupId/members?roles=player|trainer or GET /api/groups/:groupId/members (returns all)
+// GET /api/groups/:groupId/members
 export const getAllMembers = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
