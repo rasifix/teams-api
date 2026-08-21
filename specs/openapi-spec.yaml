@@ -1787,6 +1787,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/events/{id}/teams/{teamId}/status:
+    put:
+      operationId: updateTeamStatus
+      summary: Update team selection status
+      description: Update the selection status of a single team within an event. Transitioning to 'selected' requires that the team has at least the event's minPlayersPerTeam players in selectedPlayers.
+      tags:
+        - Events
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: teamId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [new, selected]
+              required:
+                - status
+      responses:
+        '200':
+          description: Team status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          description: Invalid status value or team does not meet minimum player requirement for selection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event or team not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/groups/{groupId}/shirtsets:
     get:
       operationId: getAllShirtSets
@@ -2579,12 +2653,18 @@ components:
           items:
             $ref: '#/components/schemas/ShirtAssignment'
           nullable: true
+        status:
+          type: string
+          enum: [new, selected]
+          default: new
+          description: Selection status of the team. 'new' is the default for newly created teams. 'selected' means the team selection has been confirmed.
       required:
         - id
         - name
         - strength
         - startTime
         - selectedPlayers
+        - status
     Event:
       type: object
       properties:

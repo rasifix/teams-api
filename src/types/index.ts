@@ -70,6 +70,8 @@ export interface Invitation {
   status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
 }
 
+export type TeamSelectionStatus = 'new' | 'selected';
+
 export interface Team {
   id: string;
   name: string;
@@ -80,6 +82,7 @@ export interface Team {
   trainerId?: string; // Trainer ID assigned to this team
   shirtSetId?: string; // Shirt set ID assigned to this team
   shirtAssignments?: Array<{ playerId: string; shirtNumber: number }>; // Individual shirt assignments by number
+  status: TeamSelectionStatus; // Selection status, default 'new'
 }
 
 export interface Event {

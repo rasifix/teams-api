@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
-import { Event, Invitation } from '../types';
+import { Event, Invitation, Team, TeamSelectionStatus } from '../types';
 import { getNextSequence } from '../utils/sequence';
 import { GroupAuthRequest } from '../middleware/groupAuth';
 
@@ -287,11 +287,79 @@ export const upsertSelection = async (req: Request, res: Response): Promise<void
       res.status(400).json({ error: 'teams must be an array' });
       return;
     }
+
+    // Preserve existing team status: if incoming team omits status, carry forward
+    // the stored status for matching team ids; default to 'new' for new teams.
+    const existingStatusById = new Map<string, TeamSelectionStatus>(
+      event.teams.map(t => [t.id, t.status])
+    );
+    const teamsWithStatus: Team[] = teams.map((t: Team) => ({
+      ...t,
+      status: t.status ?? existingStatusById.get(t.id) ?? 'new'
+    }));
     
-    const updatedEvent = await dataStore.updateEvent(id, { teams });
+    const updatedEvent = await dataStore.updateEvent(id, { teams: teamsWithStatus });
     res.json(updatedEvent);
   } catch (error) {
     console.error('Error updating team selection:', error);
     res.status(500).json({ error: 'Failed to update team selection' });
+  }
+};
+
+// PUT /api/events/:id/teams/:teamId/status - update the selection status of a single team
+export const updateTeamStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, teamId } = req.params;
+    const { status } = req.body;
+
+    const validStatuses: TeamSelectionStatus[] = ['new', 'selected'];
+    if (!validStatuses.includes(status)) {
+      res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+      return;
+    }
+
+    const event = await dataStore.getEventById(id);
+    if (!event) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    const teamIndex = event.teams.findIndex(t => t.id === teamId);
+    if (teamIndex === -1) {
+      res.status(404).json({ error: 'Team not found' });
+      return;
+    }
+
+    const team = event.teams[teamIndex];
+
+    // Idempotency: already in the requested status
+    if (team.status === status) {
+      res.json(event);
+      return;
+    }
+
+    // Transition to 'selected' requires the team to meet the minimum player count
+    if (status === 'selected') {
+      const playerCount = team.selectedPlayers.length;
+      if (playerCount < event.minPlayersPerTeam) {
+        res.status(400).json({
+          error: 'Not enough players selected',
+          message: `Team "${team.name}" has ${playerCount} player(s) but requires at least ${event.minPlayersPerTeam} (event minPlayersPerTeam).`,
+          teamId,
+          selectedCount: playerCount,
+          requiredMin: event.minPlayersPerTeam
+        });
+        return;
+      }
+    }
+
+    const updatedTeams = [...event.teams];
+    updatedTeams[teamIndex] = { ...team, status };
+
+    const updatedEvent = await dataStore.updateEvent(id, { teams: updatedTeams });
+    res.json(updatedEvent);
+  } catch (error) {
+    console.error('Error updating team status:', error);
+    res.status(500).json({ error: 'Failed to update team status' });
   }
 };

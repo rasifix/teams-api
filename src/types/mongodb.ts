@@ -90,6 +90,7 @@ export interface TeamEmbedded {
   trainerId?: string; // Reference to PersonDocument with roles containing trainer/admin/guardian
   shirtSetId?: string; // Reference to ShirtSetDocument
   shirtAssignments?: ShirtAssignmentEmbedded[];
+  status?: 'new' | 'selected'; // Selection status, optional for backward-compat with old documents
 }
 
 // Events Collection

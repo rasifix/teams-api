@@ -8,6 +8,7 @@ import {
   upsertInvitations,
   updateInvitationStatus,
   upsertSelection,
+  updateTeamStatus,
 } from '../controllers/eventController';
 import { requireGroupRole } from '../middleware/groupAuth';
 
@@ -23,5 +24,6 @@ router.delete('/:id', requireGroupRole(['admin', 'trainer']), deleteEvent);
 router.put('/:id/players', requireGroupRole(['admin', 'trainer']), upsertInvitations);
 router.put('/:id/players/:player_id/status', requireGroupRole(['admin', 'trainer', 'guardian']), updateInvitationStatus);
 router.put('/:id/selection', requireGroupRole(['admin', 'trainer']), upsertSelection);
+router.put('/:id/teams/:teamId/status', requireGroupRole(['admin', 'trainer']), updateTeamStatus);
 
 export default router;

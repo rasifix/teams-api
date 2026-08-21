@@ -191,7 +191,8 @@ export function embeddedTeamToTeam(embedded: TeamEmbedded): Team {
     shirtAssignments: embedded.shirtAssignments?.map(assignment => ({
       playerId: assignment.playerId,
       shirtNumber: assignment.shirtNumber
-    }))
+    })),
+    status: embedded.status ?? 'new' // Backward-compat: default to 'new' for old documents
   };
 }
 
@@ -209,7 +210,8 @@ export function teamToEmbedded(team: Team): TeamEmbedded {
     shirtAssignments: team.shirtAssignments?.map(assignment => ({
       playerId: assignment.playerId,
       shirtNumber: assignment.shirtNumber
-    }))
+    })),
+    status: team.status ?? 'new'
   };
 }
 
