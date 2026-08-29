@@ -60,8 +60,55 @@ export interface Group {
   name: string;
   club?: string;
   periods?: Period[];
+  matchPlanningEnabled?: boolean;
+  playingModes?: PlayingMode[];
+  formations?: Formation[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface PlayingMode {
+  id: string;
+  name: string;
+  numberOfPeriods: number;
+  periodLengthMinutes: number;
+  isDefault?: boolean;
+}
+
+export interface FormationSlot {
+  id: string;
+  positionCode:
+    | 'GK'
+    | 'LB'
+    | 'CB'
+    | 'RB'
+    | 'LWB'
+    | 'RWB'
+    | 'CDM'
+    | 'CM'
+    | 'CAM'
+    | 'LM'
+    | 'RM'
+    | 'LW'
+    | 'RW'
+    | 'CF'
+    | 'ST';
+}
+
+export interface Formation {
+  id: string;
+  name: string;
+  slots: FormationSlot[];
+}
+
+export interface LineupPositionAssignment {
+  slotId: string;
+  playerId: string;
+}
+
+export interface TeamLineupPeriod {
+  periodNumber: number;
+  assignments: LineupPositionAssignment[];
 }
 
 export interface Invitation {
@@ -82,7 +129,9 @@ export interface Team {
   trainerId?: string; // Trainer ID assigned to this team
   shirtSetId?: string; // Shirt set ID assigned to this team
   shirtAssignments?: Array<{ playerId: string; shirtNumber: number }>; // Individual shirt assignments by number
-  status: TeamSelectionStatus; // Selection status, default 'new'
+  status?: TeamSelectionStatus; // Backward compatible team selection status
+  formationId?: string;
+  lineup?: TeamLineupPeriod[];
 }
 
 export interface Event {
@@ -93,6 +142,7 @@ export interface Event {
   maxPlayersPerTeam: number; // Max players applies to all teams in this event
   minPlayersPerTeam: number; // Min players applies to all teams in this event
   location?: string; // Optional location field
+  playingModeId?: string | null;
   teams: Team[]; // Teams are contained within the event
   invitations: Invitation[];
 }

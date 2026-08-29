@@ -1,6 +1,8 @@
 import type { 
   GroupDocument,
   PeriodEmbedded,
+  PlayingModeEmbedded,
+  FormationEmbedded,
   PersonDocument, 
   EventDocument, 
   ShirtSetDocument,
@@ -12,6 +14,9 @@ import type {
   Group,
   GroupRole,
   Period,
+  PlayingMode,
+  Formation,
+  FormationSlot,
   Player, 
   Trainer, 
   Event, 
@@ -39,6 +44,48 @@ export function periodToEmbedded(period: Period): PeriodEmbedded {
   };
 }
 
+export function embeddedPlayingModeToPlayingMode(embedded: PlayingModeEmbedded): PlayingMode {
+  return {
+    id: embedded.id,
+    name: embedded.name,
+    numberOfPeriods: embedded.numberOfPeriods,
+    periodLengthMinutes: embedded.periodLengthMinutes,
+    isDefault: embedded.isDefault ?? false
+  };
+}
+
+export function playingModeToEmbedded(mode: PlayingMode): PlayingModeEmbedded {
+  return {
+    id: mode.id,
+    name: mode.name,
+    numberOfPeriods: mode.numberOfPeriods,
+    periodLengthMinutes: mode.periodLengthMinutes,
+    isDefault: mode.isDefault ?? false
+  };
+}
+
+export function embeddedFormationToFormation(embedded: FormationEmbedded): Formation {
+  return {
+    id: embedded.id,
+    name: embedded.name,
+    slots: embedded.slots.map(slot => ({
+      id: slot.id,
+      positionCode: slot.positionCode
+    }))
+  };
+}
+
+export function formationToEmbedded(formation: Formation): FormationEmbedded {
+  return {
+    id: formation.id,
+    name: formation.name,
+    slots: formation.slots.map((slot: FormationSlot) => ({
+      id: slot.id,
+      positionCode: slot.positionCode
+    }))
+  };
+}
+
 // Convert MongoDB GroupDocument to API Group
 export function groupDocumentToGroup(doc: GroupDocument): Group {
   return {
@@ -46,6 +93,9 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
     name: doc.name,
     club: doc.club,
     periods: doc.periods?.map(embeddedPeriodToPeriod) ?? [],
+    matchPlanningEnabled: doc.matchPlanningEnabled ?? false,
+    playingModes: doc.playingModes?.map(embeddedPlayingModeToPlayingMode) ?? [],
+    formations: doc.formations?.map(embeddedFormationToFormation) ?? [],
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString()
   };
@@ -56,7 +106,10 @@ export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 
   return {
     name: group.name,
     club: group.club,
-    periods: group.periods?.map(periodToEmbedded) ?? []
+    periods: group.periods?.map(periodToEmbedded) ?? [],
+    matchPlanningEnabled: group.matchPlanningEnabled ?? false,
+    playingModes: group.playingModes?.map(playingModeToEmbedded) ?? [],
+    formations: group.formations?.map(formationToEmbedded) ?? []
   };
 }
 
@@ -192,7 +245,15 @@ export function embeddedTeamToTeam(embedded: TeamEmbedded): Team {
       playerId: assignment.playerId,
       shirtNumber: assignment.shirtNumber
     })),
-    status: embedded.status ?? 'new' // Backward-compat: default to 'new' for old documents
+    status: embedded.status ?? 'new', // Backward-compat: default to 'new' for old documents
+    formationId: embedded.formationId,
+    lineup: embedded.lineup?.map(period => ({
+      periodNumber: period.periodNumber,
+      assignments: period.assignments.map(assignment => ({
+        slotId: assignment.slotId,
+        playerId: assignment.playerId
+      }))
+    }))
   };
 }
 
@@ -211,7 +272,15 @@ export function teamToEmbedded(team: Team): TeamEmbedded {
       playerId: assignment.playerId,
       shirtNumber: assignment.shirtNumber
     })),
-    status: team.status ?? 'new'
+    status: team.status ?? 'new',
+    formationId: team.formationId,
+    lineup: team.lineup?.map(period => ({
+      periodNumber: period.periodNumber,
+      assignments: period.assignments.map(assignment => ({
+        slotId: assignment.slotId,
+        playerId: assignment.playerId
+      }))
+    }))
   };
 }
 
@@ -225,6 +294,7 @@ export function eventDocumentToEvent(doc: EventDocument): Event {
     maxPlayersPerTeam: doc.maxPlayersPerTeam,
     minPlayersPerTeam: doc.minPlayersPerTeam,
     location: doc.location,
+    playingModeId: doc.playingModeId,
     teams: doc.teams.map(embeddedTeamToTeam),
     invitations: doc.invitations.map(embeddedInvitationToInvitation)
   };
@@ -239,6 +309,7 @@ export function eventToEventDocument(event: Omit<Event, 'id'>): Omit<EventDocume
     minPlayersPerTeam: event.minPlayersPerTeam,
     groupId: event.groupId,
     location: event.location,
+    playingModeId: event.playingModeId,
     teams: event.teams.map(teamToEmbedded),
     invitations: event.invitations.map(invitationToEmbedded)
   };

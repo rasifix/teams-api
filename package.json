@@ -9,8 +9,9 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "test:ci": "npm run build && npm run test:permissions",
+    "test:ci": "npm run build && npm run test:permissions && npm run test:planning",
     "test:permissions": "tsx test/permission-restrictions-test.ts",
+    "test:planning": "tsx test/match-planning-test.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
     "docker:up": "docker-compose up -d",

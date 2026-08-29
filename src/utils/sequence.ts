@@ -35,7 +35,18 @@ export async function getNextSequence(sequenceName: string): Promise<string> {
  * This ensures we start with proper sequence values
  */
 export async function initializeSequences(): Promise<void> {
-  const collections = ['groups', 'members', 'events', 'shirtsets', 'invitations', 'teams', 'periods'];
+  const collections = [
+    'groups',
+    'members',
+    'events',
+    'shirtsets',
+    'invitations',
+    'teams',
+    'periods',
+    'playingmodes',
+    'formations',
+    'formationslots'
+  ];
   const db = mongoConnection.getDb();
   const sequencesCollection = db.collection<SequenceDocument>('sequences');
   

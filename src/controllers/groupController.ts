@@ -117,14 +117,32 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
 export const updateGroup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, club } = req.body;
-    
-    if (!name) {
-      res.status(400).json({ error: 'name is required' });
+    const { name, club, matchPlanningEnabled } = req.body;
+
+    const hasNoUpdatableFields =
+      name === undefined &&
+      club === undefined &&
+      matchPlanningEnabled === undefined;
+    if (hasNoUpdatableFields) {
+      res.status(400).json({ error: 'At least one of name, club, or matchPlanningEnabled is required' });
       return;
     }
-    
-    const updatedGroup = await dataStore.updateGroup(id, { name, club });
+
+    if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+      res.status(400).json({ error: 'name must be a non-empty string when provided' });
+      return;
+    }
+
+    if (matchPlanningEnabled !== undefined && typeof matchPlanningEnabled !== 'boolean') {
+      res.status(400).json({ error: 'matchPlanningEnabled must be a boolean when provided' });
+      return;
+    }
+
+    const updatedGroup = await dataStore.updateGroup(id, {
+      name: typeof name === 'string' ? name.trim() : undefined,
+      club,
+      matchPlanningEnabled
+    });
     
     if (!updatedGroup) {
       res.status(404).json({ error: 'Group not found' });

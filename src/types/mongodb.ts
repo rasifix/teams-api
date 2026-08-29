@@ -13,10 +13,47 @@ export interface PeriodEmbedded {
   endDate: string;
 }
 
+export interface PlayingModeEmbedded {
+  id: string;
+  name: string;
+  numberOfPeriods: number;
+  periodLengthMinutes: number;
+  isDefault?: boolean;
+}
+
+export interface FormationSlotEmbedded {
+  id: string;
+  positionCode:
+    | 'GK'
+    | 'LB'
+    | 'CB'
+    | 'RB'
+    | 'LWB'
+    | 'RWB'
+    | 'CDM'
+    | 'CM'
+    | 'CAM'
+    | 'LM'
+    | 'RM'
+    | 'LW'
+    | 'RW'
+    | 'CF'
+    | 'ST';
+}
+
+export interface FormationEmbedded {
+  id: string;
+  name: string;
+  slots: FormationSlotEmbedded[];
+}
+
 export interface GroupDocument extends BaseDocument {
   name: string;
   club?: string;
   periods?: PeriodEmbedded[];
+  matchPlanningEnabled?: boolean;
+  playingModes?: PlayingModeEmbedded[];
+  formations?: FormationEmbedded[];
 }
 
 // Embedded evaluation document (within player documents)
@@ -91,6 +128,14 @@ export interface TeamEmbedded {
   shirtSetId?: string; // Reference to ShirtSetDocument
   shirtAssignments?: ShirtAssignmentEmbedded[];
   status?: 'new' | 'selected'; // Selection status, optional for backward-compat with old documents
+  formationId?: string;
+  lineup?: Array<{
+    periodNumber: number;
+    assignments: Array<{
+      slotId: string;
+      playerId: string;
+    }>;
+  }>;
 }
 
 // Events Collection
@@ -101,6 +146,7 @@ export interface EventDocument extends BaseDocument {
   minPlayersPerTeam: number;
   groupId: string; // Reference to GroupDocument
   location?: string; // Optional location field
+  playingModeId?: string | null;
   teams: TeamEmbedded[];
   invitations: InvitationEmbedded[];
 }

@@ -15,6 +15,8 @@ import membersRoutes from './membersRoutes';
 import eventRoutes from './eventRoutes';
 import shirtSetRoutes from './shirtSetRoutes';
 import periodsRoutes from './periodsRoutes';
+import playingModeRoutes from './playingModeRoutes';
+import formationRoutes from './formationRoutes';
 
 const router = Router();
 
@@ -50,5 +52,15 @@ router.use('/:groupId/periods', authenticateToken, authorizeGroupAccess, (req, _
   req.params.groupId = req.params.groupId;
   next();
 }, periodsRoutes);
+
+router.use('/:groupId/playing-modes', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
+  req.params.groupId = req.params.groupId;
+  next();
+}, playingModeRoutes);
+
+router.use('/:groupId/formations', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
+  req.params.groupId = req.params.groupId;
+  next();
+}, formationRoutes);
 
 export default router;

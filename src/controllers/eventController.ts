@@ -129,7 +129,7 @@ export const createEvent = async (req: Request, res: Response): Promise<void> =>
 export const updateEvent = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, date, maxPlayersPerTeam, minPlayersPerTeam, location, teams, invitations } = req.body;
+    const { name, date, maxPlayersPerTeam, minPlayersPerTeam, location, playingModeId, teams, invitations } = req.body;
     
     const updates: Partial<Omit<Event, 'id'>> = {};
     
@@ -138,6 +138,7 @@ export const updateEvent = async (req: Request, res: Response): Promise<void> =>
     if (maxPlayersPerTeam !== undefined) updates.maxPlayersPerTeam = Number(maxPlayersPerTeam);
     if (minPlayersPerTeam !== undefined) updates.minPlayersPerTeam = Number(minPlayersPerTeam);
     if (location !== undefined) updates.location = location;
+    if (playingModeId !== undefined) updates.playingModeId = playingModeId;
     if (teams !== undefined) updates.teams = teams;
     if (invitations !== undefined) updates.invitations = invitations;
     
@@ -291,7 +292,7 @@ export const upsertSelection = async (req: Request, res: Response): Promise<void
     // Preserve existing team status: if incoming team omits status, carry forward
     // the stored status for matching team ids; default to 'new' for new teams.
     const existingStatusById = new Map<string, TeamSelectionStatus>(
-      event.teams.map(t => [t.id, t.status])
+      event.teams.map(t => [t.id, t.status ?? 'new'])
     );
     const teamsWithStatus: Team[] = teams.map((t: Team) => ({
       ...t,

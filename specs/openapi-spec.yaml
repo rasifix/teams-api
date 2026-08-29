@@ -466,11 +466,181 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/import:
+    post:
+      operationId: importGroupData
+      summary: Import localStorage-style group data
+      description: Import players, trainers, shirt sets, and events into an existing group using a localStorage-compatible payload.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                players:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      firstName:
+                        type: string
+                      lastName:
+                        type: string
+                      birthDate:
+                        type: string
+                        format: date
+                      level:
+                        type: integer
+                    required:
+                      - id
+                      - firstName
+                      - lastName
+                      - birthDate
+                      - level
+                trainers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      firstName:
+                        type: string
+                      lastName:
+                        type: string
+                    required:
+                      - id
+                      - firstName
+                      - lastName
+                shirtSets:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      sponsor:
+                        type: string
+                      color:
+                        type: string
+                      shirts:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Shirt'
+                    required:
+                      - id
+                      - sponsor
+                      - color
+                      - shirts
+                events:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      date:
+                        type: string
+                        format: date
+                      maxPlayersPerTeam:
+                        type: integer
+                        minimum: 1
+                      minPlayersPerTeam:
+                        type: integer
+                        minimum: 1
+                      teams:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Team'
+                      invitations:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Invitation'
+                    required:
+                      - id
+                      - name
+                      - date
+                      - maxPlayersPerTeam
+                      - teams
+                      - invitations
+      responses:
+        '200':
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Import completed
+                  groupId:
+                    type: string
+                  summary:
+                    type: object
+                    properties:
+                      playersImported:
+                        type: integer
+                      trainersImported:
+                        type: integer
+                      eventsImported:
+                        type: integer
+                      shirtSetsImported:
+                        type: integer
+                      errors:
+                        type: array
+                        items:
+                          type: string
+        '400':
+          description: Invalid request payload or missing groupId
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/groups/{groupId}/members:
     get:
       operationId: getAllMembers
       summary: Get all members in a group
-      description: Retrieve members (players and/or trainers) in a specific group based on role filter. Guardians can read this endpoint, but sensitive player fields are hidden.
+      description: Retrieve all members for a specific group in a single response (players and trainers). Guardians can read this endpoint, but sensitive player fields are hidden.
       tags:
         - Members
       security:
@@ -481,42 +651,22 @@ paths:
           required: true
           schema:
             type: string
-        - name: role
-          in: query
-          description: Filter by role
-          required: false
-          schema:
-            type: string
-            enum: [player, trainer]
       responses:
         '200':
           description: Successfully retrieved members
           content:
             application/json:
               schema:
-                oneOf:
-                  - type: array
+                type: object
+                properties:
+                  players:
+                    type: array
                     items:
-                      $ref: '#/components/schemas/PlayerWithRole'
-                  - type: array
+                      $ref: '#/components/schemas/Player'
+                  trainers:
+                    type: array
                     items:
-                      $ref: '#/components/schemas/TrainerWithRole'
-                  - type: object
-                    properties:
-                      players:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Player'
-                      trainers:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Trainer'
-        '400':
-          description: Invalid role parameter
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                      $ref: '#/components/schemas/Trainer'
         '401':
           description: Not authenticated
           content:
@@ -1573,6 +1723,541 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/playing-modes:
+    get:
+      operationId: getGroupPlayingModes
+      summary: Get playing modes for a group
+      description: >-
+        Retrieve all Playing Modes belonging to a specific group. This is a
+        group-scoped subresource; there is no top-level playing-modes
+        collection.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved playing modes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlayingMode'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createGroupPlayingMode
+      summary: Create playing mode for a group
+      description: >-
+        Add a new Playing Mode to a group. Requires admin or trainer role in
+        the group (same authorization as event/team modification). The first
+        Playing Mode created for a group is automatically marked default.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlayingModeRequest'
+      responses:
+        '201':
+          description: Playing mode created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayingMode'
+        '400':
+          description: >-
+            Invalid request data: name is empty, or numberOfPeriods/
+            periodLengthMinutes is not an integer >= 1.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: >-
+            Not authorized: requires admin or trainer role in this group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/playing-modes/{playingModeId}:
+    put:
+      operationId: updateGroupPlayingMode
+      summary: Update playing mode for a group
+      description: >-
+        Update an existing Playing Mode belonging to a specific group.
+        Requires admin or trainer role in the group.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: playingModeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlayingModeRequest'
+      responses:
+        '200':
+          description: Playing mode updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayingMode'
+        '400':
+          description: >-
+            Invalid request data: name is empty, or numberOfPeriods/
+            periodLengthMinutes is not an integer >= 1.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: >-
+            Not authorized: requires admin or trainer role in this group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group or playing mode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteGroupPlayingMode
+      summary: Delete playing mode for a group
+      description: >-
+        Delete an existing Playing Mode from a specific group. Requires admin
+        or trainer role in the group.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: playingModeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Playing mode deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: >-
+            Not authorized: requires admin or trainer role in this group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group or playing mode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: >-
+            Playing mode is referenced by at least one Event's playingModeId
+            in this group and cannot be deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/playing-modes/{playingModeId}/set-default:
+    post:
+      operationId: setDefaultGroupPlayingMode
+      summary: Set a playing mode as the group's default
+      description: >-
+        Atomically marks this Playing Mode as the group's default and unsets
+        isDefault on any other Playing Mode in the group, avoiding a race
+        between two concurrent updates both claiming default. Requires admin
+        or trainer role in the group.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: playingModeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Playing mode marked as default successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlayingMode'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: >-
+            Not authorized: requires admin or trainer role in this group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group or playing mode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/formations:
+    get:
+      operationId: getGroupFormations
+      summary: Get formations for a group
+      description: >-
+        Retrieve all Formations belonging to a specific group. This is a
+        group-scoped subresource; there is no top-level formations
+        collection.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved formations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Formation'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Not authorized to access this group
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      operationId: createGroupFormation
+      summary: Create formation for a group
+      description: >-
+        Add a new Formation to a group. Requires admin or trainer role in
+        the group (same authorization as event/team modification).
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFormationRequest'
+      responses:
+        '201':
+          description: Formation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Formation'
+        '400':
+          description: >-
+            Invalid request data: name is empty, fewer than 2 slots, a
+            duplicate slot label, or not exactly one slot with isGoalkeeper
+            true.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: >-
+            Not authorized: requires admin or trainer role in this group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/groups/{groupId}/formations/{formationId}:
+    put:
+      operationId: updateGroupFormation
+      summary: Update formation for a group
+      description: >-
+        Update an existing Formation belonging to a specific group. Requires
+        admin or trainer role in the group.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formationId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFormationRequest'
+      responses:
+        '200':
+          description: Formation updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Formation'
+        '400':
+          description: >-
+            Invalid request data: name is empty, fewer than 2 slots, a
+            duplicate slot label, or not exactly one slot with isGoalkeeper
+            true.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: >-
+            Not authorized: requires admin or trainer role in this group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group or formation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      operationId: deleteGroupFormation
+      summary: Delete formation for a group
+      description: >-
+        Delete an existing Formation from a specific group. Requires admin or
+        trainer role in the group.
+      tags:
+        - Groups
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: formationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Formation deleted successfully
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: >-
+            Not authorized: requires admin or trainer role in this group.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Group or formation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: >-
+            Formation is referenced by at least one Team's formationId in
+            this group and cannot be deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/groups/{groupId}/events/{id}/players:
     put:
       operationId: upsertEventInvitations
@@ -1791,7 +2476,7 @@ paths:
     put:
       operationId: updateTeamStatus
       summary: Update team selection status
-      description: Update the selection status of a single team within an event. Transitioning to 'selected' requires that the team has at least the event's minPlayersPerTeam players in selectedPlayers.
+      description: Update the selection status of a single team within an event. Transitioning to selected requires at least minPlayersPerTeam selected players.
       tags:
         - Events
       security:
@@ -2261,6 +2946,20 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Period'
+        matchPlanningEnabled:
+          type: boolean
+          default: false
+          description: Opt-in flag for Playing Modes/Formations/lineup planning.
+        playingModes:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlayingMode'
+          description: Group-scoped only; never shared with other groups.
+        formations:
+          type: array
+          items:
+            $ref: '#/components/schemas/Formation'
+          description: Group-scoped only; never shared with other groups.
         createdAt:
           type: string
           format: date-time
@@ -2332,6 +3031,11 @@ components:
               email:
                 type: string
                 format: email
+        matchPlanningEnabled:
+          type: boolean
+          description: >-
+            Toggling this does not delete existing Playing Modes, Formations,
+            or Team lineup data. Requires admin or trainer role.
     CreatePeriodRequest:
       type: object
       properties:
@@ -2358,6 +3062,181 @@ components:
         endDate:
           type: string
           format: date
+    PlayingMode:
+      type: object
+      description: >-
+        Group-scoped subresource (see Group.playingModes). Never referenced
+        across groups.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          example: "4x20"
+        numberOfPeriods:
+          type: integer
+          minimum: 1
+          example: 4
+        periodLengthMinutes:
+          type: integer
+          minimum: 1
+          example: 20
+        isDefault:
+          type: boolean
+          default: false
+          description: Exactly one Playing Mode per group may be true.
+      required:
+        - id
+        - name
+        - numberOfPeriods
+        - periodLengthMinutes
+    CreatePlayingModeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        numberOfPeriods:
+          type: integer
+          minimum: 1
+        periodLengthMinutes:
+          type: integer
+          minimum: 1
+      required:
+        - name
+        - numberOfPeriods
+        - periodLengthMinutes
+    UpdatePlayingModeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        numberOfPeriods:
+          type: integer
+          minimum: 1
+        periodLengthMinutes:
+          type: integer
+          minimum: 1
+    PositionCode:
+      type: string
+      description: >-
+        Language-neutral position abbreviation (same catalog as used in
+        games like FIFA). Translating a code into a localized label (e.g.
+        English "LB" for "left back" vs. German "LV" for "linker
+        Verteidiger") is a frontend i18n concern; the backend only stores
+        and validates the code.
+      enum:
+        - GK
+        - LB
+        - CB
+        - RB
+        - LWB
+        - RWB
+        - CDM
+        - CM
+        - CAM
+        - LM
+        - RM
+        - LW
+        - RW
+        - CF
+        - ST
+    FormationSlot:
+      type: object
+      properties:
+        id:
+          type: string
+        positionCode:
+          $ref: '#/components/schemas/PositionCode'
+      required:
+        - id
+        - positionCode
+    Formation:
+      type: object
+      description: >-
+        Group-scoped subresource (see Group.formations). Never referenced
+        across groups.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          example: "3-3"
+        slots:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/FormationSlot'
+          description: >-
+            Exactly one slot must have positionCode GK; other codes may
+            repeat (e.g. two CB slots), distinguished only by array order.
+      required:
+        - id
+        - name
+        - slots
+    CreateFormationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slots:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            properties:
+              positionCode:
+                $ref: '#/components/schemas/PositionCode'
+            required:
+              - positionCode
+      required:
+        - name
+        - slots
+    UpdateFormationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slots:
+          type: array
+          minItems: 2
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              positionCode:
+                $ref: '#/components/schemas/PositionCode'
+            required:
+              - positionCode
+    LineupPositionAssignment:
+      type: object
+      properties:
+        slotId:
+          type: string
+          description: Must reference a slot in the Team's selected Formation.
+        playerId:
+          type: string
+          description: Must be one of the Team's selectedPlayers.
+      required:
+        - slotId
+        - playerId
+    TeamLineupPeriod:
+      type: object
+      properties:
+        periodNumber:
+          type: integer
+          minimum: 1
+          description: Must not exceed the Event's Playing Mode numberOfPeriods.
+        assignments:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineupPositionAssignment'
+          description: >-
+            Selected players absent here are implicitly benched for this
+            period; no explicit bench list is stored.
+      required:
+        - periodNumber
+        - assignments
     Player:
       type: object
       properties:
@@ -2653,18 +3532,25 @@ components:
           items:
             $ref: '#/components/schemas/ShirtAssignment'
           nullable: true
-        status:
+        formationId:
           type: string
-          enum: [new, selected]
-          default: new
-          description: Selection status of the team. 'new' is the default for newly created teams. 'selected' means the team selection has been confirmed.
+          nullable: true
+          description: >-
+            References a Formation in the same group. Only settable while the
+            Team's Event has a non-null playingModeId. Fixed for the whole
+            match.
+        lineup:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamLineupPeriod'
+          nullable: true
+          description: One entry per planned period; unlisted periods are unplanned.
       required:
         - id
         - name
         - strength
         - startTime
         - selectedPlayers
-        - status
     Event:
       type: object
       properties:
@@ -2683,6 +3569,12 @@ components:
           minimum: 1
         location:
           type: string
+        playingModeId:
+          type: string
+          nullable: true
+          description: >-
+            References a Playing Mode in the same group. Only usable when the
+            group has matchPlanningEnabled true. Always optional/resettable.
         teams:
           type: array
           items:
@@ -2716,6 +3608,12 @@ components:
           default: 1
         location:
           type: string
+        playingModeId:
+          type: string
+          nullable: true
+          description: >-
+            Omit to auto-assign the group's default Playing Mode (if any);
+            pass null explicitly to opt out at creation.
         teams:
           type: array
           items:
@@ -2738,6 +3636,13 @@ components:
           minimum: 1
         location:
           type: string
+        playingModeId:
+          type: string
+          nullable: true
+          description: >-
+            Set to a Playing Mode id from the same group, or null to reset to
+            none. Rejected with 400 if the group has matchPlanningEnabled
+            false.
         teams:
           type: array
           items:

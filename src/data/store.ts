@@ -1,5 +1,5 @@
 import { mongoConnection } from '../database/connection';
-import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole, Guardian } from '../types';
+import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole, Guardian, PlayingMode, Formation } from '../types';
 import { 
   GroupDocument,
   PersonDocument, 
@@ -13,6 +13,8 @@ import {
   groupDocumentToGroup,
   groupToGroupDocument,
   embeddedPeriodToPeriod,
+  embeddedPlayingModeToPlayingMode,
+  embeddedFormationToFormation,
   personDocumentToPlayer,
   personDocumentToTrainer,
   playerToPersonDocument,
@@ -188,7 +190,7 @@ class DataStore {
     return group;
   }
 
-  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club'>>): Promise<Group | null> {
+  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club' | 'matchPlanningEnabled'>>): Promise<Group | null> {
     const groupsCollection = mongoConnection.getGroupsCollection();
     const updateDoc = {
       ...updates,
@@ -222,6 +224,265 @@ class DataStore {
     }
 
     return (groupDoc.periods ?? []).map(embeddedPeriodToPeriod);
+  }
+
+  async getGroupPlayingModes(groupId: string): Promise<PlayingMode[] | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupDoc = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { playingModes: 1 } }
+    );
+
+    if (!groupDoc) {
+      return null;
+    }
+
+    return (groupDoc.playingModes ?? []).map(embeddedPlayingModeToPlayingMode);
+  }
+
+  async addPlayingModeToGroup(groupId: string, playingMode: PlayingMode): Promise<PlayingMode | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const { playingModeToEmbedded } = await import('../types/mappers');
+    const embeddedMode = playingModeToEmbedded(playingMode);
+
+    const existingGroup = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { playingModes: 1 } }
+    );
+
+    if (!existingGroup) {
+      return null;
+    }
+
+    if (!existingGroup.playingModes || existingGroup.playingModes.length === 0) {
+      embeddedMode.isDefault = true;
+    }
+
+    await groupsCollection.updateOne(
+      { _id: groupId },
+      {
+        $push: { playingModes: embeddedMode },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    return embeddedPlayingModeToPlayingMode(embeddedMode);
+  }
+
+  async updatePlayingModeInGroup(
+    groupId: string,
+    playingModeId: string,
+    updates: Partial<Omit<PlayingMode, 'id' | 'isDefault'>>
+  ): Promise<PlayingMode | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const updateDoc: Record<string, string | number | Date> = {
+      updatedAt: new Date()
+    };
+
+    if (updates.name !== undefined) updateDoc['playingModes.$.name'] = updates.name;
+    if (updates.numberOfPeriods !== undefined) updateDoc['playingModes.$.numberOfPeriods'] = updates.numberOfPeriods;
+    if (updates.periodLengthMinutes !== undefined) updateDoc['playingModes.$.periodLengthMinutes'] = updates.periodLengthMinutes;
+
+    const result = await groupsCollection.findOneAndUpdate(
+      { _id: groupId, 'playingModes.id': playingModeId },
+      { $set: updateDoc },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    const updatedMode = result.playingModes?.find(mode => mode.id === playingModeId);
+    return updatedMode ? embeddedPlayingModeToPlayingMode(updatedMode) : null;
+  }
+
+  async setDefaultPlayingModeInGroup(groupId: string, playingModeId: string): Promise<PlayingMode | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupDoc = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { playingModes: 1 } }
+    );
+
+    if (!groupDoc || !groupDoc.playingModes) {
+      return null;
+    }
+
+    const target = groupDoc.playingModes.find(mode => mode.id === playingModeId);
+    if (!target) {
+      return null;
+    }
+
+    const updatedModes = groupDoc.playingModes.map(mode => ({
+      ...mode,
+      isDefault: mode.id === playingModeId
+    }));
+
+    await groupsCollection.updateOne(
+      { _id: groupId },
+      {
+        $set: {
+          playingModes: updatedModes,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    const updatedTarget = updatedModes.find(mode => mode.id === playingModeId);
+    return updatedTarget ? embeddedPlayingModeToPlayingMode(updatedTarget) : null;
+  }
+
+  async deletePlayingModeFromGroup(
+    groupId: string,
+    playingModeId: string
+  ): Promise<{ deleted: boolean; reason?: 'not-found' | 'in-use' }> {
+    const eventsCollection = mongoConnection.getEventsCollection();
+    const groupsCollection = mongoConnection.getGroupsCollection();
+
+    const inUse = await eventsCollection.findOne({ groupId, playingModeId });
+    if (inUse) {
+      return { deleted: false, reason: 'in-use' };
+    }
+
+    const groupDoc = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { playingModes: 1 } }
+    );
+
+    if (!groupDoc) {
+      return { deleted: false, reason: 'not-found' };
+    }
+
+    const existingModes = groupDoc.playingModes ?? [];
+    const modeToDelete = existingModes.find(mode => mode.id === playingModeId);
+    if (!modeToDelete) {
+      return { deleted: false, reason: 'not-found' };
+    }
+
+    const remainingModes = existingModes.filter(mode => mode.id !== playingModeId);
+    if (modeToDelete.isDefault && remainingModes.length > 0 && !remainingModes.some(mode => mode.isDefault)) {
+      remainingModes[0].isDefault = true;
+    }
+
+    await groupsCollection.updateOne(
+      { _id: groupId },
+      {
+        $set: {
+          playingModes: remainingModes,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    return { deleted: true };
+  }
+
+  async getGroupFormations(groupId: string): Promise<Formation[] | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupDoc = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { formations: 1 } }
+    );
+
+    if (!groupDoc) {
+      return null;
+    }
+
+    return (groupDoc.formations ?? []).map(embeddedFormationToFormation);
+  }
+
+  async addFormationToGroup(groupId: string, formation: Formation): Promise<Formation | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const { formationToEmbedded } = await import('../types/mappers');
+    const embeddedFormation = formationToEmbedded(formation);
+
+    const result = await groupsCollection.findOneAndUpdate(
+      { _id: groupId },
+      {
+        $push: { formations: embeddedFormation },
+        $set: { updatedAt: new Date() }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    const createdFormation = result.formations?.find(existing => existing.id === formation.id);
+    return createdFormation ? embeddedFormationToFormation(createdFormation) : null;
+  }
+
+  async updateFormationInGroup(
+    groupId: string,
+    formationId: string,
+    updates: Partial<Omit<Formation, 'id'>>
+  ): Promise<Formation | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupDoc = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { formations: 1 } }
+    );
+
+    if (!groupDoc) {
+      return null;
+    }
+
+    const formations = groupDoc.formations ?? [];
+    const index = formations.findIndex(formation => formation.id === formationId);
+    if (index < 0) {
+      return null;
+    }
+
+    const { formationToEmbedded } = await import('../types/mappers');
+    const current = embeddedFormationToFormation(formations[index]);
+    const merged: Formation = {
+      ...current,
+      ...updates,
+      id: formationId,
+      slots: updates.slots ?? current.slots
+    };
+
+    formations[index] = formationToEmbedded(merged);
+
+    await groupsCollection.updateOne(
+      { _id: groupId },
+      {
+        $set: {
+          formations,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    return merged;
+  }
+
+  async deleteFormationFromGroup(
+    groupId: string,
+    formationId: string
+  ): Promise<{ deleted: boolean; reason?: 'not-found' | 'in-use' }> {
+    const eventsCollection = mongoConnection.getEventsCollection();
+    const groupsCollection = mongoConnection.getGroupsCollection();
+
+    const inUse = await eventsCollection.findOne({ groupId, 'teams.formationId': formationId });
+    if (inUse) {
+      return { deleted: false, reason: 'in-use' };
+    }
+
+    const result = await groupsCollection.updateOne(
+      { _id: groupId },
+      {
+        $pull: { formations: { id: formationId } },
+        $set: { updatedAt: new Date() }
+      }
+    );
+
+    if (result.matchedCount === 0 || result.modifiedCount === 0) {
+      return { deleted: false, reason: 'not-found' };
+    }
+
+    return { deleted: true };
   }
 
   async addPeriodToGroup(groupId: string, period: Period): Promise<Period | null> {
@@ -485,6 +746,7 @@ class DataStore {
     if (updates.maxPlayersPerTeam !== undefined) updateDoc.maxPlayersPerTeam = updates.maxPlayersPerTeam;
     if (updates.minPlayersPerTeam !== undefined) updateDoc.minPlayersPerTeam = updates.minPlayersPerTeam;
     if (updates.location !== undefined) updateDoc.location = updates.location;
+    if (updates.playingModeId !== undefined) updateDoc.playingModeId = updates.playingModeId;
     if (updates.teams !== undefined) {
       const { teamToEmbedded } = await import('../types/mappers');
       updateDoc.teams = updates.teams.map(teamToEmbedded);
