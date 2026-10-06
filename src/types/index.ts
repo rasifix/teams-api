@@ -55,10 +55,14 @@ export interface Period {
   endDate: string; // ISO date string (YYYY-MM-DD)
 }
 
+export const GROUP_CATEGORIES = ['A', 'B', 'C', 'D9', 'D7', 'E', 'F', 'G', 'FF9', 'FF11', 'FF14', 'FF17'] as const;
+export type GroupCategory = typeof GROUP_CATEGORIES[number];
+
 export interface Group {
   id: string;
   name: string;
   club?: string;
+  category?: GroupCategory;
   periods?: Period[];
   matchPlanningEnabled?: boolean;
   playingModes?: PlayingMode[];

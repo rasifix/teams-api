@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
-import { Group, Trainer } from '../types';
+import { GROUP_CATEGORIES, Group, GroupCategory, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 import { AuthRequest } from '../middleware/auth';
 
@@ -74,17 +74,23 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    const { name, club } = req.body;
+    const { name, club, category } = req.body;
     
     if (!name) {
       res.status(400).json({ error: 'name is required' });
+      return;
+    }
+
+    if (category !== undefined && !GROUP_CATEGORIES.includes(category as GroupCategory)) {
+      res.status(400).json({ error: `category must be one of: ${GROUP_CATEGORIES.join(', ')}` });
       return;
     }
     
     const newGroup: Group = {
       id: await getNextSequence('groups'),
       name,
-      club
+      club,
+      category
     };
     
     const createdGroup = await dataStore.createGroup(newGroup);
@@ -117,14 +123,15 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
 export const updateGroup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, club, matchPlanningEnabled } = req.body;
+    const { name, club, category, matchPlanningEnabled } = req.body;
 
     const hasNoUpdatableFields =
       name === undefined &&
       club === undefined &&
+      category === undefined &&
       matchPlanningEnabled === undefined;
     if (hasNoUpdatableFields) {
-      res.status(400).json({ error: 'At least one of name, club, or matchPlanningEnabled is required' });
+      res.status(400).json({ error: 'At least one of name, club, category, or matchPlanningEnabled is required' });
       return;
     }
 
@@ -138,11 +145,18 @@ export const updateGroup = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const updatedGroup = await dataStore.updateGroup(id, {
-      name: typeof name === 'string' ? name.trim() : undefined,
-      club,
-      matchPlanningEnabled
-    });
+    if (category !== undefined && !GROUP_CATEGORIES.includes(category as GroupCategory)) {
+      res.status(400).json({ error: `category must be one of: ${GROUP_CATEGORIES.join(', ')}` });
+      return;
+    }
+
+    const updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled'>> = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (club !== undefined) updates.club = club;
+    if (category !== undefined) updates.category = category;
+    if (matchPlanningEnabled !== undefined) updates.matchPlanningEnabled = matchPlanningEnabled;
+
+    const updatedGroup = await dataStore.updateGroup(id, updates);
     
     if (!updatedGroup) {
       res.status(404).json({ error: 'Group not found' });

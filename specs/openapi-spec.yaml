@@ -2923,6 +2923,8 @@ components:
         club:
           type: string
           nullable: true
+        category:
+          $ref: '#/components/schemas/GroupCategory'
         description:
           type: string
           nullable: true
@@ -2995,6 +2997,8 @@ components:
         club:
           type: string
           nullable: true
+        category:
+          $ref: '#/components/schemas/GroupCategory'
         description:
           type: string
           nullable: true
@@ -3018,6 +3022,8 @@ components:
         club:
           type: string
           nullable: true
+        category:
+          $ref: '#/components/schemas/GroupCategory'
         description:
           type: string
           nullable: true
@@ -3036,6 +3042,10 @@ components:
           description: >-
             Toggling this does not delete existing Playing Modes, Formations,
             or Team lineup data. Requires admin or trainer role.
+    GroupCategory:
+      type: string
+      enum: [A, B, C, D9, D7, E, F, G, FF9, FF11, FF14, FF17]
+      description: Swiss Football Association (SFV) team category.
     CreatePeriodRequest:
       type: object
       properties:

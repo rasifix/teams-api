@@ -1,4 +1,4 @@
-import { getAllGroups } from '../src/controllers/groupController';
+import { getAllGroups, updateGroup } from '../src/controllers/groupController';
 import { getAllEvents, updateInvitationStatus } from '../src/controllers/eventController';
 import { getAllMembers, getMemberById, revokeRoleFromMember } from '../src/controllers/membersController';
 import { requireGroupRole, GroupAuthRequest } from '../src/middleware/groupAuth';
@@ -98,6 +98,32 @@ const testGetGroupsIsFilteredByMembership = async (): Promise<void> => {
   assert(Array.isArray(groups), 'GET /api/groups should return an array');
   assert(groups.length === 1, 'GET /api/groups should only include groups where user is a member');
   assert(groups[0].id === 'g-1', 'GET /api/groups should include only accessible group');
+};
+
+const testUpdateGroupCategory = async (): Promise<void> => {
+  const req = { params: { id: 'g-1' }, body: { category: 'FF14' } };
+  const res = createMockResponse();
+  let capturedCategory: string | undefined;
+  let nameWasIncluded = false;
+
+  await withPatchedDataStore(
+    {
+      updateGroup: async (_id, updates) => {
+        capturedCategory = updates.category;
+        nameWasIncluded = Object.prototype.hasOwnProperty.call(updates, 'name');
+        return { id: 'g-1', name: 'Group 1', category: updates.category };
+      }
+    },
+    async () => updateGroup(req as any, res as any)
+  );
+
+  assert(capturedCategory === 'FF14', 'PUT /api/groups/:id should persist category');
+  assert(!nameWasIncluded, 'PUT /api/groups/:id should not overwrite an omitted name');
+  assert((res.body as { category?: string }).category === 'FF14', 'PUT /api/groups/:id should return category');
+
+  const invalidRes = createMockResponse();
+  await updateGroup({ params: { id: 'g-1' }, body: { category: 'U15' } } as any, invalidRes as any);
+  assert(invalidRes.statusCode === 400, 'PUT /api/groups/:id should reject an unsupported category');
 };
 
 const runRequireRoleGuard = (allowedRoles: Array<'admin' | 'trainer' | 'guardian'>): { statusCode: number; body: unknown; nextCalled: boolean } => {
@@ -478,6 +504,10 @@ const run = async (): Promise<void> => {
     {
       name: '6) Revoke role enforces role constraints',
       run: testRevokeRoleRules
+    },
+    {
+      name: '7) Group category is validated, persisted, and returned',
+      run: testUpdateGroupCategory
     }
   ];
 

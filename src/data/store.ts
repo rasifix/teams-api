@@ -190,12 +190,18 @@ class DataStore {
     return group;
   }
 
-  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club' | 'matchPlanningEnabled'>>): Promise<Group | null> {
+  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled'>>): Promise<Group | null> {
     const groupsCollection = mongoConnection.getGroupsCollection();
-    const updateDoc = {
-      ...updates,
+    const updateDoc: Record<string, string | boolean | Date> = {
       updatedAt: new Date()
     };
+
+    if (updates.name !== undefined) updateDoc.name = updates.name;
+    if (updates.club !== undefined) updateDoc.club = updates.club;
+    if (updates.category !== undefined) updateDoc.category = updates.category;
+    if (updates.matchPlanningEnabled !== undefined) {
+      updateDoc.matchPlanningEnabled = updates.matchPlanningEnabled;
+    }
 
     const result = await groupsCollection.findOneAndUpdate(
       { _id: id },

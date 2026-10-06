@@ -1,4 +1,6 @@
 // Base MongoDB document interface
+import type { GroupCategory } from './index';
+
 export interface BaseDocument {
   _id: string;
   createdAt: Date;
@@ -50,6 +52,7 @@ export interface FormationEmbedded {
 export interface GroupDocument extends BaseDocument {
   name: string;
   club?: string;
+  category?: GroupCategory;
   periods?: PeriodEmbedded[];
   matchPlanningEnabled?: boolean;
   playingModes?: PlayingModeEmbedded[];

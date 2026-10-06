@@ -92,6 +92,7 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
     id: doc._id,
     name: doc.name,
     club: doc.club,
+    category: doc.category,
     periods: doc.periods?.map(embeddedPeriodToPeriod) ?? [],
     matchPlanningEnabled: doc.matchPlanningEnabled ?? false,
     playingModes: doc.playingModes?.map(embeddedPlayingModeToPlayingMode) ?? [],
@@ -106,6 +107,7 @@ export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 
   return {
     name: group.name,
     club: group.club,
+    category: group.category,
     periods: group.periods?.map(periodToEmbedded) ?? [],
     matchPlanningEnabled: group.matchPlanningEnabled ?? false,
     playingModes: group.playingModes?.map(playingModeToEmbedded) ?? [],
