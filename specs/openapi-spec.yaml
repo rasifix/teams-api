@@ -1806,8 +1806,10 @@ paths:
                 $ref: '#/components/schemas/PlayingMode'
         '400':
           description: >-
-            Invalid request data: name is empty, or numberOfPeriods/
-            periodLengthMinutes is not an integer >= 1.
+            Invalid request data: name is empty, numberOfPeriods or
+            periodLengthMinutes is not an integer >= 1, or
+            minimumPeriodsPerPlayer is not an integer between 0 and
+            numberOfPeriods.
           content:
             application/json:
               schema:
@@ -1874,8 +1876,10 @@ paths:
                 $ref: '#/components/schemas/PlayingMode'
         '400':
           description: >-
-            Invalid request data: name is empty, or numberOfPeriods/
-            periodLengthMinutes is not an integer >= 1.
+            Invalid request data: name is empty, numberOfPeriods or
+            periodLengthMinutes is not an integer >= 1, or
+            minimumPeriodsPerPlayer is not an integer between 0 and the
+            resulting numberOfPeriods.
           content:
             application/json:
               schema:
