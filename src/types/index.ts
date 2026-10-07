@@ -76,6 +76,7 @@ export interface PlayingMode {
   name: string;
   numberOfPeriods: number;
   periodLengthMinutes: number;
+  minimumPeriodsPerPlayer: number;
   isDefault?: boolean;
 }
 

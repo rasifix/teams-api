@@ -20,6 +20,7 @@ export interface PlayingModeEmbedded {
   name: string;
   numberOfPeriods: number;
   periodLengthMinutes: number;
+  minimumPeriodsPerPlayer?: number;
   isDefault?: boolean;
 }
 

@@ -3091,6 +3091,16 @@ components:
           type: integer
           minimum: 1
           example: 20
+        minimumPeriodsPerPlayer:
+          type: integer
+          minimum: 0
+          example: 2
+          default: 0
+          description: >-
+            Minimum number of distinct periods in which every selected player
+            should have a field assignment. Must not exceed numberOfPeriods.
+            Zero disables the minimum-playing-time rule. Violations are
+            advisory and do not prevent saving a team lineup.
         isDefault:
           type: boolean
           default: false
@@ -3100,6 +3110,7 @@ components:
         - name
         - numberOfPeriods
         - periodLengthMinutes
+        - minimumPeriodsPerPlayer
     CreatePlayingModeRequest:
       type: object
       properties:
@@ -3111,10 +3122,17 @@ components:
         periodLengthMinutes:
           type: integer
           minimum: 1
+        minimumPeriodsPerPlayer:
+          type: integer
+          minimum: 0
+          default: 0
+          description: >-
+            Must not exceed numberOfPeriods. Zero disables the rule.
       required:
         - name
         - numberOfPeriods
         - periodLengthMinutes
+        - minimumPeriodsPerPlayer
     UpdatePlayingModeRequest:
       type: object
       properties:
@@ -3126,6 +3144,12 @@ components:
         periodLengthMinutes:
           type: integer
           minimum: 1
+        minimumPeriodsPerPlayer:
+          type: integer
+          minimum: 0
+          description: >-
+            Must not exceed the resulting numberOfPeriods. Zero disables the
+            rule.
     PositionCode:
       type: string
       description: >-

@@ -288,6 +288,9 @@ class DataStore {
     if (updates.name !== undefined) updateDoc['playingModes.$.name'] = updates.name;
     if (updates.numberOfPeriods !== undefined) updateDoc['playingModes.$.numberOfPeriods'] = updates.numberOfPeriods;
     if (updates.periodLengthMinutes !== undefined) updateDoc['playingModes.$.periodLengthMinutes'] = updates.periodLengthMinutes;
+    if (updates.minimumPeriodsPerPlayer !== undefined) {
+      updateDoc['playingModes.$.minimumPeriodsPerPlayer'] = updates.minimumPeriodsPerPlayer;
+    }
 
     const result = await groupsCollection.findOneAndUpdate(
       { _id: groupId, 'playingModes.id': playingModeId },

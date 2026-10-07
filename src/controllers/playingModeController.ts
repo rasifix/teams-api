@@ -7,6 +7,7 @@ type PlayingModeBody = {
   name?: unknown;
   numberOfPeriods?: unknown;
   periodLengthMinutes?: unknown;
+  minimumPeriodsPerPlayer?: unknown;
 };
 
 function toPositiveInt(value: unknown): number | null {
@@ -17,6 +18,18 @@ function toPositiveInt(value: unknown): number | null {
   if (typeof value === 'string' && /^\d+$/.test(value)) {
     const parsed = Number(value);
     return parsed >= 1 ? parsed : null;
+  }
+
+  return null;
+}
+
+function toNonNegativeInt(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) {
+    return value;
+  }
+
+  if (typeof value === 'string' && /^\d+$/.test(value)) {
+    return Number(value);
   }
 
   return null;
@@ -38,17 +51,27 @@ function validateCreateBody(body: PlayingModeBody): { ok: true; value: Omit<Play
     return { ok: false, error: 'periodLengthMinutes must be an integer greater than or equal to 1' };
   }
 
+  const minimumPeriodsPerPlayer = toNonNegativeInt(body.minimumPeriodsPerPlayer);
+  if (minimumPeriodsPerPlayer === null) {
+    return { ok: false, error: 'minimumPeriodsPerPlayer must be an integer greater than or equal to 0' };
+  }
+
+  if (minimumPeriodsPerPlayer > numberOfPeriods) {
+    return { ok: false, error: 'minimumPeriodsPerPlayer must not exceed numberOfPeriods' };
+  }
+
   return {
     ok: true,
     value: {
       name,
       numberOfPeriods,
-      periodLengthMinutes
+      periodLengthMinutes,
+      minimumPeriodsPerPlayer
     }
   };
 }
 
-function validateUpdateBody(body: PlayingModeBody): { ok: true; value: Partial<Omit<PlayingMode, 'id' | 'isDefault'>> } | { ok: false; error: string } {
+function validateUpdateBody(body: PlayingModeBody, current: PlayingMode): { ok: true; value: Partial<Omit<PlayingMode, 'id' | 'isDefault'>> } | { ok: false; error: string } {
   const updates: Partial<Omit<PlayingMode, 'id' | 'isDefault'>> = {};
 
   if (body.name !== undefined) {
@@ -77,8 +100,23 @@ function validateUpdateBody(body: PlayingModeBody): { ok: true; value: Partial<O
     updates.periodLengthMinutes = parsed;
   }
 
+  if (body.minimumPeriodsPerPlayer !== undefined) {
+    const parsed = toNonNegativeInt(body.minimumPeriodsPerPlayer);
+    if (parsed === null) {
+      return { ok: false, error: 'minimumPeriodsPerPlayer must be an integer greater than or equal to 0' };
+    }
+
+    updates.minimumPeriodsPerPlayer = parsed;
+  }
+
   if (Object.keys(updates).length === 0) {
-    return { ok: false, error: 'At least one of name, numberOfPeriods, or periodLengthMinutes is required' };
+    return { ok: false, error: 'At least one of name, numberOfPeriods, periodLengthMinutes, or minimumPeriodsPerPlayer is required' };
+  }
+
+  const resultingNumberOfPeriods = updates.numberOfPeriods ?? current.numberOfPeriods;
+  const resultingMinimum = updates.minimumPeriodsPerPlayer ?? current.minimumPeriodsPerPlayer;
+  if (resultingMinimum > resultingNumberOfPeriods) {
+    return { ok: false, error: 'minimumPeriodsPerPlayer must not exceed numberOfPeriods' };
   }
 
   return { ok: true, value: updates };
@@ -142,7 +180,13 @@ export const updatePlayingMode = async (req: Request, res: Response): Promise<vo
       return;
     }
 
-    const validation = validateUpdateBody(req.body as PlayingModeBody);
+    const currentMode = group.playingModes?.find(mode => mode.id === playingModeId);
+    if (!currentMode) {
+      res.status(404).json({ error: 'Group or playing mode not found' });
+      return;
+    }
+
+    const validation = validateUpdateBody(req.body as PlayingModeBody, currentMode);
     if (!validation.ok) {
       res.status(400).json({ error: validation.error });
       return;

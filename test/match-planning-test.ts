@@ -104,6 +104,7 @@ const testGetPlayingModes = async (): Promise<void> => {
           name: '4x20',
           numberOfPeriods: 4,
           periodLengthMinutes: 20,
+          minimumPeriodsPerPlayer: 2,
           isDefault: true
         }
       ]
@@ -124,7 +125,8 @@ const testCreatePlayingMode = async (): Promise<void> => {
     body: {
       name: '  2x25  ',
       numberOfPeriods: 2,
-      periodLengthMinutes: 25
+      periodLengthMinutes: 25,
+      minimumPeriodsPerPlayer: 1
     }
   };
   const res = createMockResponse();
@@ -147,6 +149,7 @@ const testCreatePlayingMode = async (): Promise<void> => {
 
   assert(res.statusCode === 201, 'POST playing-modes should return 201');
   assert(captured?.name === '2x25', 'POST playing-modes should trim name');
+  assert(captured?.minimumPeriodsPerPlayer === 1, 'POST playing-modes should persist minimum periods per player');
   const body = res.body as PlayingMode;
   assert(body.isDefault === true, 'POST playing-modes should return persisted mode');
 };
@@ -157,7 +160,8 @@ const testCreatePlayingModeInvalidPayload = async (): Promise<void> => {
     body: {
       name: 'Mode X',
       numberOfPeriods: 2,
-      periodLengthMinutes: 'abc'
+      periodLengthMinutes: 'abc',
+      minimumPeriodsPerPlayer: 1
     }
   };
   const res = createMockResponse();
@@ -181,12 +185,23 @@ const testUpdatePlayingMode = async (): Promise<void> => {
 
   await withPatchedDataStore(
     {
-      getGroupById: async () => ({ id: 'g-1', name: 'Group 1' }),
+      getGroupById: async () => ({
+        id: 'g-1',
+        name: 'Group 1',
+        playingModes: [{
+          id: 'pm-1',
+          name: '4x20',
+          numberOfPeriods: 4,
+          periodLengthMinutes: 20,
+          minimumPeriodsPerPlayer: 2
+        }]
+      }),
       updatePlayingModeInGroup: async () => ({
         id: 'pm-1',
         name: '4x20',
         numberOfPeriods: 4,
         periodLengthMinutes: 30,
+        minimumPeriodsPerPlayer: 2,
         isDefault: false
       })
     },
@@ -198,6 +213,37 @@ const testUpdatePlayingMode = async (): Promise<void> => {
   assert(res.statusCode === 200, 'PUT playing-modes should return 200');
   const body = res.body as PlayingMode;
   assert(body.periodLengthMinutes === 30, 'PUT playing-modes should update period length');
+};
+
+const testUpdatePlayingModeRejectsInvalidMinimum = async (): Promise<void> => {
+  const req = {
+    params: { groupId: 'g-1', playingModeId: 'pm-1' },
+    body: { minimumPeriodsPerPlayer: 5 }
+  };
+  const res = createMockResponse();
+
+  await withPatchedDataStore(
+    {
+      getGroupById: async () => ({
+        id: 'g-1',
+        name: 'Group 1',
+        playingModes: [{
+          id: 'pm-1',
+          name: '4x20',
+          numberOfPeriods: 4,
+          periodLengthMinutes: 20,
+          minimumPeriodsPerPlayer: 2
+        }]
+      })
+    },
+    async () => updatePlayingMode(req as any, res as any)
+  );
+
+  assert(res.statusCode === 400, 'PUT playing-modes should reject a minimum above numberOfPeriods');
+  assert(
+    (res.body as { error?: string }).error === 'minimumPeriodsPerPlayer must not exceed numberOfPeriods',
+    'PUT playing-modes should explain the minimum periods constraint'
+  );
 };
 
 const testDeletePlayingModeConflict = async (): Promise<void> => {
@@ -227,6 +273,7 @@ const testSetDefaultPlayingMode = async (): Promise<void> => {
         name: '3x20',
         numberOfPeriods: 3,
         periodLengthMinutes: 20,
+        minimumPeriodsPerPlayer: 0,
         isDefault: true
       })
     },
@@ -452,16 +499,17 @@ const run = async (): Promise<void> => {
     { name: '2) POST /playing-modes creates mode', run: testCreatePlayingMode },
     { name: '3) POST /playing-modes returns 400 for invalid payload', run: testCreatePlayingModeInvalidPayload },
     { name: '4) PUT /playing-modes/:id updates mode', run: testUpdatePlayingMode },
-    { name: '5) DELETE /playing-modes/:id returns 409 when in use', run: testDeletePlayingModeConflict },
-    { name: '6) POST /playing-modes/:id/set-default sets default', run: testSetDefaultPlayingMode },
-    { name: '7) GET /formations returns group formations', run: testGetFormations },
-    { name: '8) POST /formations creates formation with slot ids', run: testCreateFormation },
-    { name: '9) POST /formations returns 400 when GK count is invalid', run: testCreateFormationInvalidGoalkeeperCount },
-    { name: '10) POST /formations returns 400 for invalid position code', run: testCreateFormationInvalidPositionCode },
-    { name: '11) PUT /formations/:id updates formation', run: testUpdateFormation },
-    { name: '12) DELETE /formations/:id returns 409 when in use', run: testDeleteFormationConflict },
-    { name: '13) DELETE /formations/:id returns 204 on success', run: testDeleteFormationSuccess },
-    { name: '14) PUT /events/:id updates and returns playingModeId', run: testUpdateEventPlayingMode }
+    { name: '5) PUT /playing-modes/:id validates minimum periods', run: testUpdatePlayingModeRejectsInvalidMinimum },
+    { name: '6) DELETE /playing-modes/:id returns 409 when in use', run: testDeletePlayingModeConflict },
+    { name: '7) POST /playing-modes/:id/set-default sets default', run: testSetDefaultPlayingMode },
+    { name: '8) GET /formations returns group formations', run: testGetFormations },
+    { name: '9) POST /formations creates formation with slot ids', run: testCreateFormation },
+    { name: '10) POST /formations returns 400 when GK count is invalid', run: testCreateFormationInvalidGoalkeeperCount },
+    { name: '11) POST /formations returns 400 for invalid position code', run: testCreateFormationInvalidPositionCode },
+    { name: '12) PUT /formations/:id updates formation', run: testUpdateFormation },
+    { name: '13) DELETE /formations/:id returns 409 when in use', run: testDeleteFormationConflict },
+    { name: '14) DELETE /formations/:id returns 204 on success', run: testDeleteFormationSuccess },
+    { name: '15) PUT /events/:id updates and returns playingModeId', run: testUpdateEventPlayingMode }
   ];
 
   for (const testCase of tests) {

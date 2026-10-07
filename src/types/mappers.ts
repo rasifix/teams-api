@@ -50,6 +50,7 @@ export function embeddedPlayingModeToPlayingMode(embedded: PlayingModeEmbedded):
     name: embedded.name,
     numberOfPeriods: embedded.numberOfPeriods,
     periodLengthMinutes: embedded.periodLengthMinutes,
+    minimumPeriodsPerPlayer: embedded.minimumPeriodsPerPlayer ?? 0,
     isDefault: embedded.isDefault ?? false
   };
 }
@@ -60,6 +61,7 @@ export function playingModeToEmbedded(mode: PlayingMode): PlayingModeEmbedded {
     name: mode.name,
     numberOfPeriods: mode.numberOfPeriods,
     periodLengthMinutes: mode.periodLengthMinutes,
+    minimumPeriodsPerPlayer: mode.minimumPeriodsPerPlayer,
     isDefault: mode.isDefault ?? false
   };
 }
