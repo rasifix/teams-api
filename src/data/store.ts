@@ -1,5 +1,5 @@
 import { mongoConnection } from '../database/connection';
-import { Player, Event, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole, Guardian, PlayingMode, Formation } from '../types';
+import { Player, Event, Activity, ActivityKind, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole, Guardian, PlayingMode, Formation } from '../types';
 import { 
   GroupDocument,
   PersonDocument, 
@@ -12,6 +12,7 @@ import {
 import {
   groupDocumentToGroup,
   groupToGroupDocument,
+  birthYearFromBirthDate,
   embeddedPeriodToPeriod,
   embeddedPlayingModeToPlayingMode,
   embeddedFormationToFormation,
@@ -20,6 +21,9 @@ import {
   playerToPersonDocument,
   trainerToPersonDocument,
   eventDocumentToEvent,
+  eventDocumentToActivity,
+  activityToEventDocument,
+  eventToActivity,
   eventToEventDocument,
   shirtSetDocumentToShirtSet,
   shirtSetToShirtSetDocument
@@ -35,7 +39,7 @@ class DataStore {
     return [];
   }
 
-  private toGuardianMember(person: Pick<PersonDocument, '_id' | 'groupId' | 'firstName' | 'lastName' | 'email' | 'roles'>): Guardian {
+  private toGuardianMember(person: Pick<PersonDocument, '_id' | 'groupId' | 'firstName' | 'lastName' | 'email' | 'roles' | 'userId'>): Guardian {
     const roles = this.resolveRoles(person);
     return {
       id: person._id,
@@ -43,7 +47,8 @@ class DataStore {
       roles: roles.length > 0 ? roles : ['guardian'],
       firstName: person.firstName,
       lastName: person.lastName,
-      email: person.email
+      email: person.email,
+      userId: person.userId
     };
   }
 
@@ -288,9 +293,11 @@ class DataStore {
     if (updates.name !== undefined) updateDoc['playingModes.$.name'] = updates.name;
     if (updates.numberOfPeriods !== undefined) updateDoc['playingModes.$.numberOfPeriods'] = updates.numberOfPeriods;
     if (updates.periodLengthMinutes !== undefined) updateDoc['playingModes.$.periodLengthMinutes'] = updates.periodLengthMinutes;
-    if (updates.minimumPeriodsPerPlayer !== undefined) {
-      updateDoc['playingModes.$.minimumPeriodsPerPlayer'] = updates.minimumPeriodsPerPlayer;
-    }
+    if (updates.minimumPeriodsPerPlayer !== undefined) updateDoc['playingModes.$.minimumPeriodsPerPlayer'] = updates.minimumPeriodsPerPlayer;
+    if (updates.playersOnField !== undefined) updateDoc['playingModes.$.playersOnField'] = updates.playersOnField;
+    if (updates.minPlayersPerTeam !== undefined) updateDoc['playingModes.$.minPlayersPerTeam'] = updates.minPlayersPerTeam;
+    if (updates.maxPlayersPerTeam !== undefined) updateDoc['playingModes.$.maxPlayersPerTeam'] = updates.maxPlayersPerTeam;
+    if (updates.origin !== undefined) updateDoc['playingModes.$.origin'] = updates.origin;
 
     const result = await groupsCollection.findOneAndUpdate(
       { _id: groupId, 'playingModes.id': playingModeId },
@@ -348,7 +355,10 @@ class DataStore {
     const eventsCollection = mongoConnection.getEventsCollection();
     const groupsCollection = mongoConnection.getGroupsCollection();
 
-    const inUse = await eventsCollection.findOne({ groupId, playingModeId });
+    const inUse = await eventsCollection.findOne({
+      groupId,
+      $or: [{ playingModeId }, { matchFormatId: playingModeId }]
+    });
     if (inUse) {
       return { deleted: false, reason: 'in-use' };
     }
@@ -597,7 +607,10 @@ class DataStore {
     };
     
     await membersCollection.insertOne(newDoc);
-    return player;
+    return {
+      ...player,
+      birthYear: birthYearFromBirthDate(player.birthDate)
+    };
   }
 
   async updatePlayer(id: string, updates: Partial<Omit<Player, 'id'>>): Promise<Player | null> {
@@ -718,19 +731,29 @@ class DataStore {
     const eventsCollection = mongoConnection.getEventsCollection();
     const filter = groupId ? { groupId } : {};
     const eventDocs = await eventsCollection.find(filter).sort({ eventDate: -1 }).toArray();
-    return eventDocs.map(eventDocumentToEvent);
+    return eventDocs
+      .filter(doc => doc.kind !== 'training' && doc.kind !== 'social')
+      .map(eventDocumentToEvent);
   }
 
   async getEventById(id: string): Promise<Event | undefined> {
     const eventsCollection = mongoConnection.getEventsCollection();
     const eventDoc = await eventsCollection.findOne({ _id: id });
     
-    return eventDoc ? eventDocumentToEvent(eventDoc) : undefined;
+    return eventDoc && eventDoc.kind !== 'training' && eventDoc.kind !== 'social'
+      ? eventDocumentToEvent(eventDoc)
+      : undefined;
   }
 
   async createEvent(event: Event): Promise<Event> {
     const eventsCollection = mongoConnection.getEventsCollection();
-    const eventDoc = eventToEventDocument(event);
+    const activity = eventToActivity(event);
+    const eventDoc = {
+      ...eventToEventDocument(event),
+      kind: activity.kind,
+      startsAt: new Date(activity.startsAt),
+      matchFormatId: event.matchFormatId !== undefined ? event.matchFormatId : event.playingModeId
+    };
     const now = new Date();
     
     const newDoc: EventDocument = {
@@ -746,6 +769,10 @@ class DataStore {
 
   async updateEvent(id: string, updates: Partial<Omit<Event, 'id'>>): Promise<Event | null> {
     const eventsCollection = mongoConnection.getEventsCollection();
+    const existingDocument = await eventsCollection.findOne({ _id: id });
+    if (!existingDocument || existingDocument.kind === 'training' || existingDocument.kind === 'social') {
+      return null;
+    }
     
     // Convert updates to MongoDB format
     const updateDoc: any = { updatedAt: new Date() };
@@ -755,7 +782,11 @@ class DataStore {
     if (updates.maxPlayersPerTeam !== undefined) updateDoc.maxPlayersPerTeam = updates.maxPlayersPerTeam;
     if (updates.minPlayersPerTeam !== undefined) updateDoc.minPlayersPerTeam = updates.minPlayersPerTeam;
     if (updates.location !== undefined) updateDoc.location = updates.location;
-    if (updates.playingModeId !== undefined) updateDoc.playingModeId = updates.playingModeId;
+    const matchFormatId = updates.matchFormatId !== undefined ? updates.matchFormatId : updates.playingModeId;
+    if (matchFormatId !== undefined) {
+      updateDoc.playingModeId = matchFormatId;
+      updateDoc.matchFormatId = matchFormatId;
+    }
     if (updates.teams !== undefined) {
       const { teamToEmbedded } = await import('../types/mappers');
       updateDoc.teams = updates.teams.map(teamToEmbedded);
@@ -763,6 +794,20 @@ class DataStore {
     if (updates.invitations !== undefined) {
       const { invitationToEmbedded } = await import('../types/mappers');
       updateDoc.invitations = updates.invitations.map(invitationToEmbedded);
+    }
+
+    if (updates.date !== undefined || updates.teams !== undefined || !existingDocument.kind) {
+      const date = updates.date ?? existingDocument.eventDate.toISOString().slice(0, 10);
+      const teams = updates.teams ?? existingDocument.teams.map(team => ({
+        ...team,
+        selectedPlayers: team.selectedPlayers
+      }));
+      const startTime = teams
+        .map(team => team.startTime)
+        .filter(value => /^\d{2}:\d{2}$/.test(value))
+        .sort()[0] ?? '00:00';
+      updateDoc.startsAt = new Date(`${date}T${startTime}:00.000Z`);
+      updateDoc.kind = existingDocument.kind ?? (teams.length === 1 ? 'match' : 'tournament');
     }
     
     const result = await eventsCollection.findOneAndUpdate(
@@ -774,9 +819,84 @@ class DataStore {
     return result ? eventDocumentToEvent(result) : null;
   }
 
+  async getActivities(
+    squadId: string,
+    filters: { kind?: ActivityKind; startsAfter?: Date; startsBefore?: Date } = {}
+  ): Promise<Activity[]> {
+    const eventsCollection = mongoConnection.getEventsCollection();
+    const docs = await eventsCollection.find({ groupId: squadId }).toArray();
+    return docs
+      .map(eventDocumentToActivity)
+      .filter(activity => !filters.kind || activity.kind === filters.kind)
+      .filter(activity => !filters.startsAfter || new Date(activity.startsAt) >= filters.startsAfter)
+      .filter(activity => !filters.startsBefore || new Date(activity.startsAt) <= filters.startsBefore)
+      .sort((left, right) => right.startsAt.localeCompare(left.startsAt));
+  }
+
+  async getActivityById(squadId: string, activityId: string): Promise<Activity | undefined> {
+    const eventsCollection = mongoConnection.getEventsCollection();
+    const doc = await eventsCollection.findOne({ _id: activityId, groupId: squadId });
+    return doc ? eventDocumentToActivity(doc) : undefined;
+  }
+
+  async getGroupMemberIds(groupId: string): Promise<string[]> {
+    const membersCollection = mongoConnection.getMembersCollection();
+    const members = await membersCollection.find(
+      { groupId },
+      { projection: { _id: 1 } }
+    ).toArray();
+    return members.map(member => member._id);
+  }
+
+  async createActivity(activity: Activity): Promise<Activity> {
+    const eventsCollection = mongoConnection.getEventsCollection();
+    const document = activityToEventDocument(activity);
+    const now = new Date();
+    await eventsCollection.insertOne({
+      _id: activity.id,
+      ...document,
+      createdAt: now,
+      updatedAt: now
+    });
+    return activity;
+  }
+
+  async updateActivity(activity: Activity): Promise<Activity | null> {
+    const eventsCollection = mongoConnection.getEventsCollection();
+    const document = activityToEventDocument(activity);
+    const { groupId, ...updates } = document;
+    const unsetFields: Record<string, ''> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === undefined) {
+        unsetFields[key] = '';
+      }
+    }
+    const setFields = Object.fromEntries(
+      Object.entries(updates).filter(([, value]) => value !== undefined)
+    );
+    const result = await eventsCollection.findOneAndUpdate(
+      { _id: activity.id, groupId: activity.squadId },
+      {
+        $set: { ...setFields, updatedAt: new Date() },
+        ...(Object.keys(unsetFields).length ? { $unset: unsetFields } : {})
+      },
+      { returnDocument: 'after' }
+    );
+    return result ? eventDocumentToActivity(result) : null;
+  }
+
+  async deleteActivity(squadId: string, activityId: string): Promise<boolean> {
+    const eventsCollection = mongoConnection.getEventsCollection();
+    const result = await eventsCollection.deleteOne({ _id: activityId, groupId: squadId });
+    return result.deletedCount > 0;
+  }
+
   async deleteEvent(id: string): Promise<boolean> {
     const eventsCollection = mongoConnection.getEventsCollection();
-    const result = await eventsCollection.deleteOne({ _id: id });
+    const result = await eventsCollection.deleteOne({
+      _id: id,
+      kind: { $nin: ['training', 'social'] }
+    });
     return result.deletedCount > 0;
   }
 

@@ -18,6 +18,8 @@ A member with role admin:
 * he can manage shirt sets
 * he can invite players to events
 * he can make selections for events
+* he can record attendance after an activity has started
+* he can create, edit, and remove activity tasks
 * he can create time periods
 * ...
 
@@ -31,6 +33,8 @@ A trainer has fewer permissions but can do everything related to events:
 * he can invite players to events
 * he can select players for teams
 * he can change the invitation status of players
+* he can record attendance after an activity has started
+* he can create, edit, and remove activity tasks
 * he can view shirt sets
 * he can assign shirts
 
@@ -51,6 +55,17 @@ change their invitation status:
 * answer an invitation (accept / decline) in the name of the child
 * see the events where his child is invited
 * see the team where his child is selected
+* sign themselves up for activity tasks as an adult squad member; a guardian
+  cannot sign a child up for a task
+
+Task signups are self-service for adult squad members (admin, trainer, or
+guardian role). The authenticated member ID is always used; clients cannot
+submit another person's ID. Signups may exceed the requested number of people.
+Only admins and trainers can manage task definitions.
+
+Attendance can be recorded or changed by admins and trainers only, and only
+after the activity's start time. Attendance is independent of invitations and
+team selection.
 
 However, most of the information shall be hidden:
 

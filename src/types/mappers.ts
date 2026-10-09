@@ -13,6 +13,10 @@ import type {
 import type { 
   Group,
   GroupRole,
+  Activity,
+  ActivityKind,
+  ActivityInvitation,
+  InvitationDeclineReason,
   Period,
   PlayingMode,
   Formation,
@@ -51,7 +55,11 @@ export function embeddedPlayingModeToPlayingMode(embedded: PlayingModeEmbedded):
     numberOfPeriods: embedded.numberOfPeriods,
     periodLengthMinutes: embedded.periodLengthMinutes,
     minimumPeriodsPerPlayer: embedded.minimumPeriodsPerPlayer ?? 0,
-    isDefault: embedded.isDefault ?? false
+    isDefault: embedded.isDefault ?? false,
+    playersOnField: embedded.playersOnField,
+    minPlayersPerTeam: embedded.minPlayersPerTeam,
+    maxPlayersPerTeam: embedded.maxPlayersPerTeam,
+    origin: embedded.origin
   };
 }
 
@@ -62,7 +70,11 @@ export function playingModeToEmbedded(mode: PlayingMode): PlayingModeEmbedded {
     numberOfPeriods: mode.numberOfPeriods,
     periodLengthMinutes: mode.periodLengthMinutes,
     minimumPeriodsPerPlayer: mode.minimumPeriodsPerPlayer,
-    isDefault: mode.isDefault ?? false
+    isDefault: mode.isDefault ?? false,
+    playersOnField: mode.playersOnField,
+    minPlayersPerTeam: mode.minPlayersPerTeam,
+    maxPlayersPerTeam: mode.maxPlayersPerTeam,
+    origin: mode.origin
   };
 }
 
@@ -90,6 +102,7 @@ export function formationToEmbedded(formation: Formation): FormationEmbedded {
 
 // Convert MongoDB GroupDocument to API Group
 export function groupDocumentToGroup(doc: GroupDocument): Group {
+  const playingModes = doc.playingModes?.map(embeddedPlayingModeToPlayingMode) ?? [];
   return {
     id: doc._id,
     name: doc.name,
@@ -97,7 +110,7 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
     category: doc.category,
     periods: doc.periods?.map(embeddedPeriodToPeriod) ?? [],
     matchPlanningEnabled: doc.matchPlanningEnabled ?? false,
-    playingModes: doc.playingModes?.map(embeddedPlayingModeToPlayingMode) ?? [],
+    playingModes,
     formations: doc.formations?.map(embeddedFormationToFormation) ?? [],
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString()
@@ -112,7 +125,7 @@ export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 
     category: group.category,
     periods: group.periods?.map(periodToEmbedded) ?? [],
     matchPlanningEnabled: group.matchPlanningEnabled ?? false,
-    playingModes: group.playingModes?.map(playingModeToEmbedded) ?? [],
+    playingModes: (group.matchFormats ?? group.playingModes)?.map(playingModeToEmbedded) ?? [],
     formations: group.formations?.map(formationToEmbedded) ?? []
   };
 }
@@ -160,11 +173,23 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
     firstName: doc.firstName!,
     lastName: doc.lastName!,
     birthDate: doc.birthDate,
+    birthYear: birthYearFromBirthDate(doc.birthDate),
     level: doc.level,
     preferredShirtNumber: doc.preferredShirtNumber,
     status: doc.status ?? 'active',
     evaluations: doc.evaluations?.map(embeddedEvaluationToPlayerEvaluation)
   };
+}
+
+export function birthYearFromBirthDate(birthDate: string | undefined): number | undefined {
+  if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    return undefined;
+  }
+
+  const parsed = new Date(`${birthDate}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(birthDate)
+    ? parsed.getUTCFullYear()
+    : undefined;
 }
 
 // Convert MongoDB PersonDocument to API Trainer
@@ -225,12 +250,49 @@ export function embeddedInvitationToInvitation(embedded: InvitationEmbedded): In
 
 // Convert API invitation to embedded format
 export function invitationToEmbedded(invitation: Invitation): InvitationEmbedded {
+  const declineReason = DECLINE_REASONS.has(invitation.status as InvitationDeclineReason)
+    ? invitation.status as InvitationDeclineReason
+    : undefined;
+  const response = declineReason ? 'declined' : invitation.status as ActivityInvitation['response'];
   return {
     id: invitation.id,
     playerId: invitation.playerId,
     status: invitation.status,
+    response,
+    declineReason,
     sentAt: new Date(),
     respondedAt: invitation.status !== 'open' ? new Date() : undefined
+  };
+}
+
+const DECLINE_REASONS = new Set<InvitationDeclineReason>(['injured', 'sick', 'unavailable']);
+
+export function embeddedInvitationToActivityInvitation(embedded: InvitationEmbedded): ActivityInvitation {
+  const legacyDeclineReason = DECLINE_REASONS.has(embedded.status as InvitationDeclineReason)
+    ? embedded.status as InvitationDeclineReason
+    : undefined;
+  const response = embedded.response ?? (legacyDeclineReason ? 'declined' : embedded.status as ActivityInvitation['response']);
+  return {
+    id: embedded.id,
+    playerId: embedded.playerId,
+    response,
+    declineReason: embedded.declineReason ?? legacyDeclineReason,
+    respondedBy: embedded.respondedBy
+  };
+}
+
+export function activityInvitationToEmbedded(invitation: ActivityInvitation): InvitationEmbedded {
+  const declineReason = invitation.response === 'declined' ? invitation.declineReason : undefined;
+  const status = declineReason ?? invitation.response;
+  return {
+    id: invitation.id,
+    playerId: invitation.playerId,
+    response: invitation.response,
+    declineReason,
+    respondedBy: invitation.respondedBy,
+    status,
+    sentAt: new Date(),
+    respondedAt: invitation.response === 'open' ? undefined : new Date()
   };
 }
 
@@ -243,7 +305,7 @@ export function embeddedTeamToTeam(embedded: TeamEmbedded): Team {
     startTime: embedded.startTime,
     location: embedded.location,
     selectedPlayers: embedded.selectedPlayers,
-    trainerId: embedded.trainerId,
+    trainerId: embedded.trainerId ?? embedded.responsiblePersonIds?.[0],
     shirtSetId: embedded.shirtSetId,
     shirtAssignments: embedded.shirtAssignments?.map(assignment => ({
       playerId: assignment.playerId,
@@ -270,7 +332,8 @@ export function teamToEmbedded(team: Team): TeamEmbedded {
     startTime: team.startTime,
     location: team.location,
     selectedPlayers: team.selectedPlayers,
-    trainerId: team.trainerId,
+    trainerId: team.responsiblePersonIds?.[0] ?? team.trainerId,
+    responsiblePersonIds: team.responsiblePersonIds ?? (team.trainerId ? [team.trainerId] : undefined),
     shirtSetId: team.shirtSetId,
     shirtAssignments: team.shirtAssignments?.map(assignment => ({
       playerId: assignment.playerId,
@@ -289,7 +352,7 @@ export function teamToEmbedded(team: Team): TeamEmbedded {
 }
 
 // Convert MongoDB EventDocument to API Event
-export function eventDocumentToEvent(doc: EventDocument): Event {
+export function eventDocumentToLegacyEvent(doc: EventDocument): Event {
   return {
     id: doc._id,
     groupId: doc.groupId,
@@ -298,14 +361,137 @@ export function eventDocumentToEvent(doc: EventDocument): Event {
     maxPlayersPerTeam: doc.maxPlayersPerTeam,
     minPlayersPerTeam: doc.minPlayersPerTeam,
     location: doc.location,
-    playingModeId: doc.playingModeId,
+    playingModeId: doc.matchFormatId !== undefined ? doc.matchFormatId : doc.playingModeId,
     teams: doc.teams.map(embeddedTeamToTeam),
     invitations: doc.invitations.map(embeddedInvitationToInvitation)
   };
 }
 
+export const eventDocumentToEvent = eventDocumentToLegacyEvent;
+
+const derivedActivityKind = (doc: EventDocument): ActivityKind => {
+  if (doc.kind) {
+    return doc.kind;
+  }
+  return doc.teams.length === 1 ? 'match' : 'tournament';
+};
+
+const deriveStartsAt = (doc: EventDocument): Date => {
+  if (doc.startsAt) {
+    return doc.startsAt;
+  }
+
+  const earliestStartTime = doc.teams
+    .map(team => team.startTime)
+    .filter(value => /^\d{2}:\d{2}$/.test(value))
+    .sort()[0] ?? '00:00';
+  const date = doc.eventDate.toISOString().slice(0, 10);
+  return new Date(`${date}T${earliestStartTime}:00.000Z`);
+};
+
+export function eventDocumentToActivity(doc: EventDocument): Activity {
+  const startsAt = deriveStartsAt(doc);
+  const kind = derivedActivityKind(doc);
+  return {
+    id: doc._id,
+    squadId: doc.groupId,
+    kind,
+    name: doc.name,
+    startsAt: startsAt.toISOString(),
+    endsAt: doc.endsAt?.toISOString(),
+    location: doc.location,
+    matchFormatId: doc.matchFormatId !== undefined ? doc.matchFormatId : doc.playingModeId,
+    opponentName: doc.opponentName,
+    maxPlayersPerTeam: kind === 'match' || kind === 'tournament' ? doc.maxPlayersPerTeam : undefined,
+    minPlayersPerTeam: kind === 'match' || kind === 'tournament' ? doc.minPlayersPerTeam : undefined,
+    teams: doc.teams.map(team => ({
+      ...embeddedTeamToTeam(team),
+      responsiblePersonIds: team.responsiblePersonIds ?? (team.trainerId ? [team.trainerId] : undefined)
+    })),
+    invitations: doc.invitations.map(embeddedInvitationToActivityInvitation),
+    selectionSentAt: doc.selectionSentAt?.toISOString(),
+    attendance: doc.attendance?.map(record => ({ ...record })),
+    tasks: doc.tasks?.map(task => ({
+      ...task,
+      signups: task.signups.map(signup => ({
+        personId: signup.personId,
+        signedUpAt: signup.signedUpAt?.toISOString()
+      })),
+      isFulfilled: task.signups.length >= task.requiredPeople
+    })),
+    trainerIds: doc.trainerIds,
+    groups: doc.groups
+  };
+}
+
+export function eventToActivity(event: Event): Activity {
+  const startsAt = new Date(`${event.date}T${event.teams.map(team => team.startTime).filter(value => /^\d{2}:\d{2}$/.test(value)).sort()[0] ?? '00:00'}:00.000Z`);
+  return {
+    id: event.id,
+    squadId: event.groupId,
+    kind: event.teams.length === 1 ? 'match' : 'tournament',
+    name: event.name,
+    startsAt: startsAt.toISOString(),
+    location: event.location,
+    matchFormatId: event.matchFormatId !== undefined ? event.matchFormatId : event.playingModeId,
+    maxPlayersPerTeam: event.maxPlayersPerTeam,
+    minPlayersPerTeam: event.minPlayersPerTeam,
+    teams: event.teams,
+    invitations: event.invitations.map(invitation => embeddedInvitationToActivityInvitation({
+      id: invitation.id,
+      playerId: invitation.playerId,
+      status: invitation.status
+    }))
+  };
+}
+
+export function activityToEventDocument(activity: Activity): Omit<EventDocument, '_id' | 'createdAt' | 'updatedAt'> {
+  const startsAt = new Date(activity.startsAt);
+  const hasTeams = activity.kind === 'match' || activity.kind === 'tournament';
+  const legacyEvent: Omit<Event, 'id'> = {
+    groupId: activity.squadId,
+    name: activity.name,
+    date: startsAt.toISOString().slice(0, 10),
+    maxPlayersPerTeam: activity.maxPlayersPerTeam ?? 0,
+    minPlayersPerTeam: activity.minPlayersPerTeam ?? 0,
+    location: activity.location,
+    playingModeId: activity.matchFormatId,
+    matchFormatId: activity.matchFormatId,
+    teams: hasTeams ? activity.teams : [],
+    invitations: activity.invitations.map(invitation => ({
+      id: invitation.id,
+      playerId: invitation.playerId,
+      status: invitation.declineReason ?? invitation.response
+    }))
+  };
+  return {
+    ...eventToEventDocument(legacyEvent),
+    kind: activity.kind,
+    startsAt,
+    endsAt: activity.endsAt ? new Date(activity.endsAt) : undefined,
+    matchFormatId: activity.matchFormatId,
+    opponentName: activity.opponentName,
+    selectionSentAt: activity.selectionSentAt ? new Date(activity.selectionSentAt) : undefined,
+    invitations: activity.invitations.map(activityInvitationToEmbedded),
+    attendance: activity.attendance,
+    tasks: activity.tasks?.map(task => ({
+      id: task.id,
+      name: task.name,
+      description: task.description,
+      requiredPeople: task.requiredPeople,
+      signups: task.signups.map(signup => ({
+        personId: signup.personId,
+        signedUpAt: signup.signedUpAt ? new Date(signup.signedUpAt) : undefined
+      }))
+    })),
+    trainerIds: activity.trainerIds,
+    groups: activity.groups
+  };
+}
+
 // Convert API Event to MongoDB EventDocument (for creation)
 export function eventToEventDocument(event: Omit<Event, 'id'>): Omit<EventDocument, '_id' | 'createdAt' | 'updatedAt'> {
+  const startsAt = new Date(`${event.date}T${event.teams.map(team => team.startTime).filter(value => /^\d{2}:\d{2}$/.test(value)).sort()[0] ?? '00:00'}:00.000Z`);
   return {
     name: event.name,
     eventDate: new Date(event.date),
@@ -313,7 +499,10 @@ export function eventToEventDocument(event: Omit<Event, 'id'>): Omit<EventDocume
     minPlayersPerTeam: event.minPlayersPerTeam,
     groupId: event.groupId,
     location: event.location,
-    playingModeId: event.playingModeId,
+    playingModeId: event.matchFormatId !== undefined ? event.matchFormatId : event.playingModeId,
+    matchFormatId: event.matchFormatId !== undefined ? event.matchFormatId : event.playingModeId,
+    kind: event.teams.length === 1 ? 'match' : 'tournament',
+    startsAt,
     teams: event.teams.map(teamToEmbedded),
     invitations: event.invitations.map(invitationToEmbedded)
   };

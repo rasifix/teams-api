@@ -41,8 +41,8 @@ const isGuardianOnlyRequest = (req: Request): boolean => {
   return roles.includes('guardian') && !hasElevatedRead;
 };
 
-const sanitizePlayerForGuardian = (player: Player): Omit<Player, 'birthDate' | 'level' | 'evaluations'> => {
-  const { birthDate, level, evaluations, ...safePlayer } = player;
+const sanitizePlayerForGuardian = (player: Player): Omit<Player, 'birthDate' | 'birthYear' | 'level' | 'evaluations'> => {
+  const { birthDate, birthYear, level, evaluations, ...safePlayer } = player;
   return safePlayer;
 };
 

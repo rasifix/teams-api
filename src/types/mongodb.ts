@@ -22,6 +22,10 @@ export interface PlayingModeEmbedded {
   periodLengthMinutes: number;
   minimumPeriodsPerPlayer?: number;
   isDefault?: boolean;
+  playersOnField?: number;
+  minPlayersPerTeam?: number;
+  maxPlayersPerTeam?: number;
+  origin?: string;
 }
 
 export interface FormationSlotEmbedded {
@@ -83,6 +87,7 @@ export interface PersonDocument extends BaseDocument {
   roles?: Array<'admin' | 'trainer' | 'guardian' | 'player'>;
   groupId: string; // Reference to GroupDocument
   email?: string;
+  userId?: string;
   // Player-specific properties (present when roles contains 'player')
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5
@@ -110,6 +115,9 @@ export interface InvitationEmbedded {
   id: string;
   playerId: string; // Reference to PersonDocument with roles containing 'player'
   status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
+  response?: 'open' | 'accepted' | 'declined';
+  declineReason?: 'injured' | 'sick' | 'unavailable';
+  respondedBy?: string;
   sentAt?: Date;
   respondedAt?: Date;
 }
@@ -129,6 +137,7 @@ export interface TeamEmbedded {
   location?: string; // Optional team-specific location overriding event location
   selectedPlayers: string[]; // References to PersonDocument with roles containing 'player'
   trainerId?: string; // Reference to PersonDocument with roles containing trainer/admin/guardian
+  responsiblePersonIds?: string[];
   shirtSetId?: string; // Reference to ShirtSetDocument
   shirtAssignments?: ShirtAssignmentEmbedded[];
   status?: 'new' | 'selected'; // Selection status, optional for backward-compat with old documents
@@ -151,6 +160,36 @@ export interface EventDocument extends BaseDocument {
   groupId: string; // Reference to GroupDocument
   location?: string; // Optional location field
   playingModeId?: string | null;
+  kind?: 'match' | 'tournament' | 'training' | 'social';
+  startsAt?: Date;
+  endsAt?: Date;
+  matchFormatId?: string | null;
+  opponentName?: string;
+  selectionSentAt?: Date;
+  attendance?: Array<{
+    personId: string;
+    status: 'present' | 'absent' | 'excused';
+  }>;
+  tasks?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    requiredPeople: number;
+    signups: Array<{
+      personId: string;
+      signedUpAt?: Date;
+    }>;
+  }>;
+  trainerIds?: string[];
+  groups?: Array<{
+    id: string;
+    name?: string;
+    units: Array<{
+      id: string;
+      name?: string;
+      plannedPlayerIds: string[];
+    }>;
+  }>;
   teams: TeamEmbedded[];
   invitations: InvitationEmbedded[];
 }

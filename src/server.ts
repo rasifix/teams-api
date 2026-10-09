@@ -4,6 +4,7 @@ import cors from 'cors';
 import { mongoConnection } from './database/connection';
 import groupRoutes from './routes/groupRoutes';
 import authRoutes from './routes/authRoutes';
+import sfvCategoryRoutes from './routes/sfvCategoryRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,7 +15,9 @@ app.use(express.json());
 
 // Routes
 app.use('/auth', authRoutes);
+app.use('/api/sfv-categories', sfvCategoryRoutes);
 app.use('/api/groups', groupRoutes);
+app.use('/api/squads', groupRoutes);
 
 // Health check
 app.get('/health', async (_req, res) => {

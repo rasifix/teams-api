@@ -239,6 +239,7 @@ const testGuardianMemberReadHidesSensitiveFields = async (): Promise<void> => {
       const allMembersBody = allMembersRes.body as { players: Array<Record<string, unknown>> };
       const listedPlayer = allMembersBody.players[0];
       assert(listedPlayer.birthDate === undefined, 'Guardian member list should hide player birthDate');
+      assert(listedPlayer.birthYear === undefined, 'Guardian member list should hide derived player birthYear');
       assert(listedPlayer.level === undefined, 'Guardian member list should hide player level');
       assert(listedPlayer.evaluations === undefined, 'Guardian member list should hide player evaluations');
 
@@ -247,6 +248,7 @@ const testGuardianMemberReadHidesSensitiveFields = async (): Promise<void> => {
       assert(memberByIdRes.statusCode === 200, 'Guardian member-by-id should return 200');
       const memberBody = memberByIdRes.body as Record<string, unknown>;
       assert(memberBody.birthDate === undefined, 'Guardian member-by-id should hide player birthDate');
+      assert(memberBody.birthYear === undefined, 'Guardian member-by-id should hide derived player birthYear');
       assert(memberBody.level === undefined, 'Guardian member-by-id should hide player level');
       assert(memberBody.evaluations === undefined, 'Guardian member-by-id should hide player evaluations');
     }

@@ -8,6 +8,10 @@ type PlayingModeBody = {
   numberOfPeriods?: unknown;
   periodLengthMinutes?: unknown;
   minimumPeriodsPerPlayer?: unknown;
+  playersOnField?: unknown;
+  minPlayersPerTeam?: unknown;
+  maxPlayersPerTeam?: unknown;
+  origin?: unknown;
 };
 
 function toPositiveInt(value: unknown): number | null {
@@ -35,6 +39,16 @@ function toNonNegativeInt(value: unknown): number | null {
   return null;
 }
 
+const parseOptionalPositiveInt = (value: unknown, name: string): { value?: number; error?: string } => {
+  if (value === undefined) {
+    return {};
+  }
+  const parsed = toPositiveInt(value);
+  return parsed === null
+    ? { error: `${name} must be an integer greater than or equal to 1` }
+    : { value: parsed };
+};
+
 function validateCreateBody(body: PlayingModeBody): { ok: true; value: Omit<PlayingMode, 'id' | 'isDefault'> } | { ok: false; error: string } {
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name) {
@@ -60,13 +74,34 @@ function validateCreateBody(body: PlayingModeBody): { ok: true; value: Omit<Play
     return { ok: false, error: 'minimumPeriodsPerPlayer must not exceed numberOfPeriods' };
   }
 
+  const playersOnField = parseOptionalPositiveInt(body.playersOnField, 'playersOnField');
+  const minPlayersPerTeam = parseOptionalPositiveInt(body.minPlayersPerTeam, 'minPlayersPerTeam');
+  const maxPlayersPerTeam = parseOptionalPositiveInt(body.maxPlayersPerTeam, 'maxPlayersPerTeam');
+  if (playersOnField.error || minPlayersPerTeam.error || maxPlayersPerTeam.error) {
+    return { ok: false, error: playersOnField.error ?? minPlayersPerTeam.error ?? maxPlayersPerTeam.error! };
+  }
+  if (
+    minPlayersPerTeam.value !== undefined &&
+    maxPlayersPerTeam.value !== undefined &&
+    minPlayersPerTeam.value > maxPlayersPerTeam.value
+  ) {
+    return { ok: false, error: 'minPlayersPerTeam must not exceed maxPlayersPerTeam' };
+  }
+  if (body.origin !== undefined && (typeof body.origin !== 'string' || !body.origin.trim())) {
+    return { ok: false, error: 'origin must be a non-empty string when provided' };
+  }
+
   return {
     ok: true,
     value: {
       name,
       numberOfPeriods,
       periodLengthMinutes,
-      minimumPeriodsPerPlayer
+      minimumPeriodsPerPlayer,
+      playersOnField: playersOnField.value,
+      minPlayersPerTeam: minPlayersPerTeam.value,
+      maxPlayersPerTeam: maxPlayersPerTeam.value,
+      origin: body.origin as string | undefined
     }
   };
 }
@@ -105,8 +140,27 @@ function validateUpdateBody(body: PlayingModeBody, current: PlayingMode): { ok: 
     if (parsed === null) {
       return { ok: false, error: 'minimumPeriodsPerPlayer must be an integer greater than or equal to 0' };
     }
-
     updates.minimumPeriodsPerPlayer = parsed;
+  }
+
+  for (const [field, label] of [
+    ['playersOnField', 'playersOnField'],
+    ['minPlayersPerTeam', 'minPlayersPerTeam'],
+    ['maxPlayersPerTeam', 'maxPlayersPerTeam']
+  ] as const) {
+    const parsed = parseOptionalPositiveInt(body[field], label);
+    if (parsed.error) {
+      return { ok: false, error: parsed.error };
+    }
+    if (parsed.value !== undefined) {
+      updates[field] = parsed.value;
+    }
+  }
+  if (body.origin !== undefined) {
+    if (typeof body.origin !== 'string' || !body.origin.trim()) {
+      return { ok: false, error: 'origin must be a non-empty string when provided' };
+    }
+    updates.origin = body.origin;
   }
 
   if (Object.keys(updates).length === 0) {
@@ -117,6 +171,11 @@ function validateUpdateBody(body: PlayingModeBody, current: PlayingMode): { ok: 
   const resultingMinimum = updates.minimumPeriodsPerPlayer ?? current.minimumPeriodsPerPlayer;
   if (resultingMinimum > resultingNumberOfPeriods) {
     return { ok: false, error: 'minimumPeriodsPerPlayer must not exceed numberOfPeriods' };
+  }
+  const resultingRosterMinimum = updates.minPlayersPerTeam ?? current.minPlayersPerTeam;
+  const resultingRosterMaximum = updates.maxPlayersPerTeam ?? current.maxPlayersPerTeam;
+  if (resultingRosterMinimum !== undefined && resultingRosterMaximum !== undefined && resultingRosterMinimum > resultingRosterMaximum) {
+    return { ok: false, error: 'minPlayersPerTeam must not exceed maxPlayersPerTeam' };
   }
 
   return { ok: true, value: updates };

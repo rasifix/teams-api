@@ -3,6 +3,20 @@ import { dataStore } from '../data/store';
 import { GROUP_CATEGORIES, Group, GroupCategory, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 import { AuthRequest } from '../middleware/auth';
+import { SFV_CATALOG_ORIGIN, sfvCategories } from '../data/sfvCategories';
+
+const presentGroup = (req: Request, group: Group): Group => {
+  if (req.baseUrl !== '/api/squads') {
+    return group;
+  }
+
+  const matchFormats = group.matchFormats ?? group.playingModes ?? [];
+  return {
+    ...group,
+    playingModes: group.playingModes ?? matchFormats,
+    matchFormats
+  };
+};
 
 // GET /api/groups - Get all groups the authenticated user is a trainer in
 export const getAllGroups = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -29,7 +43,7 @@ export const getAllGroups = async (req: AuthRequest, res: Response): Promise<voi
     for (const group of allGroups) {
       const groupAccess = await dataStore.getUserGroupAccess(user.id, group.id);
       if (groupAccess) {
-        userGroups.push(group);
+        userGroups.push(presentGroup(req, group));
       }
     }
 
@@ -51,7 +65,7 @@ export const getGroupById = async (req: Request, res: Response): Promise<void> =
       return;
     }
     
-    res.json(group);
+    res.json(presentGroup(req, group));
   } catch (error) {
     console.error('Error fetching group:', error);
     res.status(500).json({ error: 'Failed to fetch group' });
@@ -86,11 +100,22 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
       return;
     }
     
+    const categoryFormat = category === undefined ? undefined : sfvCategories[category as GroupCategory]?.matchFormat;
+    const playingModes = categoryFormat
+      ? [{
+        id: await getNextSequence('playingmodes'),
+        ...categoryFormat,
+        isDefault: true,
+        origin: SFV_CATALOG_ORIGIN
+      }]
+      : [];
+
     const newGroup: Group = {
       id: await getNextSequence('groups'),
       name,
       club,
-      category
+      category,
+      playingModes
     };
     
     const createdGroup = await dataStore.createGroup(newGroup);
@@ -112,7 +137,7 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
       throw trainerError;
     }
 
-    res.status(201).json(createdGroup);
+    res.status(201).json(presentGroup(req, createdGroup));
   } catch (error) {
     console.error('Error creating group:', error);
     res.status(500).json({ error: 'Failed to create group' });
@@ -163,7 +188,7 @@ export const updateGroup = async (req: Request, res: Response): Promise<void> =>
       return;
     }
     
-    res.json(updatedGroup);
+    res.json(presentGroup(req, updatedGroup));
   } catch (error) {
     console.error('Error updating group:', error);
     res.status(500).json({ error: 'Failed to update group' });

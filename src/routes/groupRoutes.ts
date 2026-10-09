@@ -17,8 +17,9 @@ import shirtSetRoutes from './shirtSetRoutes';
 import periodsRoutes from './periodsRoutes';
 import playingModeRoutes from './playingModeRoutes';
 import formationRoutes from './formationRoutes';
+import activityRoutes from './activityRoutes';
 
-const router = Router();
+const router = Router({ mergeParams: true });
 
 // Group CRUD operations
 router.get('/', authenticateToken, getAllGroups);
@@ -32,35 +33,14 @@ router.post('/:groupId/import', authenticateToken, authorizeGroupAccess, importL
 
 // Nested routes under groups - all protected by authentication and group membership
 // All nested routes will have groupId available in req.params
-router.use('/:groupId/members', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
-  // Add groupId to request for nested routes
-  req.params.groupId = req.params.groupId;
-  next();
-}, membersRoutes);
-
-router.use('/:groupId/events', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
-  req.params.groupId = req.params.groupId;
-  next();
-}, eventRoutes);
-
-router.use('/:groupId/shirtsets', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
-  req.params.groupId = req.params.groupId;
-  next();
-}, shirtSetRoutes);
-
-router.use('/:groupId/periods', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
-  req.params.groupId = req.params.groupId;
-  next();
-}, periodsRoutes);
-
-router.use('/:groupId/playing-modes', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
-  req.params.groupId = req.params.groupId;
-  next();
-}, playingModeRoutes);
-
-router.use('/:groupId/formations', authenticateToken, authorizeGroupAccess, (req, _res, next) => {
-  req.params.groupId = req.params.groupId;
-  next();
-}, formationRoutes);
+const scopedMiddleware = [authenticateToken, authorizeGroupAccess];
+router.use('/:groupId/members', ...scopedMiddleware, membersRoutes);
+router.use('/:groupId/events', ...scopedMiddleware, eventRoutes);
+router.use('/:groupId/activities', ...scopedMiddleware, activityRoutes);
+router.use('/:groupId/shirtsets', ...scopedMiddleware, shirtSetRoutes);
+router.use('/:groupId/periods', ...scopedMiddleware, periodsRoutes);
+router.use('/:groupId/playing-modes', ...scopedMiddleware, playingModeRoutes);
+router.use('/:groupId/match-formats', ...scopedMiddleware, playingModeRoutes);
+router.use('/:groupId/formations', ...scopedMiddleware, formationRoutes);
 
 export default router;

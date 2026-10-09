@@ -23,6 +23,7 @@ export interface Player {
   firstName: string;
   lastName: string;
   birthDate?: string; // ISO date string (YYYY-MM-DD)
+  birthYear?: number; // Deprecated, derived from birthDate
   level: number; // 1-5
   preferredShirtNumber?: number;
   status?: PlayerStatus;
@@ -46,6 +47,7 @@ export interface Guardian {
   firstName?: string;
   lastName?: string;
   email?: string;
+  userId?: string; // Deprecated legacy guardian account identifier
 }
 
 export interface Period {
@@ -66,6 +68,7 @@ export interface Group {
   periods?: Period[];
   matchPlanningEnabled?: boolean;
   playingModes?: PlayingMode[];
+  matchFormats?: PlayingMode[];
   formations?: Formation[];
   createdAt?: string;
   updatedAt?: string;
@@ -78,6 +81,10 @@ export interface PlayingMode {
   periodLengthMinutes: number;
   minimumPeriodsPerPlayer: number;
   isDefault?: boolean;
+  playersOnField?: number;
+  minPlayersPerTeam?: number;
+  maxPlayersPerTeam?: number;
+  origin?: string;
 }
 
 export interface FormationSlot {
@@ -122,6 +129,72 @@ export interface Invitation {
   status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
 }
 
+export type ActivityKind = 'match' | 'tournament' | 'training' | 'social';
+export type InvitationResponse = 'open' | 'accepted' | 'declined';
+export type InvitationDeclineReason = 'injured' | 'sick' | 'unavailable';
+
+export interface ActivityInvitation {
+  id: string;
+  playerId: string;
+  response: InvitationResponse;
+  declineReason?: InvitationDeclineReason;
+  respondedBy?: string;
+}
+
+export type AttendanceStatus = 'present' | 'absent' | 'excused';
+
+export interface ActivityAttendance {
+  personId: string;
+  status: AttendanceStatus;
+}
+
+export interface ActivityTaskSignup {
+  personId: string;
+  signedUpAt?: string;
+}
+
+export interface ActivityTask {
+  id: string;
+  name: string;
+  description?: string;
+  requiredPeople: number;
+  signups: ActivityTaskSignup[];
+  isFulfilled: boolean;
+}
+
+export interface TrainingUnit {
+  id: string;
+  name?: string;
+  plannedPlayerIds: string[];
+}
+
+export interface TrainingGroup {
+  id: string;
+  name?: string;
+  units: TrainingUnit[];
+}
+
+export interface Activity {
+  id: string;
+  squadId: string;
+  kind: ActivityKind;
+  name: string;
+  startsAt: string;
+  endsAt?: string;
+  location?: string;
+  matchFormatId?: string | null;
+  opponentName?: string;
+  maxPlayersPerTeam?: number;
+  minPlayersPerTeam?: number;
+  teams: Team[];
+  invitations: ActivityInvitation[];
+  selectionSentAt?: string;
+  attendance?: ActivityAttendance[];
+  tasks?: ActivityTask[];
+  trainerIds?: string[];
+  groups?: TrainingGroup[];
+}
+
 export type TeamSelectionStatus = 'new' | 'selected';
 
 export interface Team {
@@ -132,6 +205,7 @@ export interface Team {
   location?: string; // Optional team-specific location overriding event location
   selectedPlayers: string[]; // Player IDs assigned to this team
   trainerId?: string; // Trainer ID assigned to this team
+  responsiblePersonIds?: string[];
   shirtSetId?: string; // Shirt set ID assigned to this team
   shirtAssignments?: Array<{ playerId: string; shirtNumber: number }>; // Individual shirt assignments by number
   status?: TeamSelectionStatus; // Backward compatible team selection status
@@ -148,6 +222,7 @@ export interface Event {
   minPlayersPerTeam: number; // Min players applies to all teams in this event
   location?: string; // Optional location field
   playingModeId?: string | null;
+  matchFormatId?: string | null;
   teams: Team[]; // Teams are contained within the event
   invitations: Invitation[];
 }

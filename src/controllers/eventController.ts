@@ -98,7 +98,7 @@ export const getEventById = async (req: Request, res: Response): Promise<void> =
 export const createEvent = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
-    const { name, date, maxPlayersPerTeam, minPlayersPerTeam, location, teams, invitations } = req.body;
+    const { name, date, maxPlayersPerTeam, minPlayersPerTeam, location, teams, invitations, playingModeId, matchFormatId } = req.body;
     
     // Validation
     if (!name || !date || !maxPlayersPerTeam || minPlayersPerTeam === undefined || !teams) {
@@ -114,6 +114,8 @@ export const createEvent = async (req: Request, res: Response): Promise<void> =>
       maxPlayersPerTeam: Number(maxPlayersPerTeam),
       minPlayersPerTeam: Number(minPlayersPerTeam),
       location,
+      playingModeId: matchFormatId !== undefined ? matchFormatId : playingModeId,
+      matchFormatId: matchFormatId !== undefined ? matchFormatId : playingModeId,
       teams: teams || [],
       invitations: invitations || []
     };
@@ -129,7 +131,7 @@ export const createEvent = async (req: Request, res: Response): Promise<void> =>
 export const updateEvent = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, date, maxPlayersPerTeam, minPlayersPerTeam, location, playingModeId, teams, invitations } = req.body;
+    const { name, date, maxPlayersPerTeam, minPlayersPerTeam, location, playingModeId, matchFormatId, teams, invitations } = req.body;
     
     const updates: Partial<Omit<Event, 'id'>> = {};
     
@@ -138,7 +140,11 @@ export const updateEvent = async (req: Request, res: Response): Promise<void> =>
     if (maxPlayersPerTeam !== undefined) updates.maxPlayersPerTeam = Number(maxPlayersPerTeam);
     if (minPlayersPerTeam !== undefined) updates.minPlayersPerTeam = Number(minPlayersPerTeam);
     if (location !== undefined) updates.location = location;
-    if (playingModeId !== undefined) updates.playingModeId = playingModeId;
+    if (matchFormatId !== undefined || playingModeId !== undefined) {
+      const selectedMatchFormatId = matchFormatId !== undefined ? matchFormatId : playingModeId;
+      updates.playingModeId = selectedMatchFormatId;
+      updates.matchFormatId = selectedMatchFormatId;
+    }
     if (teams !== undefined) updates.teams = teams;
     if (invitations !== undefined) updates.invitations = invitations;
     
