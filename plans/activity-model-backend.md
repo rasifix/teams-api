@@ -49,7 +49,7 @@ every phase until the contract phase (C). Rules:
 - [x] B1.2 Squad naming in responses is opt-in: responses keep `Group` shape; `/squads` routes return the same payload with `id`/`name` unchanged (field names are already neutral); document aliases in OpenAPI
 - [x] B1.3 `/api/squads/:id/match-formats` alias for `/playing-modes`; `matchFormats` accepted/returned next to `playingModes` on the squad payload; event `matchFormatId` accepted next to `playingModeId`
 - [x] B1.4 `birthYear`: derive read-only from `birthDate` and accept `birthDate` as canonical input (user confirmed the data audit is complete).
-- [x] B1.5 Guardian `userId`: keep field, mark deprecated; no removal before phase C
+- [x] B1.5 Guardian `userId`: remove the legacy field from application types, storage projections, and API schema after the user confirmed migration is complete
 - [x] B1.6 Tests: alias parity and permissions run against both route families
 
 ## Phase 2: SFV catalog and match formats (additive)
@@ -95,7 +95,7 @@ every phase until the contract phase (C). Rules:
 
 - [ ] BC.1 Usage check: log/metrics show no traffic on `/events`, `/groups`, `playingModeId`, `trainerId`, invitation `status`
 - [ ] BC.2 Remove deprecated routes and legacy fields; rename collections (`groups`→`squads`, `events`→`activities`) and `groupId`→`squadId` with a backup-first migration
-- [ ] BC.3 Remove derived `birthYear`, `Guardian.userId`
+- [ ] BC.3 Remove derived `birthYear`
 - [ ] BC.4 Finalize `specs/openapi-spec.yaml`, `domain-model.md`, `permission-model.md`, `README-OpenAPI.md`
 
 ## Open questions

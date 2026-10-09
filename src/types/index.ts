@@ -47,7 +47,6 @@ export interface Guardian {
   firstName?: string;
   lastName?: string;
   email?: string;
-  userId?: string; // Deprecated legacy guardian account identifier
 }
 
 export interface Period {

@@ -4465,10 +4465,6 @@ components:
           type: string
           format: email
           nullable: true
-        userId:
-          type: string
-          deprecated: true
-          description: Legacy guardian account identifier; use the guardian member id.
       required:
         - id
         - groupId

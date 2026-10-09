@@ -87,7 +87,6 @@ export interface PersonDocument extends BaseDocument {
   roles?: Array<'admin' | 'trainer' | 'guardian' | 'player'>;
   groupId: string; // Reference to GroupDocument
   email?: string;
-  userId?: string;
   // Player-specific properties (present when roles contains 'player')
   birthDate?: string; // ISO date string (YYYY-MM-DD)
   level?: number; // 1-5

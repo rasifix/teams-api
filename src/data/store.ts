@@ -39,7 +39,7 @@ class DataStore {
     return [];
   }
 
-  private toGuardianMember(person: Pick<PersonDocument, '_id' | 'groupId' | 'firstName' | 'lastName' | 'email' | 'roles' | 'userId'>): Guardian {
+  private toGuardianMember(person: Pick<PersonDocument, '_id' | 'groupId' | 'firstName' | 'lastName' | 'email' | 'roles'>): Guardian {
     const roles = this.resolveRoles(person);
     return {
       id: person._id,
@@ -47,8 +47,7 @@ class DataStore {
       roles: roles.length > 0 ? roles : ['guardian'],
       firstName: person.firstName,
       lastName: person.lastName,
-      email: person.email,
-      userId: person.userId
+      email: person.email
     };
   }
 
