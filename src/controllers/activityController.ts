@@ -4,7 +4,6 @@ import {
   ActivityAttendance,
   ActivityInvitation,
   ActivityKind,
-  ActivityTask,
   InvitationDeclineReason,
   Team,
   TrainingGroup
@@ -223,7 +222,6 @@ const validateActivity = (value: Record<string, unknown>, existing?: Activity): 
       invitations,
       selectionSentAt: typeof selectionSentAt === 'string' ? selectionSentAt : undefined,
       attendance: existing?.attendance,
-      tasks: existing?.tasks,
       trainerIds,
       groups
     }
@@ -255,10 +253,6 @@ const filterActivityForGuardian = async (req: Request, activity: Activity): Prom
       shirtSetId: undefined,
       shirtAssignments: undefined
     }));
-  const tasks = activity.tasks?.map(task => ({
-    ...task,
-    signups: task.signups.filter(signup => signup.personId === access.memberId)
-  }));
   const attendance = activity.attendance?.filter(record => childIds.has(record.personId));
   const groups = activity.groups?.map(group => ({
     ...group,
@@ -268,7 +262,7 @@ const filterActivityForGuardian = async (req: Request, activity: Activity): Prom
     }))
   }));
   return activity.kind === 'social' || invitations.length || teams.length || attendance?.length || groups?.length
-    ? { ...activity, invitations, teams, tasks, attendance, groups }
+    ? { ...activity, invitations, teams, attendance, groups }
     : null;
 };
 
@@ -619,163 +613,6 @@ export const updateActivityAttendanceForPerson = async (req: Request, res: Respo
   } catch (error) {
     console.error('Error updating activity attendance:', error);
     res.status(500).json({ error: 'Failed to update activity attendance' });
-  }
-};
-
-const validateTaskDetails = (
-  value: Record<string, unknown>,
-  existing?: ActivityTask
-): { task?: Omit<ActivityTask, 'id' | 'signups' | 'isFulfilled'>; error?: string } => {
-  const name = value.name !== undefined ? value.name : existing?.name;
-  if (typeof name !== 'string' || !name.trim()) {
-    return { error: 'task name is required' };
-  }
-  const requiredPeople = value.requiredPeople !== undefined ? value.requiredPeople : existing?.requiredPeople;
-  if (!Number.isInteger(requiredPeople) || Number(requiredPeople) < 1) {
-    return { error: 'requiredPeople must be an integer greater than or equal to 1' };
-  }
-  const description = value.description !== undefined ? value.description : existing?.description;
-  if (description !== undefined && typeof description !== 'string') {
-    return { error: 'description must be a string when provided' };
-  }
-  return {
-    task: {
-      name: name.trim(),
-      description: typeof description === 'string' ? description : undefined,
-      requiredPeople: Number(requiredPeople)
-    }
-  };
-};
-
-const persistTasks = async (
-  req: Request,
-  res: Response,
-  activity: Activity,
-  taskValues: ActivityTask[]
-): Promise<void> => {
-  const updated = await dataStore.updateActivity({ ...activity, tasks: taskValues });
-  if (!updated) {
-    res.status(404).json({ error: 'Activity not found' });
-    return;
-  }
-  const tasks = updated.tasks ?? [];
-  const visibleTasks = isGuardianOnly(req)
-    ? tasks.map(task => ({
-      ...task,
-      signups: task.signups.filter(signup => signup.personId === (req as GroupAuthRequest).groupAccess?.memberId)
-    }))
-    : tasks;
-  res.json(visibleTasks);
-};
-
-export const createActivityTask = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const activity = await getActivityOr404(req, res);
-    if (!activity) return;
-    if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
-      res.status(400).json({ error: 'task must be an object' });
-      return;
-    }
-    const details = validateTaskDetails(req.body);
-    if (details.error || !details.task) {
-      res.status(400).json({ error: details.error });
-      return;
-    }
-    const task: ActivityTask = {
-      id: await getNextSequence('activitytasks'),
-      ...details.task,
-      signups: [],
-      isFulfilled: false
-    };
-    await persistTasks(req, res, activity, [...(activity.tasks ?? []), task]);
-  } catch (error) {
-    console.error('Error creating activity task:', error);
-    res.status(500).json({ error: 'Failed to create activity task' });
-  }
-};
-
-export const updateActivityTask = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const activity = await getActivityOr404(req, res);
-    if (!activity) return;
-    const tasks = activity.tasks ?? [];
-    const index = tasks.findIndex(task => task.id === req.params.taskId);
-    if (index < 0) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-    const details = validateTaskDetails(req.body ?? {}, tasks[index]);
-    if (details.error || !details.task) {
-      res.status(400).json({ error: details.error });
-      return;
-    }
-    const updated = [...tasks];
-    updated[index] = { ...tasks[index], ...details.task };
-    await persistTasks(req, res, activity, updated);
-  } catch (error) {
-    console.error('Error updating activity task:', error);
-    res.status(500).json({ error: 'Failed to update activity task' });
-  }
-};
-
-export const deleteActivityTask = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const activity = await getActivityOr404(req, res);
-    if (!activity) return;
-    const tasks = activity.tasks ?? [];
-    if (!tasks.some(task => task.id === req.params.taskId)) {
-      res.status(404).json({ error: 'Task not found' });
-      return;
-    }
-    await persistTasks(req, res, activity, tasks.filter(task => task.id !== req.params.taskId));
-  } catch (error) {
-    console.error('Error deleting activity task:', error);
-    res.status(500).json({ error: 'Failed to delete activity task' });
-  }
-};
-
-const updateTaskSignup = async (req: Request, res: Response, signingUp: boolean): Promise<void> => {
-  const access = (req as GroupAuthRequest).groupAccess;
-  if (!access || !access.roles.some(role => role === 'admin' || role === 'trainer' || role === 'guardian')) {
-    res.status(403).json({ error: 'Only adult squad members may sign up for tasks' });
-    return;
-  }
-  const activity = await getActivityOr404(req, res);
-  if (!activity) return;
-  const tasks = activity.tasks ?? [];
-  const index = tasks.findIndex(task => task.id === req.params.taskId);
-  if (index < 0) {
-    res.status(404).json({ error: 'Task not found' });
-    return;
-  }
-  const updatedTasks = [...tasks];
-  const task = { ...updatedTasks[index], signups: [...updatedTasks[index].signups] };
-  const signupIndex = task.signups.findIndex(signup => signup.personId === access.memberId);
-  if (signingUp && signupIndex < 0) {
-    task.signups.push({ personId: access.memberId, signedUpAt: new Date().toISOString() });
-  } else if (!signingUp && signupIndex >= 0) {
-    task.signups.splice(signupIndex, 1);
-  }
-  task.isFulfilled = task.signups.length >= task.requiredPeople;
-  updatedTasks[index] = task;
-  await persistTasks(req, res, activity, updatedTasks);
-};
-
-export const signUpForActivityTask = async (req: Request, res: Response): Promise<void> => {
-  try {
-    await updateTaskSignup(req, res, true);
-  } catch (error) {
-    console.error('Error signing up for activity task:', error);
-    res.status(500).json({ error: 'Failed to sign up for activity task' });
-  }
-};
-
-export const withdrawFromActivityTask = async (req: Request, res: Response): Promise<void> => {
-  try {
-    await updateTaskSignup(req, res, false);
-  } catch (error) {
-    console.error('Error withdrawing from activity task:', error);
-    res.status(500).json({ error: 'Failed to withdraw from activity task' });
   }
 };
 

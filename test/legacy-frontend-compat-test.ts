@@ -65,13 +65,6 @@ const run = async (): Promise<void> => {
       }],
       invitations: [{ id: 'invite-1', playerId: 'player-1', response: 'open' }],
       attendance: [{ personId: 'adult-1', status: 'present' }],
-      tasks: [{
-        id: 'task-1',
-        name: 'Bring cones',
-        requiredPeople: 1,
-        signups: [{ personId: 'adult-1' }],
-        isFulfilled: true
-      }]
     }),
     makeDocument({
       id: 'training-1',
@@ -170,7 +163,6 @@ const run = async (): Promise<void> => {
       assert.equal(listed[0].playingModeId, 'format-1');
       assert.equal('matchFormatId' in listed[0], false);
       assert.equal('attendance' in listed[0], false);
-      assert.equal('tasks' in listed[0], false);
 
       const detailResponse = await request(baseUrl, '/api/groups/squad-1/events/legacy-1', token);
       assert.equal(detailResponse.status, 200);
@@ -254,7 +246,6 @@ const run = async (): Promise<void> => {
       assert.equal(activityView.kind, 'match');
       assert.equal(activityView.matchFormatId, 'format-2');
       assert.deepEqual(activityView.teams[0].selectedPlayers, ['player-2']);
-      assert.equal(activityView.tasks, undefined);
       assert.equal(activityView.attendance, undefined);
     });
 

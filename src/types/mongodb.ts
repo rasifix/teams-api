@@ -172,16 +172,6 @@ export interface EventDocument extends BaseDocument {
     personId: string;
     status: 'present' | 'absent' | 'excused';
   }>;
-  tasks?: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    requiredPeople: number;
-    signups: Array<{
-      personId: string;
-      signedUpAt?: Date;
-    }>;
-  }>;
   trainerIds?: string[];
   groups?: Array<{
     id: string;

@@ -1,15 +1,12 @@
 import {
-  createActivityTask,
   createActivity,
-  signUpForActivityTask,
   updateActivityInvitation,
   updateActivityAttendance,
-  withdrawFromActivityTask
 } from '../src/controllers/activityController';
 import { dataStore } from '../src/data/store';
 import { mongoConnection } from '../src/database/connection';
 import { activityToEventDocument, eventDocumentToActivity, eventDocumentToLegacyEvent } from '../src/types/mappers';
-import type { Activity, ActivityTask, EventDocument } from '../src/types';
+import type { Activity, EventDocument } from '../src/types';
 
 type MockResponse = {
   statusCode: number;
@@ -115,73 +112,6 @@ const testAttendance = async (): Promise<void> => {
   assert(invalidMemberResponse.statusCode === 400, 'Attendance cannot reference a person outside the squad');
 };
 
-const testAdultTaskSignup = async (): Promise<void> => {
-  let activity = baseActivity();
-  const managerResponse = createMockResponse();
-  const managerRequest = {
-    params: { groupId: activity.squadId, id: activity.id },
-    body: { name: 'Bring snacks', requiredPeople: 1 }
-  };
-  await withPatches({
-    getActivityById: async () => activity,
-    updateActivity: async (value: Activity) => {
-      activity = value;
-      return value;
-    }
-  }, async () => withSequences(async () => createActivityTask(managerRequest as any, managerResponse as any)));
-  assert(managerResponse.statusCode === 200, 'Admin or trainer should create a task');
-  assert(activity.tasks?.[0].isFulfilled === false, 'A task begins unfulfilled');
-
-  const signup = async (memberId: string): Promise<MockResponse> => {
-    const response = createMockResponse();
-    await withPatches({
-      getActivityById: async () => activity,
-      updateActivity: async (value: Activity) => {
-        activity = value;
-        return value;
-      }
-    }, async () => signUpForActivityTask({
-      params: { groupId: activity.squadId, id: activity.id, taskId: activity.tasks![0].id },
-      groupAccess: { memberId, roles: ['guardian'] }
-    } as any, response as any));
-    return response;
-  };
-
-  assert((await signup('adult-1')).statusCode === 200, 'Adult guardian may sign themselves up');
-  assert((await signup('adult-1')).statusCode === 200, 'Repeated signup should be idempotent');
-  const secondSignup = await signup('adult-2');
-  assert(secondSignup.statusCode === 200, 'Over-subscription should be allowed');
-  const visibleTasks = secondSignup.body as ActivityTask[];
-  assert(visibleTasks[0].signups.length === 1 && visibleTasks[0].signups[0].personId === 'adult-2',
-    'Guardian signup response should not disclose other adults\' signup identities');
-  assert(activity.tasks?.[0].signups.length === 2, 'Each adult member should appear at most once');
-  assert(activity.tasks?.[0].isFulfilled === true, 'Fulfillment should turn true at requiredPeople');
-  assert(activity.tasks?.[0].signups.every(signup => signup.personId !== 'child-1'), 'Signup must never use a child ID');
-
-  const playerResponse = createMockResponse();
-  await withPatches({
-    getActivityById: async () => activity
-  }, async () => signUpForActivityTask({
-    params: { groupId: activity.squadId, id: activity.id, taskId: activity.tasks![0].id },
-    groupAccess: { memberId: 'child-1', roles: ['player'] }
-  } as any, playerResponse as any));
-  assert(playerResponse.statusCode === 403, 'Player-role child cannot sign up for a task');
-
-  const withdrawResponse = createMockResponse();
-  await withPatches({
-    getActivityById: async () => activity,
-    updateActivity: async (value: Activity) => {
-      activity = value;
-      return value;
-    }
-  }, async () => withdrawFromActivityTask({
-    params: { groupId: activity.squadId, id: activity.id, taskId: activity.tasks![0].id },
-    groupAccess: { memberId: 'adult-1', roles: ['guardian'] }
-  } as any, withdrawResponse as any));
-  assert(withdrawResponse.statusCode === 200, 'Adult member can withdraw');
-  assert(activity.tasks?.[0].isFulfilled === true, 'Task stays fulfilled when signup count still meets target');
-};
-
 const testTrainingAndSocialKinds = async (): Promise<void> => {
   const trainingResponse = createMockResponse();
   let created: Activity | undefined;
@@ -222,13 +152,12 @@ const testTrainingAndSocialKinds = async (): Promise<void> => {
       kind: 'social',
       name: 'Team dinner',
       startsAt: '2026-10-09T18:00:00.000Z',
-      tasks: [{ id: 'forged-task', name: 'Forged', requiredPeople: 1, signups: [{ personId: 'child-1' }] }],
       attendance: [{ personId: 'child-1', status: 'present' }]
     }
   } as any, socialResponse as any)));
   assert(socialResponse.statusCode === 201, 'Social activities should be creatable without player limits');
   assert(created?.teams.length === 0 && created.maxPlayersPerTeam === undefined, 'Social activity should not have teams or player limits');
-  assert(!created?.tasks && !created?.attendance, 'Activity create must not bypass task or attendance permissions');
+  assert(!created?.attendance, 'Activity create must not bypass attendance permissions');
 };
 
 const testTrainingDeclineReconcilesPlannedPlayers = async (): Promise<void> => {
@@ -256,14 +185,7 @@ const testTrainingDeclineReconcilesPlannedPlayers = async (): Promise<void> => {
 
 const testNewFieldsStayOutOfLegacyView = (): void => {
   const activity = baseActivity({
-    attendance: [{ personId: 'member-1', status: 'present' }],
-    tasks: [{
-      id: 'task-1',
-      name: 'Bring snacks',
-      requiredPeople: 1,
-      signups: [{ personId: 'adult-1' }],
-      isFulfilled: true
-    }]
+    attendance: [{ personId: 'member-1', status: 'present' }]
   });
   const document = {
     _id: activity.id,
@@ -272,10 +194,9 @@ const testNewFieldsStayOutOfLegacyView = (): void => {
     updatedAt: new Date()
   } as EventDocument;
   const activityView = eventDocumentToActivity(document);
-  assert(activityView.tasks?.[0].isFulfilled === true, 'Task fulfillment should be computed on read');
   assert(activityView.attendance?.[0].status === 'present', 'Attendance should round-trip');
   const legacyView = eventDocumentToLegacyEvent(document);
-  assert(!('attendance' in legacyView) && !('tasks' in legacyView), 'Legacy event payload must not expose Phase 4–6 fields');
+  assert(!('attendance' in legacyView), 'Legacy event payload must not expose Phase 4–6 fields');
 };
 
 const testLegacyEventsExcludeTrainingAndSocial = async (): Promise<void> => {
@@ -326,12 +247,11 @@ const testLegacyEventsExcludeTrainingAndSocial = async (): Promise<void> => {
 
 const run = async (): Promise<void> => {
   await testAttendance();
-  await testAdultTaskSignup();
   await testTrainingAndSocialKinds();
   await testTrainingDeclineReconcilesPlannedPlayers();
   testNewFieldsStayOutOfLegacyView();
   await testLegacyEventsExcludeTrainingAndSocial();
-  console.log('Phase 4-6 attendance, task, training, and social tests passed');
+  console.log('Phase 4-6 attendance, training, and social tests passed');
 };
 
 void run();

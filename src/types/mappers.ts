@@ -418,14 +418,6 @@ export function eventDocumentToActivity(doc: EventDocument): Activity {
     invitations: doc.invitations.map(embeddedInvitationToActivityInvitation),
     selectionSentAt: doc.selectionSentAt?.toISOString(),
     attendance: doc.attendance?.map(record => ({ ...record })),
-    tasks: doc.tasks?.map(task => ({
-      ...task,
-      signups: task.signups.map(signup => ({
-        personId: signup.personId,
-        signedUpAt: signup.signedUpAt?.toISOString()
-      })),
-      isFulfilled: task.signups.length >= task.requiredPeople
-    })),
     trainerIds: doc.trainerIds,
     groups: doc.groups
   };
@@ -482,16 +474,6 @@ export function activityToEventDocument(activity: Activity): Omit<EventDocument,
     selectionSentAt: activity.selectionSentAt ? new Date(activity.selectionSentAt) : undefined,
     invitations: activity.invitations.map(activityInvitationToEmbedded),
     attendance: activity.attendance,
-    tasks: activity.tasks?.map(task => ({
-      id: task.id,
-      name: task.name,
-      description: task.description,
-      requiredPeople: task.requiredPeople,
-      signups: task.signups.map(signup => ({
-        personId: signup.personId,
-        signedUpAt: signup.signedUpAt ? new Date(signup.signedUpAt) : undefined
-      }))
-    })),
     trainerIds: activity.trainerIds,
     groups: activity.groups
   };
