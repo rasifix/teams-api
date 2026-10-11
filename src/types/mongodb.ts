@@ -55,6 +55,7 @@ export interface FormationEmbedded {
 }
 
 export interface GroupDocument extends BaseDocument {
+  spondId?: string | null;
   name: string;
   club?: string;
   category?: GroupCategory;
@@ -82,6 +83,7 @@ export interface EvaluationEmbedded {
 
 // Members Collection - Unified collection for players and trainers
 export interface PersonDocument extends BaseDocument {
+  spondId?: string | null;
   firstName?: string;
   lastName?: string;
   roles?: Array<'admin' | 'trainer' | 'guardian' | 'player'>;
@@ -152,6 +154,7 @@ export interface TeamEmbedded {
 
 // Events Collection
 export interface EventDocument extends BaseDocument {
+  spondId?: string | null;
   name: string;
   eventDate: Date; // Using Date instead of string for better MongoDB operations
   maxPlayersPerTeam: number;

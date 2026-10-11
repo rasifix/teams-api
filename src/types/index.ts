@@ -18,6 +18,7 @@ export type GroupRole = 'admin' | 'trainer' | 'guardian' | 'player';
 
 export interface Player {
   id: string;
+  spondId?: string | null;
   groupId: string;
   roles: GroupRole[];
   firstName: string;
@@ -33,6 +34,7 @@ export interface Player {
 
 export interface Trainer {
   id: string;
+  spondId?: string | null;
   groupId: string;
   roles: GroupRole[];
   firstName?: string;
@@ -42,6 +44,7 @@ export interface Trainer {
 
 export interface Guardian {
   id: string;
+  spondId?: string | null;
   groupId: string;
   roles: GroupRole[];
   firstName?: string;
@@ -56,11 +59,12 @@ export interface Period {
   endDate: string; // ISO date string (YYYY-MM-DD)
 }
 
-export const GROUP_CATEGORIES = ['A', 'B', 'C', 'D9', 'D7', 'E', 'F', 'G', 'FF9', 'FF11', 'FF14', 'FF17'] as const;
+export const GROUP_CATEGORIES = ['A', 'B', 'C', 'D9', 'D7', 'E', 'F', 'G', 'FF7', 'FF9', 'FF11', 'FF14', 'FF17'] as const;
 export type GroupCategory = typeof GROUP_CATEGORIES[number];
 
 export interface Group {
   id: string;
+  spondId?: string | null;
   name: string;
   club?: string;
   category?: GroupCategory;
@@ -175,6 +179,7 @@ export interface TrainingGroup {
 
 export interface Activity {
   id: string;
+  spondId?: string | null;
   squadId: string;
   kind: ActivityKind;
   name: string;

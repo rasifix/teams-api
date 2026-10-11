@@ -15,6 +15,124 @@ servers:
 # Authentication is optional for most endpoints, but required for some
 security: []
 paths:
+  /api/squads/{squadId}/spond/import:
+    post:
+      operationId: importSpondSnapshot
+      summary: Apply a reviewed Spond snapshot
+      description: Applies selected links and creates or updates records using stable Spond identifiers.
+      tags:
+        - Spond Integration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: squadId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpondImportRequest'
+      responses:
+        '200':
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpondImportResult'
+        '400':
+          description: Invalid import payload
+        '401':
+          description: Not authenticated
+        '403':
+          description: Admin or trainer permission required
+        '409':
+          description: Conflicting Spond link
+  /api/integrations/spond/groups:
+    post:
+      operationId: listSpondGroups
+      summary: List groups available to the supplied Spond account
+      description: Credentials and the resulting Spond access token are used only for this request and are not persisted.
+      tags:
+        - Spond Integration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpondCredentials'
+      responses:
+        '200':
+          description: Spond groups accessible to the account
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SpondGroupSummary'
+        '400':
+          description: Credentials are missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: App or Spond authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Spond returned an invalid response or could not be reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/integrations/spond/snapshot:
+    post:
+      operationId: getSpondSnapshot
+      summary: Read a normalized Spond group snapshot
+      description: Credentials and the resulting Spond access token are used only for this request and are not persisted.
+      tags:
+        - Spond Integration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpondSnapshotRequest'
+      responses:
+        '200':
+          description: Normalized members and events for the requested group and time range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpondSnapshot'
+        '400':
+          description: Credentials or snapshot scope are invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: App or Spond authentication failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '502':
+          description: Spond returned an invalid response or could not be reached
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /api/sfv-categories:
     get:
       operationId: getSfvCategories
@@ -3865,6 +3983,218 @@ components:
       bearerFormat: JWT
       description: JWT token obtained from /auth/login or /auth/register
   schemas:
+    SpondCredentials:
+      type: object
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+      required: [email, password]
+    SpondSnapshotRequest:
+      allOf:
+        - $ref: '#/components/schemas/SpondCredentials'
+        - type: object
+          additionalProperties: false
+          properties:
+            groupId:
+              type: string
+            from:
+              type: string
+              format: date-time
+            to:
+              type: string
+              format: date-time
+          required: [groupId, from, to]
+    SpondGroupSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required: [id, name]
+    SpondGuardianSnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+      required: [id, firstName, lastName]
+    SpondMemberSnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        guardians:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpondGuardianSnapshot'
+        roles:
+          type: array
+          items:
+            type: string
+      required: [id, firstName, lastName, guardians, roles]
+    SpondEventResponse:
+      type: object
+      properties:
+        spondMemberId:
+          type: string
+        response:
+          type: string
+          enum: [open, accepted, declined]
+      required: [spondMemberId, response]
+    SpondEventSnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+        groupId:
+          type: string
+        name:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        location:
+          type: string
+        responses:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpondEventResponse'
+      required: [id, groupId, name, startsAt, responses]
+    SpondSnapshot:
+      type: object
+      properties:
+        group:
+          allOf:
+            - $ref: '#/components/schemas/SpondGroupSummary'
+            - type: object
+              properties:
+                members:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SpondMemberSnapshot'
+              required: [members]
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpondEventSnapshot'
+        sourceReadAt:
+          type: string
+          format: date-time
+      required: [group, events, sourceReadAt]
+    SpondMemberDecision:
+      oneOf:
+        - type: object
+          properties:
+            action: { type: string, enum: [link] }
+            spondMemberId: { type: string }
+            memberId: { type: string }
+          required: [action, spondMemberId, memberId]
+        - type: object
+          properties:
+            action: { type: string, enum: [create-player] }
+            spondMemberId: { type: string }
+            birthDate: { type: string, format: date }
+            level: { type: integer, minimum: 1, maximum: 5 }
+            status: { type: string, enum: [active, trial, inactive] }
+            guardianIds:
+              type: array
+              items: { type: string }
+          required: [action, spondMemberId, birthDate, level, status, guardianIds]
+        - type: object
+          properties:
+            action: { type: string, enum: [skip] }
+            spondMemberId: { type: string }
+          required: [action, spondMemberId]
+    SpondActivityDecision:
+      oneOf:
+        - type: object
+          properties:
+            action: { type: string, enum: [link] }
+            spondEventId: { type: string }
+            activityId: { type: string }
+          required: [action, spondEventId, activityId]
+        - type: object
+          properties:
+            action: { type: string, enum: [create] }
+            spondEventId: { type: string }
+            kind:
+              $ref: '#/components/schemas/ActivityKind'
+            trainerIds:
+              type: array
+              items: { type: string }
+            teams:
+              type: array
+              items:
+                $ref: '#/components/schemas/SpondImportTeam'
+          required: [action, spondEventId, kind]
+        - type: object
+          properties:
+            action: { type: string, enum: [skip] }
+            spondEventId: { type: string }
+          required: [action, spondEventId]
+    SpondImportTeam:
+      type: object
+      properties:
+        name: { type: string }
+        strength: { type: integer, minimum: 1, maximum: 3 }
+        selectedPlayers:
+          type: array
+          items: { type: string }
+      required: [name, strength, selectedPlayers]
+    SpondImportRequest:
+      type: object
+      properties:
+        importId: { type: string, format: uuid }
+        spondGroupId: { type: string }
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        squadUpdatedAt: { type: string, format: date-time }
+        snapshot:
+          $ref: '#/components/schemas/SpondSnapshot'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpondMemberDecision'
+        activities:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpondActivityDecision'
+      required: [importId, spondGroupId, from, to, snapshot, members, activities]
+    SpondImportResult:
+      type: object
+      properties:
+        importId: { type: string, format: uuid }
+        created: { type: integer, minimum: 0 }
+        linked: { type: integer, minimum: 0 }
+        updated: { type: integer, minimum: 0 }
+        unchanged: { type: integer, minimum: 0 }
+        skipped: { type: integer, minimum: 0 }
+        warnings:
+          type: array
+          items: { type: string }
+      required: [importId, created, linked, updated, unchanged, skipped, warnings]
     Error:
       type: object
       properties:
@@ -3979,6 +4309,12 @@ components:
               activityType:
                 type: string
                 enum: [match, tournament]
+              minPlayersPerTeam:
+                type: integer
+                minimum: 1
+              maxPlayersPerTeam:
+                type: integer
+                minimum: 1
               matchFormat:
                 $ref: '#/components/schemas/MatchFormatDefinition'
             required: [activityType]
@@ -4080,7 +4416,7 @@ components:
             or Team lineup data. Requires admin or trainer role.
     GroupCategory:
       type: string
-      enum: [A, B, C, D9, D7, E, F, G, FF9, FF11, FF14, FF17]
+      enum: [A, B, C, D9, D7, E, F, G, FF7, FF9, FF11, FF14, FF17]
       description: Swiss Football Association (SFV) team category.
     CreatePeriodRequest:
       type: object
@@ -5123,6 +5459,8 @@ components:
         - color
         - shirts
 tags:
+  - name: Spond Integration
+    description: Request-scoped access to Spond for manual synchronization
   - name: Authentication
     description: User registration and authentication endpoints
   - name: Health

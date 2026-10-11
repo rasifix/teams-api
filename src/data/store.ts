@@ -194,7 +194,7 @@ class DataStore {
     return group;
   }
 
-  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled'>>): Promise<Group | null> {
+  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled' | 'spondId'>>): Promise<Group | null> {
     const groupsCollection = mongoConnection.getGroupsCollection();
     const updateDoc: Record<string, string | boolean | Date> = {
       updatedAt: new Date()
@@ -206,6 +206,7 @@ class DataStore {
     if (updates.matchPlanningEnabled !== undefined) {
       updateDoc.matchPlanningEnabled = updates.matchPlanningEnabled;
     }
+    if (updates.spondId !== undefined) updateDoc.spondId = updates.spondId ?? '';
 
     const result = await groupsCollection.findOneAndUpdate(
       { _id: id },
@@ -593,6 +594,15 @@ class DataStore {
     return populatedPlayer;
   }
 
+  async getPlayerBySpondId(groupId: string, spondId: string): Promise<Player | undefined> {
+    const doc = await mongoConnection.getMembersCollection().findOne({ groupId, spondId, roles: 'player' });
+    if (!doc) return undefined;
+    const player = personDocumentToPlayer(doc) ?? undefined;
+    if (!player) return undefined;
+    const [populated] = await this.populateGuardiansForPlayers([player]);
+    return populated;
+  }
+
   async createPlayer(player: Player): Promise<Player> {
     const membersCollection = mongoConnection.getMembersCollection();
     const personDoc = playerToPersonDocument(player);
@@ -838,6 +848,11 @@ class DataStore {
     return doc ? eventDocumentToActivity(doc) : undefined;
   }
 
+  async getActivityBySpondId(squadId: string, spondId: string): Promise<Activity | undefined> {
+    const doc = await mongoConnection.getEventsCollection().findOne({ groupId: squadId, spondId });
+    return doc ? eventDocumentToActivity(doc) : undefined;
+  }
+
   async getGroupMemberIds(groupId: string): Promise<string[]> {
     const membersCollection = mongoConnection.getMembersCollection();
     const members = await membersCollection.find(
@@ -925,6 +940,13 @@ class DataStore {
     if (!trainer) return undefined;
         
     return trainer;
+  }
+
+  async getTrainerBySpondId(groupId: string, spondId: string): Promise<Trainer | undefined> {
+    const doc = await mongoConnection.getMembersCollection().findOne({
+      groupId, spondId, roles: { $in: ['trainer', 'admin', 'guardian'] }
+    });
+    return doc ? personDocumentToTrainer(doc) ?? undefined : undefined;
   }
 
   async createTrainer(trainer: Trainer): Promise<Trainer> {

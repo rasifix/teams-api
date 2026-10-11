@@ -5,6 +5,7 @@ import { mongoConnection } from './database/connection';
 import groupRoutes from './routes/groupRoutes';
 import authRoutes from './routes/authRoutes';
 import sfvCategoryRoutes from './routes/sfvCategoryRoutes';
+import spondRoutes from './routes/spondRoutes';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +17,7 @@ app.use(express.json());
 // Routes
 app.use('/auth', authRoutes);
 app.use('/api/sfv-categories', sfvCategoryRoutes);
+app.use('/api/integrations/spond', spondRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/squads', groupRoutes);
 
@@ -74,6 +76,9 @@ async function startServer() {
       console.log('  POST   /api/groups/:groupId/periods');
       console.log('  PUT    /api/groups/:groupId/periods/:periodId');
       console.log('  DELETE /api/groups/:groupId/periods/:periodId');
+      console.log('  POST   /api/groups/:groupId/spond/import');
+      console.log('  POST   /api/integrations/spond/groups');
+      console.log('  POST   /api/integrations/spond/snapshot');
     });
     
   } catch (error) {

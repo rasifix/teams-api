@@ -7,6 +7,7 @@ import {
   deleteGroup
 } from '../controllers/groupController';
 import { importLocalStorageData } from '../controllers/importController';
+import { importSpondSnapshot } from '../controllers/spondImportController';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeGroupAccess, requireGroupRole } from '../middleware/groupAuth';
 
@@ -30,6 +31,7 @@ router.delete('/:id', authenticateToken, authorizeGroupAccess, requireGroupRole(
 
 // Import data from localStorage format (protected by group membership)
 router.post('/:groupId/import', authenticateToken, authorizeGroupAccess, importLocalStorageData);
+router.post('/:groupId/spond/import', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), importSpondSnapshot);
 
 // Nested routes under groups - all protected by authentication and group membership
 // All nested routes will have groupId available in req.params

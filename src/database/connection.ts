@@ -180,6 +180,10 @@ class DatabaseConnection {
     const groupsCollection = this.getGroupsCollection();
     await groupsCollection.createIndex({ name: 1 }); // Group name lookup
     await groupsCollection.createIndex({ createdAt: -1 }); // Recent groups first
+    await groupsCollection.createIndex(
+      { spondId: 1 },
+      { unique: true, partialFilterExpression: { spondId: { $type: 'string' } } }
+    );
     
     // Members collection indexes
     const membersCollection = this.getMembersCollection();
@@ -189,6 +193,10 @@ class DatabaseConnection {
     await membersCollection.createIndex({ roles: 1, level: 1 }); // For player queries
     await membersCollection.createIndex({ email: 1 }); // Email lookup for trainers
     await membersCollection.createIndex({ createdAt: -1 });
+    await membersCollection.createIndex(
+      { groupId: 1, spondId: 1 },
+      { unique: true, partialFilterExpression: { spondId: { $type: 'string' } } }
+    );
 
     // Guardian-child links collection indexes
     const guardianLinksCollection = this.getGuardianChildLinksCollection();
@@ -208,6 +216,10 @@ class DatabaseConnection {
     await eventsCollection.createIndex({ 'teams.trainerId': 1 }); // Trainer assignments
     await eventsCollection.createIndex({ 'teams.shirtSetId': 1 }); // Shirt set assignments
     await eventsCollection.createIndex({ name: 'text' }); // Text search on event names
+    await eventsCollection.createIndex(
+      { groupId: 1, spondId: 1 },
+      { unique: true, partialFilterExpression: { spondId: { $type: 'string' } } }
+    );
 
     // Shirt Sets collection indexes
     const shirtSetsCollection = this.getShirtSetsCollection();

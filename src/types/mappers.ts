@@ -105,6 +105,7 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
   const playingModes = doc.playingModes?.map(embeddedPlayingModeToPlayingMode) ?? [];
   return {
     id: doc._id,
+    spondId: doc.spondId,
     name: doc.name,
     club: doc.club,
     category: doc.category,
@@ -120,6 +121,7 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
 // Convert API Group to MongoDB GroupDocument (for create operations)
 export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 'createdAt' | 'updatedAt'> {
   return {
+    spondId: group.spondId,
     name: group.name,
     club: group.club,
     category: group.category,
@@ -168,6 +170,7 @@ export function personDocumentToPlayer(doc: PersonDocument): Player | null {
   
   return {
     id: doc._id,
+    spondId: doc.spondId,
     groupId: doc.groupId,
     roles: normalizedRoles,
     firstName: doc.firstName!,
@@ -204,6 +207,7 @@ export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
   
   const trainer: Trainer = {
     id: doc._id,
+    spondId: doc.spondId,
     groupId: doc.groupId,
     firstName: doc.firstName,
     lastName: doc.lastName,
@@ -217,6 +221,7 @@ export function personDocumentToTrainer(doc: PersonDocument): Trainer | null {
 // Convert API Player to MongoDB PersonDocument (for create operations)
 export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_id' | 'createdAt' | 'updatedAt'> {
   return {
+    spondId: player.spondId,
     firstName: player.firstName,
     lastName: player.lastName,
     roles: player.roles,
@@ -231,6 +236,7 @@ export function playerToPersonDocument(player: Player): Omit<PersonDocument, '_i
 // Convert API Trainer to MongoDB PersonDocument (for create operations)
 export function trainerToPersonDocument(trainer: Trainer): Omit<PersonDocument, '_id' | 'createdAt' | 'updatedAt'> {
   return {
+    spondId: trainer.spondId,
     firstName: trainer.firstName,
     lastName: trainer.lastName,
     roles: trainer.roles,
@@ -394,6 +400,7 @@ export function eventDocumentToActivity(doc: EventDocument): Activity {
   const kind = derivedActivityKind(doc);
   return {
     id: doc._id,
+    spondId: doc.spondId,
     squadId: doc.groupId,
     kind,
     name: doc.name,
@@ -466,6 +473,7 @@ export function activityToEventDocument(activity: Activity): Omit<EventDocument,
   };
   return {
     ...eventToEventDocument(legacyEvent),
+    spondId: activity.spondId,
     kind: activity.kind,
     startsAt,
     endsAt: activity.endsAt ? new Date(activity.endsAt) : undefined,

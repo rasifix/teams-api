@@ -72,10 +72,23 @@ const testCategoryCatalog = (): void => {
   const { categories } = getCategoryCatalog();
   assert(categories.A?.matchFormat?.name === '2x45', 'A should have the supplied 2x45 format');
   assert(categories.D7?.matchFormat?.minimumPeriodsPerPlayer === 2, 'D7 should require two periods per player');
-  assert(categories.D9?.matchFormat?.maxPlayersPerTeam === 13, 'D9 should allow up to 13 players');
+  assert(categories.D9?.matchFormat?.maxPlayersPerTeam === 14, 'D9 should allow up to 14 players');
+  assert(categories.E?.minPlayersPerTeam === 6 && categories.E.maxPlayersPerTeam === 10, 'E should allow 6 to 10 players');
+  assert(categories.F?.minPlayersPerTeam === 4 && categories.F.maxPlayersPerTeam === 7, 'F should allow 4 to 7 players');
+  assert(categories.G?.minPlayersPerTeam === 3 && categories.G.maxPlayersPerTeam === 5, 'G should allow 3 to 5 players');
   assert(!categories.E?.matchFormat && categories.E?.activityType === 'tournament', 'E should be tournament-only');
   assert(!categories.F?.matchFormat && categories.F?.activityType === 'tournament', 'F should be tournament-only');
   assert(!categories.G?.matchFormat && categories.G?.activityType === 'tournament', 'G should be tournament-only');
+  assert(categories.FF7?.activityType === 'tournament'
+    && !categories.FF7.matchFormat
+    && categories.FF7.minPlayersPerTeam === categories.G?.minPlayersPerTeam
+    && categories.FF7.maxPlayersPerTeam === categories.G?.maxPlayersPerTeam, 'FF7 should match G');
+  assert(categories.FF9?.activityType === 'tournament'
+    && !categories.FF9.matchFormat
+    && categories.FF9.minPlayersPerTeam === categories.F?.minPlayersPerTeam
+    && categories.FF9.maxPlayersPerTeam === categories.F?.maxPlayersPerTeam, 'FF9 should match F');
+  assert(JSON.stringify(categories.FF14?.matchFormat) === JSON.stringify(categories.D9?.matchFormat), 'FF14 should match D9');
+  assert(JSON.stringify(categories.FF17?.matchFormat) === JSON.stringify(categories.B?.matchFormat), 'FF17 should match B/C');
 };
 
 const testCreateGroupCatalogSeeding = async (category: string, expectFormat: boolean): Promise<void> => {
