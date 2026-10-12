@@ -244,9 +244,16 @@ const readJson = async (response: Response): Promise<unknown> => {
 const requestJson = async (url: URL, init: RequestInit): Promise<unknown> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const startedAt = Date.now();
+  const target = `${init.method ?? 'GET'} ${url.pathname}`;
   try {
+    console.log(`[spond] -> ${target}`);
     const response = await fetch(url, { ...init, redirect: 'error', signal: controller.signal });
+    console.log(`[spond] <- ${target} status=${response.status} durationMs=${Date.now() - startedAt}`);
     if (!response.ok) {
+      // Only a truncated error body is logged; success bodies may contain tokens/personal data
+      const errorBody = await response.text().catch(() => '');
+      console.warn(`[spond] error response ${target} status=${response.status} body=${errorBody.replace(/\s+/g, ' ').slice(0, 300)}`);
       if (response.status === 401) throw new SpondProxyError('SPOND_AUTH_FAILED', 401);
       if (response.status === 403) throw new SpondProxyError('SPOND_ACCESS_DENIED', 403);
       if (response.status === 429) throw new SpondProxyError('SPOND_RATE_LIMITED', 429);
@@ -255,6 +262,9 @@ const requestJson = async (url: URL, init: RequestInit): Promise<unknown> => {
     return await readJson(response);
   } catch (error) {
     if (error instanceof SpondProxyError) throw error;
+    console.error(
+      `[spond] failed ${target} durationMs=${Date.now() - startedAt} error=${error instanceof Error ? `${error.name}: ${error.message}` : 'unknown'}`
+    );
     throw new SpondProxyError(error instanceof Error && error.name === 'AbortError' ? 'SPOND_TIMEOUT' : 'SPOND_REQUEST_FAILED', 502);
   } finally {
     clearTimeout(timeout);

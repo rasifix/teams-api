@@ -6,6 +6,7 @@ import groupRoutes from './routes/groupRoutes';
 import authRoutes from './routes/authRoutes';
 import sfvCategoryRoutes from './routes/sfvCategoryRoutes';
 import spondRoutes from './routes/spondRoutes';
+import { AuthRequest } from './middleware/auth';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,6 +14,20 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Access log: user, method + path, status. Auth middleware sets req.user later, so read it on finish.
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    const user = (req as AuthRequest).user;
+    const who = user ? `${user.id} <${user.email}>` : 'anonymous';
+    const path = req.originalUrl.split('?')[0];
+    console.log(
+      `[access] ${new Date().toISOString()} user=${who} ${req.method} ${path} status=${res.statusCode} durationMs=${Date.now() - startedAt}`
+    );
+  });
+  next();
+});
 
 // Routes
 app.use('/auth', authRoutes);
