@@ -7,9 +7,16 @@ const APP_TIME_ZONE = 'Europe/Zurich';
 
 type UnknownRecord = Record<string, unknown>;
 
+export interface SpondSubGroupSummary {
+  id: string;
+  name: string;
+  color?: string;
+}
+
 export interface SpondGroupSummary {
   id: string;
   name: string;
+  subGroups?: SpondSubGroupSummary[];
 }
 
 export interface SpondGuardianSnapshot {
@@ -26,6 +33,7 @@ export interface SpondMemberSnapshot {
   birthDate?: string;
   guardians: SpondGuardianSnapshot[];
   roles: string[];
+  subGroups?: string[];
 }
 
 export interface SpondEventSnapshot {
@@ -48,22 +56,41 @@ export interface SpondSnapshot {
 }
 
 export class SpondProxyError extends Error {
-  constructor(public readonly code: string, public readonly status: number) {
-    super(code);
+  public readonly cause?: unknown;
+
+  constructor(
+    public readonly code: string,
+    public readonly status: number,
+    public readonly details?: string,
+    cause?: unknown
+  ) {
+    const message = details ? `${code}: ${details}` : code;
+    super(message);
     this.name = 'SpondProxyError';
+    if (cause !== undefined) {
+      this.cause = cause;
+    }
   }
 }
 
-const asRecord = (value: unknown): UnknownRecord => {
+const asRecord = (value: unknown, context?: string): UnknownRecord => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
+    throw new SpondProxyError(
+      'SPOND_INVALID_RESPONSE',
+      502,
+      context ? `Expected object record for ${context}, received ${Array.isArray(value) ? 'array' : typeof value}` : `Expected object record, received ${Array.isArray(value) ? 'array' : typeof value}`
+    );
   }
   return value as UnknownRecord;
 };
 
-const requiredString = (value: unknown): string => {
+const requiredString = (value: unknown, context?: string): string => {
   if (typeof value !== 'string' || value.trim() === '') {
-    throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
+    throw new SpondProxyError(
+      'SPOND_INVALID_RESPONSE',
+      502,
+      context ? `Expected non-empty string for ${context}, received ${JSON.stringify(value)}` : `Expected non-empty string, received ${JSON.stringify(value)}`
+    );
   }
   return value.trim();
 };
@@ -126,41 +153,164 @@ const stringArray = (value: unknown): string[] | undefined => {
 };
 
 const normalizeGuardian = (value: unknown): SpondGuardianSnapshot => {
-  const guardian = asRecord(value);
-  const profile = guardian.profile && typeof guardian.profile === 'object'
-    ? asRecord(guardian.profile)
+  const guardian = asRecord(value, 'guardian');
+  const profile = guardian.profile && typeof guardian.profile === 'object' && !Array.isArray(guardian.profile)
+    ? asRecord(guardian.profile, 'guardian.profile')
     : {};
+  const id = optionalString(guardian.id) ?? optionalString(profile.id);
+  let firstName = optionalString(guardian.firstName) ?? optionalString(profile.firstName);
+  let lastName = optionalString(guardian.lastName) ?? optionalString(profile.lastName);
+  if (!firstName || !lastName) {
+    const fullName = optionalString(guardian.name) ?? optionalString(profile.name);
+    if (fullName) {
+      const spaceIdx = fullName.indexOf(' ');
+      if (spaceIdx > 0) {
+        firstName = firstName ?? fullName.slice(0, spaceIdx).trim();
+        lastName = lastName ?? fullName.slice(spaceIdx + 1).trim();
+      } else {
+        firstName = firstName ?? fullName;
+        lastName = lastName ?? '-';
+      }
+    }
+  }
+  if (!id || !firstName || !lastName) {
+    throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502, `Guardian ${id ?? 'unknown'} missing required name fields`);
+  }
   return {
-    id: requiredString(guardian.id),
-    firstName: requiredString(guardian.firstName),
-    lastName: requiredString(guardian.lastName),
+    id,
+    firstName,
+    lastName,
     email: optionalString(guardian.email) ?? optionalString(profile.email)
   };
 };
 
-const normalizeMember = (value: unknown, rolesById: Map<string, string>): SpondMemberSnapshot => {
-  const member = asRecord(value);
-  const guardians = member.guardians === undefined ? [] : member.guardians;
-  if (!Array.isArray(guardians)) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
+const extractMemberSubGroupIds = (value: unknown): string[] => {
+  if (!value || !Array.isArray(value)) return [];
+  return value.flatMap(entry => {
+    if (typeof entry === 'string' && entry.trim()) return [entry.trim()];
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      const id = optionalString((entry as UnknownRecord).id);
+      if (id) return [id];
+    }
+    return [];
+  });
+};
+
+interface SpondInternalMember extends SpondMemberSnapshot {
+  subGroupIds: string[];
+}
+
+const normalizeMember = (value: unknown, rolesById: Map<string, string>): SpondInternalMember => {
+  const member = asRecord(value, 'member');
+  const rawGuardians = member.guardians ?? [];
+  if (!Array.isArray(rawGuardians)) {
+    throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502, `Member ${member.id ?? 'unknown'} guardians is not an array`);
+  }
+  const profile = member.profile && typeof member.profile === 'object' && !Array.isArray(member.profile)
+    ? asRecord(member.profile, 'member.profile')
+    : {};
+  const id = optionalString(member.id) ?? optionalString(profile.id);
+  let firstName = optionalString(member.firstName) ?? optionalString(profile.firstName);
+  let lastName = optionalString(member.lastName) ?? optionalString(profile.lastName);
+  if (!firstName || !lastName) {
+    const fullName = optionalString(member.name) ?? optionalString(profile.name);
+    if (fullName) {
+      const spaceIdx = fullName.indexOf(' ');
+      if (spaceIdx > 0) {
+        firstName = firstName ?? fullName.slice(0, spaceIdx).trim();
+        lastName = lastName ?? fullName.slice(spaceIdx + 1).trim();
+      } else {
+        firstName = firstName ?? fullName;
+        lastName = lastName ?? '-';
+      }
+    }
+  }
+  if (!id || !firstName || !lastName) {
+    throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502, `Member ${id ?? 'unknown'} missing required name fields`);
+  }
+
+  const subGroupIds = Array.from(new Set([
+    ...extractMemberSubGroupIds(member.subGroups),
+    ...extractMemberSubGroupIds(member.subGroupIds),
+    ...extractMemberSubGroupIds(profile.subGroups),
+    ...extractMemberSubGroupIds(profile.subGroupIds)
+  ]));
+
   return {
-    id: requiredString(member.id),
-    firstName: requiredString(member.firstName),
-    lastName: requiredString(member.lastName),
-    birthDate: optionalString(member.dateOfBirth) ?? optionalString(member.birthDate),
-    guardians: guardians.map(normalizeGuardian),
-    roles: roleNames(member.roles).map(role => rolesById.get(role) ?? role)
+    id,
+    firstName,
+    lastName,
+    birthDate: optionalString(member.dateOfBirth) ?? optionalString(member.birthDate) ?? optionalString(profile.dateOfBirth) ?? optionalString(profile.birthDate),
+    guardians: rawGuardians.flatMap(g => {
+      try {
+        return [normalizeGuardian(g)];
+      } catch (err) {
+        console.warn(`[spond] skipping invalid guardian in member ${id}:`, err);
+        return [];
+      }
+    }),
+    roles: roleNames(member.roles).map(role => rolesById.get(role) ?? role),
+    subGroupIds,
+    ...(subGroupIds.length > 0 ? { subGroups: subGroupIds } : {})
   };
 };
 
-const normalizeGroup = (value: unknown): SpondSnapshot['group'] => {
-  const group = asRecord(value);
-  if (!Array.isArray(group.members)) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
+const normalizeSubGroup = (value: unknown): SpondSubGroupSummary => {
+  if (typeof value === 'string' && value.trim()) {
+    const id = value.trim();
+    return { id, name: id };
+  }
+  const subGroup = asRecord(value, 'subGroup');
+  const id = requiredString(subGroup.id, 'subGroup.id');
+  const name = optionalString(subGroup.name)
+    ?? optionalString(subGroup.title)
+    ?? optionalString(subGroup.heading)
+    ?? id;
+  return {
+    id,
+    name,
+    color: optionalString(subGroup.color)
+  };
+};
+
+const normalizeSubGroups = (value: unknown): SpondSubGroupSummary[] | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) {
+    console.warn('[spond] expected subGroups to be an array, got:', typeof value);
+    return undefined;
+  }
+  const subGroups: SpondSubGroupSummary[] = [];
+  for (const item of value) {
+    try {
+      subGroups.push(normalizeSubGroup(item));
+    } catch (err) {
+      console.warn('[spond] skipping invalid subgroup:', err);
+    }
+  }
+  return subGroups.length > 0 ? subGroups : undefined;
+};
+
+interface SpondInternalGroup {
+  id: string;
+  name: string;
+  subGroups?: SpondSubGroupSummary[];
+  members: SpondInternalMember[];
+}
+
+const normalizeGroup = (value: unknown): SpondInternalGroup => {
+  const group = asRecord(value, 'group');
+  if (!Array.isArray(group.members) && group.members !== undefined && group.members !== null) {
+    throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502, `Group ${group.id ?? 'unknown'} members is not an array`);
+  }
   const administrators = adminIds(group);
   const rolesById = roleLookup(group);
+  const subGroups = normalizeSubGroups(group.subGroups);
+  const rawMembers = Array.isArray(group.members) ? group.members : [];
   return {
-    id: requiredString(group.id),
-    name: requiredString(group.name),
-    members: group.members
+    id: requiredString(group.id, 'group.id'),
+    name: requiredString(group.name, 'group.name'),
+    subGroups,
+    members: rawMembers
       .map(member => normalizeMember(member, rolesById))
       .filter(member => !administrators.has(member.id) && !member.roles.some(isTrainerRole))
   };
@@ -168,7 +318,7 @@ const normalizeGroup = (value: unknown): SpondSnapshot['group'] => {
 
 const normalizeLocation = (value: unknown): string | undefined => {
   if (typeof value === 'string') return optionalString(value);
-  if (!value || typeof value !== 'object') return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const location = asRecord(value);
   const parts = [optionalString(location.name), optionalString(location.feature), optionalString(location.address)]
     .filter((part): part is string => Boolean(part));
@@ -176,6 +326,7 @@ const normalizeLocation = (value: unknown): string | undefined => {
 };
 
 const normalizeResponses = (value: unknown): SpondEventSnapshot['responses'] => {
+  if (value === undefined || value === null) return [];
   const responses = asRecord(value);
   const knownLists = new Set(['acceptedIds', 'declinedIds', 'unansweredIds', 'waitinglistIds', 'unconfirmedIds']);
   if (Object.keys(responses).some(key => key.endsWith('Ids') && !knownLists.has(key))) {
@@ -204,22 +355,74 @@ const normalizeResponses = (value: unknown): SpondEventSnapshot['responses'] => 
   return Array.from(byMember, ([spondMemberId, response]) => ({ spondMemberId, response }));
 };
 
-const normalizeEvent = (value: unknown, expectedGroupId: string): SpondEventSnapshot => {
+const extractEventRecipients = (event: UnknownRecord): { groupId?: string; subGroupIds: string[] } => {
+  let groupId: string | undefined = optionalString(event.groupId) ?? optionalString(event.spondGroupId);
+  const subGroupIds: string[] = [];
+
+  if (event.recipients && typeof event.recipients === 'object' && !Array.isArray(event.recipients)) {
+    const recipients = event.recipients as UnknownRecord;
+    if (recipients.group && typeof recipients.group === 'object' && !Array.isArray(recipients.group)) {
+      const groupObj = recipients.group as UnknownRecord;
+      groupId = optionalString(groupObj.id) ?? groupId;
+      if (Array.isArray(groupObj.subGroups)) {
+        for (const sg of groupObj.subGroups) {
+          if (typeof sg === 'string' && sg.trim()) subGroupIds.push(sg.trim());
+          else if (sg && typeof sg === 'object' && !Array.isArray(sg)) {
+            const id = optionalString((sg as UnknownRecord).id);
+            if (id) subGroupIds.push(id);
+          }
+        }
+      }
+    } else if (typeof recipients.groupId === 'string') {
+      groupId = optionalString(recipients.groupId) ?? groupId;
+    }
+
+    if (Array.isArray(recipients.subGroups)) {
+      for (const sg of recipients.subGroups) {
+        if (typeof sg === 'string' && sg.trim()) subGroupIds.push(sg.trim());
+        else if (sg && typeof sg === 'object' && !Array.isArray(sg)) {
+          const id = optionalString((sg as UnknownRecord).id);
+          if (id) subGroupIds.push(id);
+        }
+      }
+    }
+  }
+
+  return { groupId, subGroupIds };
+};
+
+const eventMatchesSubGroup = (event: unknown, subGroupId?: string): boolean => {
+  if (!subGroupId) return true;
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return false;
+  const { subGroupIds } = extractEventRecipients(event as UnknownRecord);
+  if (subGroupIds.length === 0) return true;
+  return subGroupIds.includes(subGroupId);
+};
+
+const normalizeEvent = (
+  value: unknown,
+  parentGroupId: string,
+  targetGroupId: string
+): SpondEventSnapshot => {
   const event = asRecord(value);
-  const recipients = asRecord(event.recipients);
-  const groupId = requiredString(asRecord(recipients.group).id);
-  if (groupId !== expectedGroupId) throw new SpondProxyError('SPOND_GROUP_MISMATCH', 502);
-  const sourceStartsAt = requiredString(event.startTimestamp);
-  const sourceEndsAt = optionalString(event.endTimestamp);
+  const { groupId: eventGroupId } = extractEventRecipients(event);
+  if (eventGroupId && eventGroupId !== parentGroupId && eventGroupId !== targetGroupId) {
+    throw new SpondProxyError('SPOND_GROUP_MISMATCH', 502);
+  }
+  const sourceStartsAt = optionalString(event.startTimestamp) ?? optionalString(event.startTime);
+  if (!sourceStartsAt) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
+  const sourceEndsAt = optionalString(event.endTimestamp) ?? optionalString(event.endTime);
   if (Number.isNaN(Date.parse(sourceStartsAt)) || (sourceEndsAt && (Number.isNaN(Date.parse(sourceEndsAt)) || Date.parse(sourceEndsAt) < Date.parse(sourceStartsAt)))) {
     throw new SpondProxyError('SPOND_INVALID_TIMESTAMP', 502);
   }
   const startsAt = toAppWallClock(sourceStartsAt);
   const endsAt = sourceEndsAt ? toAppWallClock(sourceEndsAt) : undefined;
+  const heading = optionalString(event.heading) ?? optionalString(event.name) ?? optionalString(event.title);
+  if (!heading) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
   return {
     id: requiredString(event.id),
-    groupId,
-    name: requiredString(event.heading),
+    groupId: targetGroupId,
+    name: heading,
     startsAt,
     endsAt,
     location: normalizeLocation(event.location),
@@ -291,21 +494,33 @@ const get = (path: string, token: string, params?: URLSearchParams): Promise<unk
   return requestJson(url, { method: 'GET', headers: { Authorization: `Bearer ${token}` } });
 };
 
-const getGroups = async (token: string): Promise<SpondSnapshot['group'][]> => {
+const getGroups = async (token: string): Promise<SpondInternalGroup[]> => {
   const value = await get('/groups', token);
-  if (!Array.isArray(value)) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
-  return value.map(normalizeGroup);
+  if (!Array.isArray(value)) {
+    const err = new SpondProxyError('SPOND_INVALID_RESPONSE', 502, `Expected /groups response to be array, got ${typeof value}`);
+    console.error('[spond] getGroups invalid response:', err.message);
+    throw err;
+  }
+  return value.map((entry, index) => {
+    try {
+      return normalizeGroup(entry);
+    } catch (err) {
+      console.error(`[spond] failed to normalize group at index ${index}:`, err);
+      throw err;
+    }
+  });
 };
 
 const getEvents = async (
   token: string,
-  groupId: string,
+  parentGroupId: string,
   from: string,
   to: string,
+  subGroupId?: string,
   depth = 0
 ): Promise<SpondEventSnapshot[]> => {
   const params = new URLSearchParams({
-    groupId,
+    groupId: parentGroupId,
     minStartTimestamp: from,
     maxStartTimestamp: to,
     max: String(MAX_EVENTS_PER_REQUEST),
@@ -315,9 +530,17 @@ const getEvents = async (
     includeComments: 'false',
     addProfileInfo: 'false'
   });
+  if (subGroupId) {
+    params.set('subGroupId', subGroupId);
+  }
   const value = await get('/sponds', token, params);
   if (!Array.isArray(value)) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
-  if (value.length < MAX_EVENTS_PER_REQUEST) return value.map(event => normalizeEvent(event, groupId));
+  const targetGroupId = subGroupId ?? parentGroupId;
+  if (value.length < MAX_EVENTS_PER_REQUEST) {
+    return value
+      .filter(event => eventMatchesSubGroup(event, subGroupId))
+      .map(event => normalizeEvent(event, parentGroupId, targetGroupId));
+  }
   if (depth >= MAX_SPLIT_DEPTH) throw new SpondProxyError('SPOND_INCOMPLETE_RESULTS', 502);
 
   const fromTime = Date.parse(from);
@@ -328,17 +551,26 @@ const getEvents = async (
   }
   const middleIso = new Date(middle).toISOString();
   const [left, right] = await Promise.all([
-    getEvents(token, groupId, from, middleIso, depth + 1),
-    getEvents(token, groupId, middleIso, to, depth + 1)
+    getEvents(token, parentGroupId, from, middleIso, subGroupId, depth + 1),
+    getEvents(token, parentGroupId, middleIso, to, subGroupId, depth + 1)
   ]);
   return Array.from(new Map([...left, ...right].map(event => [event.id, event])).values())
     .filter(event => Date.parse(event.startsAt) >= fromTime && Date.parse(event.startsAt) < toTime);
 };
 
 export const listSpondGroups = async (email: string, password: string): Promise<SpondGroupSummary[]> => {
-  const token = await login(email, password);
-  const groups = await getGroups(token);
-  return groups.map(({ id, name }) => ({ id, name }));
+  try {
+    const token = await login(email, password);
+    const groups = await getGroups(token);
+    return groups.map(({ id, name, subGroups }) => ({
+      id,
+      name,
+      ...(subGroups && subGroups.length > 0 ? { subGroups } : {})
+    }));
+  } catch (error) {
+    console.error('[spond] listSpondGroups failed:', error);
+    throw error;
+  }
 };
 
 export const readSpondSnapshot = async (
@@ -346,12 +578,58 @@ export const readSpondSnapshot = async (
   password: string,
   groupId: string,
   from: string,
-  to: string
+  to: string,
+  subGroupId?: string
 ): Promise<SpondSnapshot> => {
-  const token = await login(email, password);
-  const groups = await getGroups(token);
-  const group = groups.find(candidate => candidate.id === groupId);
-  if (!group) throw new SpondProxyError('SPOND_GROUP_NOT_FOUND', 404);
-  const events = await getEvents(token, groupId, from, to);
-  return { group, events, sourceReadAt: new Date().toISOString() };
+  try {
+    const token = await login(email, password);
+    const groups = await getGroups(token);
+
+    let parentGroup: SpondInternalGroup | undefined;
+    let targetSubGroup: SpondSubGroupSummary | undefined;
+
+    if (subGroupId) {
+      parentGroup = groups.find(candidate => candidate.id === groupId);
+      if (!parentGroup) throw new SpondProxyError('SPOND_GROUP_NOT_FOUND', 404, `Parent group ${groupId} not found`);
+      targetSubGroup = parentGroup.subGroups?.find(candidate => candidate.id === subGroupId);
+      if (!targetSubGroup) throw new SpondProxyError('SPOND_GROUP_NOT_FOUND', 404, `Subgroup ${subGroupId} not found in group ${groupId}`);
+    } else {
+      parentGroup = groups.find(candidate => candidate.id === groupId);
+      if (!parentGroup) {
+        for (const group of groups) {
+          const found = group.subGroups?.find(candidate => candidate.id === groupId);
+          if (found) {
+            parentGroup = group;
+            targetSubGroup = found;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!parentGroup) throw new SpondProxyError('SPOND_GROUP_NOT_FOUND', 404, `Group or subgroup ${groupId} not found`);
+
+    const resolvedSubGroupId = targetSubGroup?.id;
+    const events = await getEvents(token, parentGroup.id, from, to, resolvedSubGroupId);
+
+    const snapshotGroup = targetSubGroup
+      ? {
+          id: targetSubGroup.id,
+          name: targetSubGroup.name,
+          members: parentGroup.members
+            .filter(member => member.subGroupIds.includes(targetSubGroup!.id))
+            .map(({ subGroupIds, ...member }) => member)
+        }
+      : {
+          id: parentGroup.id,
+          name: parentGroup.name,
+          ...(parentGroup.subGroups && parentGroup.subGroups.length > 0 ? { subGroups: parentGroup.subGroups } : {}),
+          members: parentGroup.members.map(({ subGroupIds, ...member }) => member)
+        };
+
+    return { group: snapshotGroup, events, sourceReadAt: new Date().toISOString() };
+  } catch (error) {
+    console.error(`[spond] readSpondSnapshot failed (groupId=${groupId}, subGroupId=${subGroupId}):`, error);
+    throw error;
+  }
 };

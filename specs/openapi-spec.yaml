@@ -3806,6 +3806,8 @@ components:
           properties:
             groupId:
               type: string
+            subGroupId:
+              type: string
             from:
               type: string
               format: date-time
@@ -3813,6 +3815,16 @@ components:
               type: string
               format: date-time
           required: [groupId, from, to]
+    SpondSubGroupSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+      required: [id, name]
     SpondGroupSummary:
       type: object
       properties:
@@ -3820,6 +3832,10 @@ components:
           type: string
         name:
           type: string
+        subGroups:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpondSubGroupSummary'
       required: [id, name]
     SpondGuardianSnapshot:
       type: object
@@ -3851,6 +3867,10 @@ components:
           items:
             $ref: '#/components/schemas/SpondGuardianSnapshot'
         roles:
+          type: array
+          items:
+            type: string
+        subGroups:
           type: array
           items:
             type: string

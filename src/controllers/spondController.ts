@@ -17,11 +17,13 @@ const credentialsFrom = (value: unknown): Credentials | null => {
   return { email: body.email.trim(), password: body.password };
 };
 
-const sendError = (res: Response, error: unknown): void => {
+const sendError = (res: Response, error: unknown, context = 'request'): void => {
   if (error instanceof SpondProxyError) {
+    console.error(`[spond] ${context} proxy error (${error.status} ${error.code}):`, error.message, error.stack);
     res.status(error.status).json({ error: error.code });
     return;
   }
+  console.error(`[spond] ${context} unexpected error:`, error instanceof Error ? (error.stack ?? error.message) : error);
   res.status(502).json({ error: 'SPOND_REQUEST_FAILED' });
 };
 
@@ -34,7 +36,8 @@ export const proxySpondGroups = async (req: Request, res: Response): Promise<voi
   try {
     res.json(await listSpondGroups(credentials.email, credentials.password));
   } catch (error) {
-    sendError(res, error);
+    console.error('[spond] proxySpondGroups caught exception:', error);
+    sendError(res, error, 'proxySpondGroups');
   }
 };
 
@@ -42,6 +45,7 @@ export const proxySpondSnapshot = async (req: Request, res: Response): Promise<v
   const credentials = credentialsFrom(req.body);
   const body = req.body as Record<string, unknown> | undefined;
   const groupId = typeof body?.groupId === 'string' ? body.groupId.trim() : '';
+  const subGroupId = typeof body?.subGroupId === 'string' && body.subGroupId.trim() ? body.subGroupId.trim() : undefined;
   const from = typeof body?.from === 'string' ? body.from : '';
   const to = typeof body?.to === 'string' ? body.to : '';
   const fromTime = Date.parse(from);
@@ -61,8 +65,9 @@ export const proxySpondSnapshot = async (req: Request, res: Response): Promise<v
   }
 
   try {
-    res.json(await readSpondSnapshot(credentials.email, credentials.password, groupId, from, to));
+    res.json(await readSpondSnapshot(credentials.email, credentials.password, groupId, from, to, subGroupId));
   } catch (error) {
-    sendError(res, error);
+    console.error(`[spond] proxySpondSnapshot caught exception (groupId=${groupId}, subGroupId=${subGroupId}):`, error);
+    sendError(res, error, 'proxySpondSnapshot');
   }
 };

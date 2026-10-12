@@ -117,9 +117,195 @@ const testSanitizedErrors = async (): Promise<void> => {
   });
 };
 
+const groupsWithSubgroupsResponse = (): Response => jsonResponse([{
+  id: 'group-1',
+  name: 'Junioren E',
+  subGroups: [
+    { id: 'subgroup-1', name: 'E1 Blau', color: '#0000ff' },
+    { id: 'subgroup-2', name: 'E2 Gelb', color: '#ffff00' }
+  ],
+  members: [
+    {
+      id: 'member-1',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      dateOfBirth: '2014-01-02',
+      subGroups: ['subgroup-1'],
+      guardians: null
+    },
+    {
+      id: 'member-2',
+      firstName: 'Charles',
+      lastName: 'Babbage',
+      dateOfBirth: '2014-03-04',
+      subGroups: ['subgroup-2'],
+      guardians: []
+    },
+    {
+      id: 'member-3',
+      firstName: 'Alan',
+      lastName: 'Turing',
+      dateOfBirth: '2014-05-06',
+      subGroups: [{ id: 'subgroup-1' }, { id: 'subgroup-2' }],
+      guardians: []
+    },
+    {
+      id: 'trainer-1',
+      firstName: 'Pat',
+      lastName: 'Coach',
+      subGroups: ['subgroup-1'],
+      guardians: [],
+      roles: ['role-coach']
+    }
+  ],
+  admins: [],
+  roles: [{ id: 'role-coach', name: 'Coach' }]
+}]);
+
+const testGroupSummariesWithSubgroups = async (): Promise<void> => {
+  await withFetch([loginResponse(), groupsWithSubgroupsResponse()], async () => {
+    const groups = await listSpondGroups('coach@example.com', 'password');
+    assert(groups.length === 1, 'must return one group');
+    assert(groups[0].id === 'group-1', 'group ID must match');
+    assert(groups[0].name === 'Junioren E', 'group name must match');
+    assert(Array.isArray(groups[0].subGroups) && groups[0].subGroups.length === 2, 'must include subGroups');
+    assert(groups[0].subGroups![0].id === 'subgroup-1' && groups[0].subGroups![0].name === 'E1 Blau', 'subgroup 1 details must match');
+    assert(groups[0].subGroups![1].id === 'subgroup-2' && groups[0].subGroups![1].name === 'E2 Gelb', 'subgroup 2 details must match');
+  });
+};
+
+const testSubgroupSnapshotBySubgroupIdDirectly = async (): Promise<void> => {
+  await withFetch([
+    loginResponse(),
+    groupsWithSubgroupsResponse(),
+    jsonResponse([
+      {
+        id: 'event-1',
+        heading: 'Training E1',
+        startTimestamp: '2026-10-10T10:00:00.000Z',
+        recipients: { group: { id: 'group-1', subGroups: ['subgroup-1'] } },
+        responses: { acceptedIds: ['member-1'] }
+      },
+      {
+        id: 'event-2',
+        name: 'Match E1',
+        startTimestamp: '2026-10-12T10:00:00.000Z',
+        recipients: { subGroups: [{ id: 'subgroup-1' }] },
+        responses: {}
+      },
+      {
+        id: 'event-3',
+        heading: 'Club Day',
+        startTimestamp: '2026-10-14T10:00:00.000Z',
+        recipients: {},
+        responses: {}
+      }
+    ])
+  ], async calls => {
+    const snapshot = await readSpondSnapshot(
+      'coach@example.com',
+      'password',
+      'subgroup-1',
+      '2026-01-01T00:00:00.000Z',
+      '2027-01-01T00:00:00.000Z'
+    );
+
+    // Verify Spond /sponds was called with parent groupId and subGroupId
+    const spondUrl = String(calls[2][0]);
+    assert(spondUrl.includes('groupId=group-1'), 'Spond request must use parent groupId');
+    assert(spondUrl.includes('subGroupId=subgroup-1'), 'Spond request must include subGroupId parameter');
+
+    // Verify snapshot group details
+    assert(snapshot.group.id === 'subgroup-1', 'snapshot group ID must be the subgroup ID');
+    assert(snapshot.group.name === 'E1 Blau', 'snapshot group name must be the subgroup name');
+
+    // Verify member filtering
+    assert(snapshot.group.members.length === 2, 'only members assigned to subgroup-1 must be included');
+    const memberIds = snapshot.group.members.map(m => m.id);
+    assert(memberIds.includes('member-1'), 'member-1 must be included');
+    assert(memberIds.includes('member-3'), 'member-3 must be included');
+    assert(!memberIds.includes('member-2'), 'member-2 belonging only to subgroup-2 must be excluded');
+    assert(!memberIds.includes('trainer-1'), 'trainer must be excluded');
+
+    // Verify null guardians handling did not crash
+    assert(Array.isArray(snapshot.group.members[0].guardians) && snapshot.group.members[0].guardians.length === 0, 'null guardians must normalize to empty array');
+
+    // Verify events
+    assert(snapshot.events.length === 3, 'all events applicable to subgroup must be included');
+    for (const ev of snapshot.events) {
+      assert(ev.groupId === 'subgroup-1', 'event groupId must match subgroup ID');
+    }
+    assert(snapshot.events[1].name === 'Match E1', 'event name fallback must work when heading is absent');
+  });
+};
+
+const testSubgroupSnapshotWithExplicitSubgroupId = async (): Promise<void> => {
+  await withFetch([
+    loginResponse(),
+    groupsWithSubgroupsResponse(),
+    jsonResponse([
+      {
+        id: 'event-sub2',
+        name: 'Training E2',
+        startTimestamp: '2026-10-10T10:00:00.000Z',
+        recipients: { group: { id: 'group-1' }, subGroups: ['subgroup-2'] },
+        responses: { acceptedIds: ['member-2'] }
+      }
+    ])
+  ], async calls => {
+    const snapshot = await readSpondSnapshot(
+      'coach@example.com',
+      'password',
+      'group-1',
+      '2026-01-01T00:00:00.000Z',
+      '2027-01-01T00:00:00.000Z',
+      'subgroup-2'
+    );
+
+    const spondUrl = String(calls[2][0]);
+    assert(spondUrl.includes('groupId=group-1'), 'Spond request must use parent groupId');
+    assert(spondUrl.includes('subGroupId=subgroup-2'), 'Spond request must include subGroupId parameter');
+
+    assert(snapshot.group.id === 'subgroup-2', 'snapshot group ID must be subgroup-2');
+    assert(snapshot.group.name === 'E2 Gelb', 'snapshot group name must be E2 Gelb');
+    assert(snapshot.group.members.length === 2, 'members for subgroup-2 must include member-2 and member-3');
+    const memberIds = snapshot.group.members.map(m => m.id);
+    assert(memberIds.includes('member-2') && memberIds.includes('member-3'), 'correct members included');
+    assert(!memberIds.includes('member-1'), 'member-1 excluded');
+    assert(snapshot.events.length === 1 && snapshot.events[0].groupId === 'subgroup-2', 'event groupId must match subgroup-2');
+  });
+};
+
+const testGroupSummariesWithVariousSubgroupFormats = async (): Promise<void> => {
+  await withFetch([
+    loginResponse(),
+    jsonResponse([{
+      id: 'group-1',
+      name: 'Junioren D',
+      subGroups: [
+        'subgroup-string-id',
+        { id: 'subgroup-without-name' },
+        { id: 'subgroup-3', name: 'D3 Rot', color: '#ff0000' }
+      ],
+      members: []
+    }])
+  ], async () => {
+    const groups = await listSpondGroups('coach@example.com', 'password');
+    assert(groups.length === 1, 'group must be returned');
+    assert(groups[0].subGroups?.length === 3, 'all 3 valid/coerced subgroups must be returned');
+    assert(groups[0].subGroups![0].id === 'subgroup-string-id' && groups[0].subGroups![0].name === 'subgroup-string-id', 'string subgroup id must be accepted');
+    assert(groups[0].subGroups![1].id === 'subgroup-without-name' && groups[0].subGroups![1].name === 'subgroup-without-name', 'subgroup without name must fallback to id');
+    assert(groups[0].subGroups![2].id === 'subgroup-3' && groups[0].subGroups![2].name === 'D3 Rot', 'regular subgroup must be parsed');
+  });
+};
+
 const run = async (): Promise<void> => {
   await testGroupSummaries();
+  await testGroupSummariesWithSubgroups();
+  await testGroupSummariesWithVariousSubgroupFormats();
   await testSnapshotNormalization();
+  await testSubgroupSnapshotBySubgroupIdDirectly();
+  await testSubgroupSnapshotWithExplicitSubgroupId();
   await testSanitizedErrors();
   console.log('Spond proxy tests passed');
 };
