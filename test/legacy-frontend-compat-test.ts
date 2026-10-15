@@ -139,7 +139,6 @@ const run = async (): Promise<void> => {
 
   const app = express();
   app.use(express.json());
-  app.use('/api/groups', groupRoutes);
   app.use('/api/squads', groupRoutes);
   const server = createServer(app);
 
@@ -156,7 +155,7 @@ const run = async (): Promise<void> => {
       const baseUrl = `http://127.0.0.1:${address.port}`;
       const token = jwt.sign({ id: 'admin-user', email: 'admin@example.test' }, process.env.JWT_SECRET!);
 
-      const listedResponse = await request(baseUrl, '/api/groups/squad-1/events', token);
+      const listedResponse = await request(baseUrl, '/api/squads/squad-1/events', token);
       assert.equal(listedResponse.status, 200);
       const listed = await listedResponse.json() as Array<Record<string, unknown>>;
       assert.deepEqual(listed.map(event => event.id), ['legacy-1']);
@@ -164,14 +163,14 @@ const run = async (): Promise<void> => {
       assert.equal('matchFormatId' in listed[0], false);
       assert.equal('attendance' in listed[0], false);
 
-      const detailResponse = await request(baseUrl, '/api/groups/squad-1/events/legacy-1', token);
+      const detailResponse = await request(baseUrl, '/api/squads/squad-1/events/legacy-1', token);
       assert.equal(detailResponse.status, 200);
       const detail = await detailResponse.json() as Record<string, unknown>;
       assert.equal(detail.name, 'Existing legacy game');
       assert.equal('kind' in detail, false);
       assert.equal('startsAt' in detail, false);
 
-      const createResponse = await request(baseUrl, '/api/groups/squad-1/events', token, {
+      const createResponse = await request(baseUrl, '/api/squads/squad-1/events', token, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -201,7 +200,7 @@ const run = async (): Promise<void> => {
       assert.equal(stored.playingModeId, 'format-1');
       assert(stored.startsAt instanceof Date);
 
-      const updateResponse = await request(baseUrl, `/api/groups/squad-1/events/${createdId}`, token, {
+      const updateResponse = await request(baseUrl, `/api/squads/squad-1/events/${createdId}`, token, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ playingModeId: 'format-2' })
@@ -213,7 +212,7 @@ const run = async (): Promise<void> => {
 
       const invitationResponse = await request(
         baseUrl,
-        `/api/groups/squad-1/events/${createdId}/players/player-2/status`,
+        `/api/squads/squad-1/events/${createdId}/players/player-2/status`,
         token,
         {
           method: 'PUT',
@@ -225,7 +224,7 @@ const run = async (): Promise<void> => {
       assert.equal(stored.invitations[0].status, 'accepted');
       assert.equal(stored.invitations[0].response, 'accepted');
 
-      const selectionResponse = await request(baseUrl, `/api/groups/squad-1/events/${createdId}/selection`, token, {
+      const selectionResponse = await request(baseUrl, `/api/squads/squad-1/events/${createdId}/selection`, token, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
