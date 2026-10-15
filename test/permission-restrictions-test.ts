@@ -1,7 +1,7 @@
 import { getAllGroups, updateGroup } from '../src/controllers/groupController';
 import { getAllEvents, updateInvitationStatus } from '../src/controllers/eventController';
 import { getAllMembers, getMemberById, revokeRoleFromMember } from '../src/controllers/membersController';
-import { requireGroupRole, GroupAuthRequest } from '../src/middleware/groupAuth';
+import { authorizeGroupAccess, requireGroupRole, GroupAuthRequest } from '../src/middleware/groupAuth';
 import { dataStore } from '../src/data/store';
 import { AuthRequest } from '../src/middleware/auth';
 import { Event } from '../src/types';
@@ -124,6 +124,40 @@ const testUpdateGroupCategory = async (): Promise<void> => {
   const invalidRes = createMockResponse();
   await updateGroup({ params: { id: 'g-1' }, body: { category: 'U15' } } as any, invalidRes as any);
   assert(invalidRes.statusCode === 400, 'PUT /api/groups/:id should reject an unsupported category');
+};
+
+const testSquadActiveLifecycle = async (): Promise<void> => {
+  const updateRes = createMockResponse();
+  let capturedActive: boolean | undefined;
+
+  await withPatchedDataStore({
+    updateGroup: async (_id, updates) => {
+      capturedActive = updates.active;
+      return { id: 'g-1', name: 'Group 1', active: updates.active };
+    }
+  }, async () => updateGroup({ params: { id: 'g-1' }, body: { active: false } } as any, updateRes as any));
+
+  assert(capturedActive === false, 'PUT /api/groups/:id should persist active=false');
+  assert((updateRes.body as { active?: boolean }).active === false, 'PUT /api/groups/:id should return the updated active flag');
+
+  const invalidRes = createMockResponse();
+  await updateGroup({ params: { id: 'g-1' }, body: { active: 'false' } } as any, invalidRes as any);
+  assert(invalidRes.statusCode === 400, 'PUT /api/groups/:id should reject a non-boolean active flag');
+
+  const inactiveReadRes = createMockResponse();
+  let nextCalled = false;
+  await withPatchedDataStore({
+    getUserGroupAccess: async () => null
+  }, async () => authorizeGroupAccess({
+    method: 'GET',
+    params: { id: 'g-1' },
+    user: { id: 'user-1' }
+  } as any, inactiveReadRes as any, () => {
+    nextCalled = true;
+  }));
+
+  assert(inactiveReadRes.statusCode === 403, 'Inactive groups should be hidden from API reads');
+  assert(!nextCalled, 'Inactive group reads should not reach the controller');
 };
 
 const runRequireRoleGuard = (allowedRoles: Array<'admin' | 'trainer' | 'guardian'>): { statusCode: number; body: unknown; nextCalled: boolean } => {
@@ -510,6 +544,10 @@ const run = async (): Promise<void> => {
     {
       name: '7) Group category is validated, persisted, and returned',
       run: testUpdateGroupCategory
+    },
+    {
+      name: '8) Squad active state is validated and inactive reads are hidden',
+      run: testSquadActiveLifecycle
     }
   ];
 

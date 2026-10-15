@@ -4132,6 +4132,10 @@ components:
       properties:
         id:
           type: string
+        active:
+          type: boolean
+          default: true
+          description: Soft lifecycle state. Inactive groups remain persisted but are omitted from API reads.
         name:
           type: string
         club:
@@ -4289,6 +4293,9 @@ components:
     UpdateGroupRequest:
       type: object
       properties:
+        active:
+          type: boolean
+          description: Set to false to deactivate the group without deleting its data. Requires the admin role.
         name:
           type: string
         club:

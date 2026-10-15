@@ -105,6 +105,7 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
   const playingModes = doc.playingModes?.map(embeddedPlayingModeToPlayingMode) ?? [];
   return {
     id: doc._id,
+    active: doc.active ?? true,
     spondId: doc.spondId,
     name: doc.name,
     club: doc.club,
@@ -121,6 +122,7 @@ export function groupDocumentToGroup(doc: GroupDocument): Group {
 // Convert API Group to MongoDB GroupDocument (for create operations)
 export function groupToGroupDocument(group: Group): Omit<GroupDocument, '_id' | 'createdAt' | 'updatedAt'> {
   return {
+    active: group.active ?? true,
     spondId: group.spondId,
     name: group.name,
     club: group.club,

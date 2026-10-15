@@ -38,7 +38,10 @@ export const authorizeGroupAccess = async (
       return;
     }
 
-    const groupAccess = await dataStore.getUserGroupAccess(req.user.id, groupId);
+    // The top-level update remains reachable so an admin can reactivate a
+    // group; all reads and nested resources require an active group.
+    const isTopLevelUpdate = req.method === 'PUT' && Boolean(req.params.id) && !req.params.groupId;
+    const groupAccess = await dataStore.getUserGroupAccess(req.user.id, groupId, isTopLevelUpdate);
     if (!groupAccess) {
       res.status(403).json({ error: 'You do not have access to this group' });
       return;

@@ -112,6 +112,7 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
 
     const newGroup: Group = {
       id: await getNextSequence('groups'),
+      active: true,
       name,
       club,
       category,
@@ -148,15 +149,16 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
 export const updateGroup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, club, category, matchPlanningEnabled } = req.body;
+    const { name, club, category, matchPlanningEnabled, active } = req.body;
 
     const hasNoUpdatableFields =
       name === undefined &&
       club === undefined &&
       category === undefined &&
-      matchPlanningEnabled === undefined;
+      matchPlanningEnabled === undefined &&
+      active === undefined;
     if (hasNoUpdatableFields) {
-      res.status(400).json({ error: 'At least one of name, club, category, or matchPlanningEnabled is required' });
+      res.status(400).json({ error: 'At least one of name, club, category, matchPlanningEnabled, or active is required' });
       return;
     }
 
@@ -170,16 +172,22 @@ export const updateGroup = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
+    if (active !== undefined && typeof active !== 'boolean') {
+      res.status(400).json({ error: 'active must be a boolean when provided' });
+      return;
+    }
+
     if (category !== undefined && !GROUP_CATEGORIES.includes(category as GroupCategory)) {
       res.status(400).json({ error: `category must be one of: ${GROUP_CATEGORIES.join(', ')}` });
       return;
     }
 
-    const updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled'>> = {};
+    const updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled' | 'active'>> = {};
     if (name !== undefined) updates.name = name.trim();
     if (club !== undefined) updates.club = club;
     if (category !== undefined) updates.category = category;
     if (matchPlanningEnabled !== undefined) updates.matchPlanningEnabled = matchPlanningEnabled;
+    if (active !== undefined) updates.active = active;
 
     const updatedGroup = await dataStore.updateGroup(id, updates);
     

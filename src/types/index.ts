@@ -64,6 +64,7 @@ export type GroupCategory = typeof GROUP_CATEGORIES[number];
 
 export interface Group {
   id: string;
+  active?: boolean;
   spondId?: string | null;
   name: string;
   club?: string;

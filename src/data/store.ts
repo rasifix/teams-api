@@ -134,9 +134,18 @@ class DataStore {
     return membersCollection.countDocuments({ groupId, roles: 'admin' });
   }
 
-  async getUserGroupAccess(userId: string, groupId: string): Promise<{ memberId: string; roles: GroupRole[] } | null> {
+  async getUserGroupAccess(userId: string, groupId: string, includeInactive = false): Promise<{ memberId: string; roles: GroupRole[] } | null> {
     const user = await this.getUserById(userId);
     if (!user) {
+      return null;
+    }
+
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupExists = await groupsCollection.findOne({
+      _id: groupId,
+      ...(includeInactive ? {} : { active: { $ne: false } })
+    }, { projection: { _id: 1 } });
+    if (!groupExists) {
       return null;
     }
 
@@ -168,19 +177,25 @@ class DataStore {
   // Group operations
   async getAllGroups(): Promise<Group[]> {
     const groupsCollection = mongoConnection.getGroupsCollection();
-    const groupDocs = await groupsCollection.find({}).sort({ createdAt: -1 }).toArray();
+    const groupDocs = await groupsCollection.find({ active: { $ne: false } }).sort({ createdAt: -1 }).toArray();
     return groupDocs.map(groupDocumentToGroup);
   }
 
-  async getGroupById(id: string): Promise<Group | undefined> {
+  async getGroupById(id: string, includeInactive = false): Promise<Group | undefined> {
     const groupsCollection = mongoConnection.getGroupsCollection();
-    const groupDoc = await groupsCollection.findOne({ _id: id });
+    const groupDoc = await groupsCollection.findOne({
+      _id: id,
+      ...(includeInactive ? {} : { active: { $ne: false } })
+    });
     return groupDoc ? groupDocumentToGroup(groupDoc) : undefined;
   }
 
   async getGroupByBirthdayCalendarToken(token: string): Promise<Group | undefined> {
     const groupsCollection = mongoConnection.getGroupsCollection();
-    const groupDoc = await groupsCollection.findOne({ birthdayCalendarToken: token });
+    const groupDoc = await groupsCollection.findOne({
+      birthdayCalendarToken: token,
+      active: { $ne: false }
+    });
     return groupDoc ? groupDocumentToGroup(groupDoc) : undefined;
   }
 
@@ -218,13 +233,14 @@ class DataStore {
     return group;
   }
 
-  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled' | 'spondId'>>): Promise<Group | null> {
+  async updateGroup(id: string, updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled' | 'spondId' | 'active'>>): Promise<Group | null> {
     const groupsCollection = mongoConnection.getGroupsCollection();
     const updateDoc: Record<string, string | boolean | Date> = {
       updatedAt: new Date()
     };
 
     if (updates.name !== undefined) updateDoc.name = updates.name;
+    if (updates.active !== undefined) updateDoc.active = updates.active;
     if (updates.club !== undefined) updateDoc.club = updates.club;
     if (updates.category !== undefined) updateDoc.category = updates.category;
     if (updates.matchPlanningEnabled !== undefined) {
