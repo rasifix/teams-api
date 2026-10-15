@@ -56,6 +56,7 @@ export interface FormationEmbedded {
 
 export interface GroupDocument extends BaseDocument {
   spondId?: string | null;
+  birthdayCalendarToken?: string;
   name: string;
   club?: string;
   category?: GroupCategory;

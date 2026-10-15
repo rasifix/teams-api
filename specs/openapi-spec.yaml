@@ -15,6 +15,82 @@ servers:
 # Authentication is optional for most endpoints, but required for some
 security: []
 paths:
+  /api/birthday-calendars/{token}.ics:
+    get:
+      operationId: getBirthdayCalendarFeed
+      summary: Subscribe to a squad birthday calendar
+      description: >-
+        Public bearer-link calendar feed containing annually recurring, all-day
+        birthdays for active players. The feed includes player names and birthday
+        month/day, but does not expose birth years or ages. Revoking the squad's
+        subscription invalidates the token.
+      tags: [Squads]
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: iCalendar birthday feed
+          content:
+            text/calendar:
+              schema: { type: string }
+        '404': { description: Calendar not found or revoked }
+  /api/squads/{squadId}/birthday-calendar:
+    get:
+      operationId: getBirthdayCalendarSubscription
+      summary: Get the squad birthday calendar subscription
+      tags: [Squads]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: squadId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Current subscription URL, or null when none exists
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [subscriptionUrl]
+                properties:
+                  subscriptionUrl: { type: string, format: uri, nullable: true }
+        '403': { description: Admin or trainer access required }
+    post:
+      operationId: createBirthdayCalendarSubscription
+      summary: Create the squad birthday calendar subscription
+      description: Returns the existing link when a subscription is already active.
+      tags: [Squads]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: squadId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200': { description: Existing subscription URL }
+        '201': { description: Subscription URL created }
+        '403': { description: Admin or trainer access required }
+    delete:
+      operationId: revokeBirthdayCalendarSubscription
+      summary: Revoke the squad birthday calendar subscription
+      tags: [Squads]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: squadId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204': { description: Subscription revoked }
+        '403': { description: Admin or trainer access required }
   /api/squads/{squadId}/spond/import:
     post:
       operationId: importSpondSnapshot

@@ -178,6 +178,30 @@ class DataStore {
     return groupDoc ? groupDocumentToGroup(groupDoc) : undefined;
   }
 
+  async getGroupByBirthdayCalendarToken(token: string): Promise<Group | undefined> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupDoc = await groupsCollection.findOne({ birthdayCalendarToken: token });
+    return groupDoc ? groupDocumentToGroup(groupDoc) : undefined;
+  }
+
+  async getBirthdayCalendarToken(groupId: string): Promise<string | null> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const groupDoc = await groupsCollection.findOne(
+      { _id: groupId },
+      { projection: { birthdayCalendarToken: 1 } }
+    );
+    return groupDoc?.birthdayCalendarToken ?? null;
+  }
+
+  async setBirthdayCalendarToken(groupId: string, token: string | null): Promise<boolean> {
+    const groupsCollection = mongoConnection.getGroupsCollection();
+    const update = token
+      ? { $set: { birthdayCalendarToken: token, updatedAt: new Date() } }
+      : { $unset: { birthdayCalendarToken: '' as const }, $set: { updatedAt: new Date() } };
+    const result = await groupsCollection.updateOne({ _id: groupId }, update);
+    return result.matchedCount > 0;
+  }
+
   async createGroup(group: Group): Promise<Group> {
     const groupsCollection = mongoConnection.getGroupsCollection();
     const groupDoc = groupToGroupDocument(group);

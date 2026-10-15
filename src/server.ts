@@ -6,10 +6,12 @@ import groupRoutes from './routes/groupRoutes';
 import authRoutes from './routes/authRoutes';
 import sfvCategoryRoutes from './routes/sfvCategoryRoutes';
 import spondRoutes from './routes/spondRoutes';
+import birthdayCalendarRoutes from './routes/birthdayCalendarRoutes';
 import { AuthRequest } from './middleware/auth';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(cors());
@@ -21,7 +23,9 @@ app.use((req, res, next) => {
   res.on('finish', () => {
     const user = (req as AuthRequest).user;
     const who = user ? `${user.id} <${user.email}>` : 'anonymous';
-    const path = req.originalUrl.split('?')[0];
+    const path = req.originalUrl
+      .split('?')[0]
+      .replace(/^\/api\/birthday-calendars\/[^/]+\.ics$/, '/api/birthday-calendars/[redacted].ics');
     console.log(
       `[access] ${new Date().toISOString()} user=${who} ${req.method} ${path} status=${res.statusCode} durationMs=${Date.now() - startedAt}`
     );
@@ -33,6 +37,7 @@ app.use((req, res, next) => {
 app.use('/auth', authRoutes);
 app.use('/api/sfv-categories', sfvCategoryRoutes);
 app.use('/api/integrations/spond', spondRoutes);
+app.use('/api/birthday-calendars', birthdayCalendarRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api/squads', groupRoutes);
 

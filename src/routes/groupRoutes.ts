@@ -6,6 +6,11 @@ import {
   updateGroup,
   deleteGroup
 } from '../controllers/groupController';
+import {
+  createBirthdayCalendarSubscription,
+  getBirthdayCalendarSubscription,
+  revokeBirthdayCalendarSubscription
+} from '../controllers/birthdayCalendarController';
 import { importLocalStorageData } from '../controllers/importController';
 import { importSpondSnapshot } from '../controllers/spondImportController';
 import { authenticateToken } from '../middleware/auth';
@@ -28,6 +33,9 @@ router.get('/:id', authenticateToken, authorizeGroupAccess, getGroupById);
 router.post('/', authenticateToken, createGroup);
 router.put('/:id', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin']), updateGroup);
 router.delete('/:id', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin']), deleteGroup);
+router.get('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), getBirthdayCalendarSubscription);
+router.post('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), createBirthdayCalendarSubscription);
+router.delete('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), revokeBirthdayCalendarSubscription);
 
 // Import data from localStorage format (protected by group membership)
 router.post('/:groupId/import', authenticateToken, authorizeGroupAccess, importLocalStorageData);

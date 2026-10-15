@@ -184,6 +184,10 @@ class DatabaseConnection {
       { spondId: 1 },
       { unique: true, partialFilterExpression: { spondId: { $type: 'string' } } }
     );
+    await groupsCollection.createIndex(
+      { birthdayCalendarToken: 1 },
+      { unique: true, partialFilterExpression: { birthdayCalendarToken: { $type: 'string' } } }
+    );
     
     // Members collection indexes
     const membersCollection = this.getMembersCollection();
