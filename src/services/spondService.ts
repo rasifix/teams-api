@@ -3,7 +3,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
 const MAX_EVENTS_PER_REQUEST = 100;
 const MAX_SPLIT_DEPTH = 12;
-const APP_TIME_ZONE = 'Europe/Zurich';
+const DEFAULT_SPOND_TIME_ZONE = 'Europe/Zurich';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -98,16 +98,63 @@ const requiredString = (value: unknown, context?: string): string => {
 const optionalString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
 
-const toAppWallClock = (value: string): string => {
-  const instant = new Date(value);
-  if (Number.isNaN(instant.getTime())) throw new SpondProxyError('SPOND_INVALID_TIMESTAMP', 502);
+const wallClockParts = (instant: Date, timeZone: string): Record<string, string> => {
   const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: APP_TIME_ZONE,
+    timeZone,
     year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   }).formatToParts(instant);
-  const part = (type: Intl.DateTimeFormatPartTypes): string => parts.find(entry => entry.type === type)?.value ?? '';
-  return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}:${part('second')}.${String(instant.getUTCMilliseconds()).padStart(3, '0')}Z`;
+  return Object.fromEntries(parts.map(part => [part.type, part.value]));
+};
+
+const timeZoneOffsetMs = (instantMs: number, timeZone: string): number => {
+  const roundedInstantMs = Math.trunc(instantMs / 1000) * 1000;
+  const parts = wallClockParts(new Date(roundedInstantMs), timeZone);
+  const wallClockAsUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour), Number(parts.minute), Number(parts.second)
+  );
+  return wallClockAsUtc - roundedInstantMs;
+};
+
+/** Normalize a Spond timestamp to a UTC instant.
+ *
+ * Offset-bearing timestamps already identify an instant and must never be
+ * shifted to a second, artificial wall-clock instant. Offset-less timestamps
+ * are interpreted in the source timezone (Europe/Zurich by default).
+ */
+const toUtcIso = (value: string, sourceTimeZone: string): string => {
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) {
+    const instant = new Date(value);
+    if (Number.isNaN(instant.getTime())) throw new SpondProxyError('SPOND_INVALID_TIMESTAMP', 502);
+    return instant.toISOString();
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/.exec(value);
+  if (!match) throw new SpondProxyError('SPOND_INVALID_TIMESTAMP', 502);
+  const [, year, month, day, hour, minute, second = '00', fraction = '0'] = match;
+  const millisecond = Number(fraction.padEnd(3, '0'));
+  const wallClockUtcMs = Date.UTC(
+    Number(year), Number(month) - 1, Number(day),
+    Number(hour), Number(minute), Number(second), millisecond
+  );
+
+  let instantMs = wallClockUtcMs;
+  try {
+    // Re-evaluate because the UTC offset can differ at the initial estimate
+    // around daylight-saving transitions.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      instantMs = wallClockUtcMs - timeZoneOffsetMs(instantMs, sourceTimeZone);
+    }
+    const actual = wallClockParts(new Date(instantMs), sourceTimeZone);
+    if (actual.year !== year || actual.month !== month || actual.day !== day
+      || actual.hour !== hour || actual.minute !== minute || actual.second !== second) {
+      throw new Error('Non-existent local time');
+    }
+  } catch {
+    throw new SpondProxyError('SPOND_INVALID_TIMESTAMP', 502);
+  }
+  return new Date(instantMs).toISOString();
 };
 
 const roleNames = (value: unknown): string[] => {
@@ -412,11 +459,12 @@ const normalizeEvent = (
   const sourceStartsAt = optionalString(event.startTimestamp) ?? optionalString(event.startTime);
   if (!sourceStartsAt) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
   const sourceEndsAt = optionalString(event.endTimestamp) ?? optionalString(event.endTime);
-  if (Number.isNaN(Date.parse(sourceStartsAt)) || (sourceEndsAt && (Number.isNaN(Date.parse(sourceEndsAt)) || Date.parse(sourceEndsAt) < Date.parse(sourceStartsAt)))) {
+  const sourceTimeZone = optionalString(event.timeZone) ?? optionalString(event.timezone) ?? DEFAULT_SPOND_TIME_ZONE;
+  const startsAt = toUtcIso(sourceStartsAt, sourceTimeZone);
+  const endsAt = sourceEndsAt ? toUtcIso(sourceEndsAt, sourceTimeZone) : undefined;
+  if (endsAt && Date.parse(endsAt) < Date.parse(startsAt)) {
     throw new SpondProxyError('SPOND_INVALID_TIMESTAMP', 502);
   }
-  const startsAt = toAppWallClock(sourceStartsAt);
-  const endsAt = sourceEndsAt ? toAppWallClock(sourceEndsAt) : undefined;
   const heading = optionalString(event.heading) ?? optionalString(event.name) ?? optionalString(event.title);
   if (!heading) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
   return {

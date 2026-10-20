@@ -83,9 +83,31 @@ const testSnapshotNormalization = async (): Promise<void> => {
     assert(snapshot.events[0].responses[0].response === 'accepted', 'accepted response must be preserved');
     assert(snapshot.events[0].responses[1].response === 'open', 'waiting-list response must map to open');
     assert(snapshot.events[0].responses[2].response === 'open', 'unconfirmed response must map to open');
-    assert(snapshot.events[0].startsAt === '2026-10-10T12:00:00.000Z', 'Spond instants must convert to Zurich wall-clock time');
+    assert(snapshot.events[0].startsAt === '2026-10-10T10:00:00.000Z', 'Offset-bearing Spond timestamps must preserve their instant in UTC');
     assert(snapshot.events[0].location === 'Musterstrasse 12, 8000 Zürich', 'location must retain street, house number, and locality');
     assert(!JSON.stringify(snapshot).includes('secret-token'), 'snapshot must never expose the bearer token');
+  });
+};
+
+const testTimestampTimezoneNormalization = async (): Promise<void> => {
+  await withFetch([loginResponse(), groupsResponse(), jsonResponse([{
+    id: 'summer-local', heading: 'Summer local', startTimestamp: '2026-07-10T18:30:00',
+    timeZone: 'Europe/Zurich', recipients: { group: { id: 'group-1' } }, responses: {}
+  }, {
+    id: 'winter-local', heading: 'Winter local', startTimestamp: '2026-12-10T18:30:00',
+    timeZone: 'Europe/Zurich', recipients: { group: { id: 'group-1' } }, responses: {}
+  }, {
+    id: 'explicit-offset', heading: 'Explicit offset', startTimestamp: '2026-07-10T18:30:00+02:00',
+    recipients: { group: { id: 'group-1' } }, responses: {}
+  }])], async () => {
+    const snapshot = await readSpondSnapshot(
+      'coach@example.com', 'password', 'group-1',
+      '2026-01-01T00:00:00.000Z', '2027-01-01T00:00:00.000Z'
+    );
+    const events = new Map(snapshot.events.map(event => [event.id, event]));
+    assert(events.get('summer-local')?.startsAt === '2026-07-10T16:30:00.000Z', 'Zurich summer time must use UTC+02:00');
+    assert(events.get('winter-local')?.startsAt === '2026-12-10T17:30:00.000Z', 'Zurich winter time must use UTC+01:00');
+    assert(events.get('explicit-offset')?.startsAt === '2026-07-10T16:30:00.000Z', 'Explicit source offsets must be honored');
   });
 };
 
@@ -304,6 +326,7 @@ const run = async (): Promise<void> => {
   await testGroupSummariesWithSubgroups();
   await testGroupSummariesWithVariousSubgroupFormats();
   await testSnapshotNormalization();
+  await testTimestampTimezoneNormalization();
   await testSubgroupSnapshotBySubgroupIdDirectly();
   await testSubgroupSnapshotWithExplicitSubgroupId();
   await testSanitizedErrors();
