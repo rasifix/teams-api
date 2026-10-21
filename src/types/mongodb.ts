@@ -136,11 +136,10 @@ export interface TeamEmbedded {
   id: string;
   name: string;
   strength: number; // 1 (highest) to 3 (lowest), default 2
-  startTime: string; // HH:MM format
+  startTime?: string; // HH:MM format
   location?: string; // Optional team-specific location overriding event location
   selectedPlayers: string[]; // References to PersonDocument with roles containing 'player'
-  trainerId?: string; // Reference to PersonDocument with roles containing trainer/admin/guardian
-  responsiblePersonIds?: string[];
+  responsiblePersonId?: string;
   shirtSetId?: string; // Reference to ShirtSetDocument
   shirtAssignments?: ShirtAssignmentEmbedded[];
   status?: 'new' | 'selected'; // Selection status, optional for backward-compat with old documents
@@ -164,7 +163,8 @@ export interface EventDocument extends BaseDocument {
   groupId: string; // Reference to GroupDocument
   location?: string; // Optional location field
   playingModeId?: string | null;
-  kind?: 'match' | 'tournament' | 'training' | 'social';
+  kind?: 'match' | 'tournament';
+  status?: 'active' | 'cancelled';
   startsAt?: Date;
   endsAt?: Date;
   matchFormatId?: string | null;
@@ -173,16 +173,6 @@ export interface EventDocument extends BaseDocument {
   attendance?: Array<{
     personId: string;
     status: 'present' | 'absent' | 'excused';
-  }>;
-  trainerIds?: string[];
-  groups?: Array<{
-    id: string;
-    name?: string;
-    units: Array<{
-      id: string;
-      name?: string;
-      plannedPlayerIds: string[];
-    }>;
   }>;
   teams: TeamEmbedded[];
   invitations: InvitationEmbedded[];

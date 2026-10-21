@@ -217,7 +217,7 @@ class DatabaseConnection {
     await eventsCollection.createIndex({ eventDate: -1 }); // Recent events first
     await eventsCollection.createIndex({ 'teams.selectedPlayers': 1 }); // Player participation
     await eventsCollection.createIndex({ 'invitations.playerId': 1 }); // Invitation lookups
-    await eventsCollection.createIndex({ 'teams.trainerId': 1 }); // Trainer assignments
+    await eventsCollection.createIndex({ 'teams.responsiblePersonId': 1 }); // Responsible-person assignments
     await eventsCollection.createIndex({ 'teams.shirtSetId': 1 }); // Shirt set assignments
     await eventsCollection.createIndex({ name: 'text' }); // Text search on event names
     await eventsCollection.createIndex(

@@ -114,7 +114,7 @@ export const requireAssignedTrainerOrAdmin = async (
       return;
     }
 
-    if (team.trainerId !== groupAccess.memberId) {
+    if (team.responsiblePersonId !== groupAccess.memberId) {
       res.status(403).json({ error: 'Only the assigned trainer or a group admin can access this team' });
       return;
     }

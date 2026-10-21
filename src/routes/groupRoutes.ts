@@ -11,14 +11,12 @@ import {
   getBirthdayCalendarSubscription,
   revokeBirthdayCalendarSubscription
 } from '../controllers/birthdayCalendarController';
-import { importLocalStorageData } from '../controllers/importController';
 import { importSpondSnapshot } from '../controllers/spondImportController';
 import { authenticateToken } from '../middleware/auth';
 import { authorizeGroupAccess, requireGroupRole } from '../middleware/groupAuth';
 
 // Import nested route handlers
 import membersRoutes from './membersRoutes';
-import eventRoutes from './eventRoutes';
 import shirtSetRoutes from './shirtSetRoutes';
 import periodsRoutes from './periodsRoutes';
 import playingModeRoutes from './playingModeRoutes';
@@ -37,15 +35,12 @@ router.get('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, re
 router.post('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), createBirthdayCalendarSubscription);
 router.delete('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), revokeBirthdayCalendarSubscription);
 
-// Import data from localStorage format (protected by group membership)
-router.post('/:groupId/import', authenticateToken, authorizeGroupAccess, importLocalStorageData);
 router.post('/:groupId/spond/import', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), importSpondSnapshot);
 
 // Nested routes under groups - all protected by authentication and group membership
 // All nested routes will have groupId available in req.params
 const scopedMiddleware = [authenticateToken, authorizeGroupAccess];
 router.use('/:groupId/members', ...scopedMiddleware, membersRoutes);
-router.use('/:groupId/events', ...scopedMiddleware, eventRoutes);
 router.use('/:groupId/activities', ...scopedMiddleware, activityRoutes);
 router.use('/:groupId/shirtsets', ...scopedMiddleware, shirtSetRoutes);
 router.use('/:groupId/periods', ...scopedMiddleware, periodsRoutes);

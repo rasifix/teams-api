@@ -10,13 +10,14 @@ type MemberDecision =
   | { action: 'skip'; spondMemberId: string };
 type ActivityDecision =
   | { action: 'link'; spondEventId: string; activityId: string }
-  | { action: 'create'; spondEventId: string; kind: ActivityKind; trainerIds?: string[]; teams?: Array<{ name: string; strength: number; selectedPlayers: string[] }> }
-  | { action: 'skip'; spondEventId: string };
+  | { action: 'create'; spondEventId: string; kind: ActivityKind; teams?: Array<{ name: string; strength: number; selectedPlayers: string[] }> }
+  | { action: 'skip'; spondEventId: string }
+  | { action: 'delete'; spondEventId: string };
 
 const isRecord = (value: unknown): value is RecordValue => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
 const validDate = (value: unknown): value is string => nonEmpty(value) && !Number.isNaN(Date.parse(value));
-const activityKinds: ActivityKind[] = ['match', 'tournament', 'training', 'social'];
+const activityKinds: ActivityKind[] = ['match', 'tournament'];
 const normalized = (value: string): string => value.trim().toLocaleLowerCase().replace(/\s+/g, ' ');
 
 const validateMemberDecision = (value: unknown): value is MemberDecision => {
@@ -33,9 +34,9 @@ const validateMemberDecision = (value: unknown): value is MemberDecision => {
 const validateActivityDecision = (value: unknown): value is ActivityDecision => {
   if (!isRecord(value) || !nonEmpty(value.action) || !nonEmpty(value.spondEventId)) return false;
   if (value.action === 'skip') return true;
+  if (value.action === 'delete') return true;
   if (value.action === 'link') return nonEmpty(value.activityId);
   return value.action === 'create' && activityKinds.includes(value.kind as ActivityKind)
-    && (value.trainerIds === undefined || (Array.isArray(value.trainerIds) && value.trainerIds.every(nonEmpty)))
     && (value.teams === undefined || Array.isArray(value.teams));
 };
 
@@ -44,7 +45,7 @@ const validatePayload = (value: unknown): { body?: RecordValue; error?: string }
     return { error: 'Invalid import metadata' };
   }
   if (!isRecord(value.snapshot) || !isRecord(value.snapshot.group) || value.snapshot.group.id !== value.spondGroupId
-    || !Array.isArray(value.snapshot.group.members) || !Array.isArray(value.snapshot.events)) {
+    || !Array.isArray(value.snapshot.group.members) || !Array.isArray(value.snapshot.activities)) {
     return { error: 'Invalid or mismatched snapshot' };
   }
   if (!Array.isArray(value.members) || !value.members.every(validateMemberDecision)
@@ -88,7 +89,7 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
   const snapshot = body.snapshot as RecordValue;
   const snapshotGroup = snapshot.group as RecordValue;
   const sourceMembers = snapshotGroup.members as unknown[];
-  const sourceEvents = snapshot.events as unknown[];
+  const sourceEvents = snapshot.activities as unknown[];
   const memberDecisions = body.members as MemberDecision[];
   const activityDecisions = body.activities as ActivityDecision[];
   const result = { importId: body.importId as string, created: 0, linked: 0, updated: 0, unchanged: 0, skipped: 0, warnings: [] as string[] };
@@ -195,11 +196,25 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
         continue;
       }
       const source = sourceEvent(sourceEvents, decision.spondEventId);
-      if (!source || source.groupId !== body.spondGroupId || !nonEmpty(source.name) || !validDate(source.startsAt)) {
+      if (!source || source.groupId !== body.spondGroupId || !nonEmpty(source.name) || !validDate(source.startsAt)
+        || !nonEmpty(source.type)
+        || !['active', 'cancelled', 'deleted'].includes(String(source.status))) {
         res.status(400).json({ error: 'SPOND_EVENT_NOT_IN_SNAPSHOT' });
         return;
       }
+      if (source.status === 'deleted' && decision.action !== 'delete') {
+        res.status(400).json({ error: 'SPOND_DELETED_ACTIVITY_REQUIRES_DELETE' });
+        return;
+      }
       const existingExternal = await dataStore.getActivityBySpondId(groupId, decision.spondEventId);
+
+      if (decision.action === 'delete') {
+        if (existingExternal && !(await dataStore.deleteActivity(groupId, existingExternal.id))) {
+          throw new Error('Failed to delete imported activity');
+        }
+        continue;
+      }
+
       let target = existingExternal;
       if (decision.action === 'link') {
         const local = await dataStore.getActivityById(groupId, decision.activityId);
@@ -239,6 +254,7 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
         spondId: decision.spondEventId,
         squadId: groupId,
         kind,
+        status: source.status === 'cancelled' ? 'cancelled' : 'active',
         name: source.name,
         startsAt: source.startsAt,
         endsAt: validDate(source.endsAt) ? source.endsAt : undefined,
@@ -247,10 +263,10 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
         maxPlayersPerTeam: kind === 'match' || kind === 'tournament' ? target?.maxPlayersPerTeam ?? 99 : undefined,
         teams,
         invitations,
-        trainerIds: decision.action === 'create' && kind === 'training' ? decision.trainerIds : target?.trainerIds
       };
       if (target) {
         const changed = target.spondId !== activity.spondId || target.name !== activity.name
+          || target.status !== activity.status
           || target.startsAt !== activity.startsAt || target.endsAt !== activity.endsAt
           || target.location !== activity.location || JSON.stringify(target.invitations) !== JSON.stringify(activity.invitations);
         if (changed) {

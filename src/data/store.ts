@@ -781,7 +781,7 @@ class DataStore {
     const filter = groupId ? { groupId } : {};
     const eventDocs = await eventsCollection.find(filter).sort({ eventDate: -1 }).toArray();
     return eventDocs
-      .filter(doc => doc.kind !== 'training' && doc.kind !== 'social')
+      .filter(doc => !['training', 'social'].includes(String(doc.kind)))
       .map(eventDocumentToEvent);
   }
 
@@ -789,7 +789,7 @@ class DataStore {
     const eventsCollection = mongoConnection.getEventsCollection();
     const eventDoc = await eventsCollection.findOne({ _id: id });
     
-    return eventDoc && eventDoc.kind !== 'training' && eventDoc.kind !== 'social'
+    return eventDoc && !['training', 'social'].includes(String(eventDoc.kind))
       ? eventDocumentToEvent(eventDoc)
       : undefined;
   }
@@ -819,7 +819,7 @@ class DataStore {
   async updateEvent(id: string, updates: Partial<Omit<Event, 'id'>>): Promise<Event | null> {
     const eventsCollection = mongoConnection.getEventsCollection();
     const existingDocument = await eventsCollection.findOne({ _id: id });
-    if (!existingDocument || existingDocument.kind === 'training' || existingDocument.kind === 'social') {
+    if (!existingDocument) {
       return null;
     }
     
@@ -853,7 +853,7 @@ class DataStore {
       }));
       const startTime = teams
         .map(team => team.startTime)
-        .filter(value => /^\d{2}:\d{2}$/.test(value))
+        .filter((value): value is string => typeof value === 'string' && /^\d{2}:\d{2}$/.test(value))
         .sort()[0] ?? '00:00';
       updateDoc.startsAt = new Date(`${date}T${startTime}:00.000Z`);
       updateDoc.kind = existingDocument.kind ?? (teams.length === 1 ? 'match' : 'tournament');
@@ -875,6 +875,7 @@ class DataStore {
     const eventsCollection = mongoConnection.getEventsCollection();
     const docs = await eventsCollection.find({ groupId: squadId }).toArray();
     return docs
+      .filter(doc => !['training', 'social'].includes(String(doc.kind)))
       .map(eventDocumentToActivity)
       .filter(activity => !filters.kind || activity.kind === filters.kind)
       .filter(activity => !filters.startsAfter || new Date(activity.startsAt) >= filters.startsAfter)
@@ -885,12 +886,12 @@ class DataStore {
   async getActivityById(squadId: string, activityId: string): Promise<Activity | undefined> {
     const eventsCollection = mongoConnection.getEventsCollection();
     const doc = await eventsCollection.findOne({ _id: activityId, groupId: squadId });
-    return doc ? eventDocumentToActivity(doc) : undefined;
+    return doc && !['training', 'social'].includes(String(doc.kind)) ? eventDocumentToActivity(doc) : undefined;
   }
 
   async getActivityBySpondId(squadId: string, spondId: string): Promise<Activity | undefined> {
     const doc = await mongoConnection.getEventsCollection().findOne({ groupId: squadId, spondId });
-    return doc ? eventDocumentToActivity(doc) : undefined;
+    return doc && !['training', 'social'].includes(String(doc.kind)) ? eventDocumentToActivity(doc) : undefined;
   }
 
   async getGroupMemberIds(groupId: string): Promise<string[]> {
@@ -948,8 +949,7 @@ class DataStore {
   async deleteEvent(id: string): Promise<boolean> {
     const eventsCollection = mongoConnection.getEventsCollection();
     const result = await eventsCollection.deleteOne({
-      _id: id,
-      kind: { $nin: ['training', 'social'] }
+      _id: id
     });
     return result.deletedCount > 0;
   }

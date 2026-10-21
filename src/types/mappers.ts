@@ -310,10 +310,10 @@ export function embeddedTeamToTeam(embedded: TeamEmbedded): Team {
     id: embedded.id,
     name: embedded.name,
     strength: embedded.strength,
-    startTime: embedded.startTime,
+    ...(embedded.startTime ? { startTime: embedded.startTime } : {}),
     location: embedded.location,
     selectedPlayers: embedded.selectedPlayers,
-    trainerId: embedded.trainerId ?? embedded.responsiblePersonIds?.[0],
+    responsiblePersonId: embedded.responsiblePersonId,
     shirtSetId: embedded.shirtSetId,
     shirtAssignments: embedded.shirtAssignments?.map(assignment => ({
       playerId: assignment.playerId,
@@ -337,11 +337,10 @@ export function teamToEmbedded(team: Team): TeamEmbedded {
     id: team.id,
     name: team.name,
     strength: team.strength,
-    startTime: team.startTime,
+    ...(team.startTime ? { startTime: team.startTime } : {}),
     location: team.location,
     selectedPlayers: team.selectedPlayers,
-    trainerId: team.responsiblePersonIds?.[0] ?? team.trainerId,
-    responsiblePersonIds: team.responsiblePersonIds ?? (team.trainerId ? [team.trainerId] : undefined),
+    responsiblePersonId: team.responsiblePersonId,
     shirtSetId: team.shirtSetId,
     shirtAssignments: team.shirtAssignments?.map(assignment => ({
       playerId: assignment.playerId,
@@ -378,7 +377,7 @@ export function eventDocumentToLegacyEvent(doc: EventDocument): Event {
 export const eventDocumentToEvent = eventDocumentToLegacyEvent;
 
 const derivedActivityKind = (doc: EventDocument): ActivityKind => {
-  if (doc.kind) {
+  if (doc.kind === 'match' || doc.kind === 'tournament') {
     return doc.kind;
   }
   return doc.teams.length === 1 ? 'match' : 'tournament';
@@ -391,7 +390,7 @@ const deriveStartsAt = (doc: EventDocument): Date => {
 
   const earliestStartTime = doc.teams
     .map(team => team.startTime)
-    .filter(value => /^\d{2}:\d{2}$/.test(value))
+    .filter((value): value is string => typeof value === 'string' && /^\d{2}:\d{2}$/.test(value))
     .sort()[0] ?? '00:00';
   const date = doc.eventDate.toISOString().slice(0, 10);
   return new Date(`${date}T${earliestStartTime}:00.000Z`);
@@ -405,6 +404,7 @@ export function eventDocumentToActivity(doc: EventDocument): Activity {
     spondId: doc.spondId,
     squadId: doc.groupId,
     kind,
+    status: doc.status ?? 'active',
     name: doc.name,
     startsAt: startsAt.toISOString(),
     endsAt: doc.endsAt?.toISOString(),
@@ -415,22 +415,21 @@ export function eventDocumentToActivity(doc: EventDocument): Activity {
     minPlayersPerTeam: kind === 'match' || kind === 'tournament' ? doc.minPlayersPerTeam : undefined,
     teams: doc.teams.map(team => ({
       ...embeddedTeamToTeam(team),
-      responsiblePersonIds: team.responsiblePersonIds ?? (team.trainerId ? [team.trainerId] : undefined)
+      responsiblePersonId: team.responsiblePersonId
     })),
     invitations: doc.invitations.map(embeddedInvitationToActivityInvitation),
     selectionSentAt: doc.selectionSentAt?.toISOString(),
     attendance: doc.attendance?.map(record => ({ ...record })),
-    trainerIds: doc.trainerIds,
-    groups: doc.groups
   };
 }
 
 export function eventToActivity(event: Event): Activity {
-  const startsAt = new Date(`${event.date}T${event.teams.map(team => team.startTime).filter(value => /^\d{2}:\d{2}$/.test(value)).sort()[0] ?? '00:00'}:00.000Z`);
+  const startsAt = new Date(`${event.date}T${event.teams.map(team => team.startTime).filter((value): value is string => typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)).sort()[0] ?? '00:00'}:00.000Z`);
   return {
     id: event.id,
     squadId: event.groupId,
     kind: event.teams.length === 1 ? 'match' : 'tournament',
+    status: 'active',
     name: event.name,
     startsAt: startsAt.toISOString(),
     location: event.location,
@@ -469,6 +468,7 @@ export function activityToEventDocument(activity: Activity): Omit<EventDocument,
     ...eventToEventDocument(legacyEvent),
     spondId: activity.spondId,
     kind: activity.kind,
+    status: activity.status,
     startsAt,
     endsAt: activity.endsAt ? new Date(activity.endsAt) : undefined,
     matchFormatId: activity.matchFormatId,
@@ -476,14 +476,12 @@ export function activityToEventDocument(activity: Activity): Omit<EventDocument,
     selectionSentAt: activity.selectionSentAt ? new Date(activity.selectionSentAt) : undefined,
     invitations: activity.invitations.map(activityInvitationToEmbedded),
     attendance: activity.attendance,
-    trainerIds: activity.trainerIds,
-    groups: activity.groups
   };
 }
 
 // Convert API Event to MongoDB EventDocument (for creation)
 export function eventToEventDocument(event: Omit<Event, 'id'>): Omit<EventDocument, '_id' | 'createdAt' | 'updatedAt'> {
-  const startsAt = new Date(`${event.date}T${event.teams.map(team => team.startTime).filter(value => /^\d{2}:\d{2}$/.test(value)).sort()[0] ?? '00:00'}:00.000Z`);
+  const startsAt = new Date(`${event.date}T${event.teams.map(team => team.startTime).filter((value): value is string => typeof value === 'string' && /^\d{2}:\d{2}$/.test(value)).sort()[0] ?? '00:00'}:00.000Z`);
   return {
     name: event.name,
     eventDate: new Date(event.date),

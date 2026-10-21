@@ -4,16 +4,19 @@ import {
   ActivityAttendance,
   ActivityInvitation,
   ActivityKind,
+  ActivityStatus,
   InvitationDeclineReason,
   Team,
-  TrainingGroup
 } from '../types';
 import { GroupAuthRequest } from '../middleware/groupAuth';
 import { dataStore } from '../data/store';
 import { getNextSequence } from '../utils/sequence';
 
 const isActivityKind = (value: unknown): value is ActivityKind =>
-  value === 'match' || value === 'tournament' || value === 'training' || value === 'social';
+  value === 'match' || value === 'tournament';
+
+const isActivityStatus = (value: unknown): value is ActivityStatus =>
+  value === 'active' || value === 'cancelled';
 
 const isDeclineReason = (value: unknown): value is InvitationDeclineReason =>
   value === 'injured' || value === 'sick' || value === 'unavailable';
@@ -43,10 +46,6 @@ const validateTeams = (
   if (kind === 'tournament' && teamsValue.length < 1) {
     return { error: 'tournament activities must have at least one team' };
   }
-  if (kind === 'training' || kind === 'social') {
-    return { error: `${kind} activities are not supported yet` };
-  }
-
   const acceptedPlayerIds = new Set(
     invitations.filter(invitation => invitation.response === 'accepted').map(invitation => invitation.playerId)
   );
@@ -67,8 +66,8 @@ const validateTeams = (
     if (team.startTime !== undefined && (typeof team.startTime !== 'string' || !/^\d{2}:\d{2}$/.test(team.startTime))) {
       return { error: `teams[${index}].startTime must use HH:MM format` };
     }
-    if (selectionSent && (!Array.isArray(team.responsiblePersonIds) || team.responsiblePersonIds.length < 1)) {
-      return { error: `teams[${index}].responsiblePersonIds must contain at least one person when selection is sent` };
+    if (selectionSent && (typeof team.responsiblePersonId !== 'string' || !team.responsiblePersonId.trim())) {
+      return { error: `teams[${index}].responsiblePersonId is required when selection is sent` };
     }
     for (const playerId of team.selectedPlayers) {
       if (selectedPlayerIds.has(playerId)) {
@@ -82,9 +81,9 @@ const validateTeams = (
     teams.push({
       ...team,
       strength: typeof team.strength === 'number' ? team.strength : 2,
-      startTime: team.startTime ?? '00:00',
+      ...(team.startTime !== undefined ? { startTime: team.startTime } : {}),
       selectedPlayers: team.selectedPlayers,
-      trainerId: team.responsiblePersonIds?.[0] ?? team.trainerId
+      responsiblePersonId: team.responsiblePersonId
     } as Team);
   }
 
@@ -94,7 +93,7 @@ const validateTeams = (
 const validateActivity = (value: Record<string, unknown>, existing?: Activity): { activity?: Activity; error?: string } => {
   const kind = value.kind ?? existing?.kind;
   if (!isActivityKind(kind)) {
-    return { error: 'kind must be match, tournament, training, or social' };
+    return { error: 'kind must be match or tournament' };
   }
 
   const name = value.name ?? existing?.name;
@@ -146,57 +145,12 @@ const validateActivity = (value: Record<string, unknown>, existing?: Activity): 
   const teamsValue = value.teams ?? existing?.teams;
   const selectionSentAt = value.selectionSentAt ?? existing?.selectionSentAt;
   let teams: Team[] = [];
-  let trainerIds: string[] | undefined;
-  let groups: TrainingGroup[] | undefined;
   if (kind === 'match' || kind === 'tournament') {
     const teamsResult = validateTeams(kind, teamsValue, invitations, selectionSentAt !== undefined);
     if (teamsResult.error || !teamsResult.teams) {
       return { error: teamsResult.error };
     }
     teams = teamsResult.teams;
-  } else {
-    if (Array.isArray(teamsValue) && teamsValue.length > 0) {
-      return { error: `${kind} activities must not have teams` };
-    }
-    if (selectionSentAt !== undefined) {
-      return { error: `${kind} activities do not support team selection` };
-    }
-    if (kind === 'training') {
-      const trainerIdsValue = value.trainerIds ?? existing?.trainerIds;
-      if (!Array.isArray(trainerIdsValue) || trainerIdsValue.length === 0 ||
-        !trainerIdsValue.every(id => typeof id === 'string' && id.trim() !== '')) {
-        return { error: 'training activities require at least one trainerId' };
-      }
-      trainerIds = [...new Set(trainerIdsValue as string[])];
-      const groupsValue = value.groups ?? existing?.groups ?? [];
-      if (!Array.isArray(groupsValue)) {
-        return { error: 'training groups must be an array' };
-      }
-      const acceptedPlayerIds = new Set(
-        invitations.filter(invitation => invitation.response === 'accepted').map(invitation => invitation.playerId)
-      );
-      groups = [];
-      for (let groupIndex = 0; groupIndex < groupsValue.length; groupIndex += 1) {
-        const group = groupsValue[groupIndex] as Partial<TrainingGroup>;
-        if (!group || typeof group.id !== 'string' || !Array.isArray(group.units)) {
-          return { error: `groups[${groupIndex}] must include an id and units array` };
-        }
-        const units = [];
-        for (let unitIndex = 0; unitIndex < group.units.length; unitIndex += 1) {
-          const unit = group.units[unitIndex];
-          if (!unit || typeof unit.id !== 'string' || !Array.isArray(unit.plannedPlayerIds) ||
-            !unit.plannedPlayerIds.every(id => typeof id === 'string')) {
-            return { error: `groups[${groupIndex}].units[${unitIndex}] must include id and plannedPlayerIds` };
-          }
-          const unaccepted = unit.plannedPlayerIds.find(id => !acceptedPlayerIds.has(id));
-          if (unaccepted) {
-            return { error: `planned player ${unaccepted} must have an accepted invitation` };
-          }
-          units.push(unit);
-        }
-        groups.push({ id: group.id, name: group.name, units });
-      }
-    }
   }
 
   const squadId = value.squadId ?? existing?.squadId;
@@ -210,6 +164,7 @@ const validateActivity = (value: Record<string, unknown>, existing?: Activity): 
       id,
       squadId,
       kind,
+      status: existing?.status ?? 'active',
       name: name.trim(),
       startsAt: new Date(startsAt).toISOString(),
       endsAt: endsAt === undefined || endsAt === null ? undefined : new Date(endsAt as string).toISOString(),
@@ -222,8 +177,6 @@ const validateActivity = (value: Record<string, unknown>, existing?: Activity): 
       invitations,
       selectionSentAt: typeof selectionSentAt === 'string' ? selectionSentAt : undefined,
       attendance: existing?.attendance,
-      trainerIds,
-      groups
     }
   };
 };
@@ -236,6 +189,14 @@ const getActivityOr404 = async (req: Request, res: Response): Promise<Activity |
     return undefined;
   }
   return activity;
+};
+
+const requireActiveActivity = (activity: Activity, res: Response): boolean => {
+  if (activity.status !== 'active') {
+    res.status(400).json({ error: 'Cancelled activities are read-only; restore the activity before modifying it' });
+    return false;
+  }
+  return true;
 };
 
 const filterActivityForGuardian = async (req: Request, activity: Activity): Promise<Activity | null> => {
@@ -254,40 +215,14 @@ const filterActivityForGuardian = async (req: Request, activity: Activity): Prom
       shirtAssignments: undefined
     }));
   const attendance = activity.attendance?.filter(record => childIds.has(record.personId));
-  const groups = activity.groups?.map(group => ({
-    ...group,
-    units: group.units.map(unit => ({
-      ...unit,
-      plannedPlayerIds: unit.plannedPlayerIds.filter(playerId => childIds.has(playerId))
-    }))
-  }));
-  return activity.kind === 'social' || invitations.length || teams.length || attendance?.length || groups?.length
-    ? { ...activity, invitations, teams, attendance, groups }
+  return invitations.length || teams.length || attendance?.length
+    ? { ...activity, invitations, teams, attendance }
     : null;
 };
 
 export const getActivities = async (req: Request, res: Response): Promise<void> => {
   try {
-    const kind = req.query.kind;
-    if (kind !== undefined && !isActivityKind(kind)) {
-      res.status(400).json({ error: 'kind must be match, tournament, training, or social' });
-      return;
-    }
-    const startsAfter = req.query.startsAfter;
-    const startsBefore = req.query.startsBefore;
-    if (startsAfter !== undefined && !validDate(startsAfter)) {
-      res.status(400).json({ error: 'startsAfter must be a valid date-time' });
-      return;
-    }
-    if (startsBefore !== undefined && !validDate(startsBefore)) {
-      res.status(400).json({ error: 'startsBefore must be a valid date-time' });
-      return;
-    }
-    const activities = await dataStore.getActivities(req.params.groupId, {
-      kind: kind as ActivityKind | undefined,
-      startsAfter: startsAfter ? new Date(startsAfter as string) : undefined,
-      startsBefore: startsBefore ? new Date(startsBefore as string) : undefined
-    });
+    const activities = await dataStore.getActivities(req.params.groupId);
     if (!isGuardianOnly(req)) {
       res.json(activities);
       return;
@@ -340,6 +275,7 @@ export const updateActivity = async (req: Request, res: Response): Promise<void>
   try {
     const existing = await getActivityOr404(req, res);
     if (!existing) return;
+    if (!requireActiveActivity(existing, res)) return;
     const validation = validateActivity({ ...existing, ...req.body, id: existing.id, squadId: existing.squadId }, existing);
     if (!validation.activity) {
       res.status(400).json({ error: validation.error ?? 'Invalid activity' });
@@ -368,6 +304,31 @@ export const deleteActivity = async (req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('Error deleting activity:', error);
     res.status(500).json({ error: 'Failed to delete activity' });
+  }
+};
+
+export const updateActivityStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const activity = await getActivityOr404(req, res);
+    if (!activity) return;
+    const status = req.body?.status;
+    if (!isActivityStatus(status)) {
+      res.status(400).json({ error: 'status must be active or cancelled' });
+      return;
+    }
+    if (activity.spondId) {
+      res.status(400).json({ error: 'Spond-linked activities receive status from Spond synchronization' });
+      return;
+    }
+    const updated = await dataStore.updateActivity({ ...activity, status });
+    if (!updated) {
+      res.status(404).json({ error: 'Activity not found' });
+      return;
+    }
+    res.json(updated);
+  } catch (error) {
+    console.error('Error updating activity status:', error);
+    res.status(500).json({ error: 'Failed to update activity status' });
   }
 };
 
@@ -413,23 +374,6 @@ const removeUnacceptedPlayersFromTeams = (
   }));
 };
 
-const removeUnacceptedPlayersFromTrainingGroups = (
-  groups: TrainingGroup[] | undefined,
-  invitations: ActivityInvitation[]
-): TrainingGroup[] | undefined => {
-  if (!groups) return groups;
-  const acceptedPlayerIds = new Set(
-    invitations.filter(invitation => invitation.response === 'accepted').map(invitation => invitation.playerId)
-  );
-  return groups.map(group => ({
-    ...group,
-    units: group.units.map(unit => ({
-      ...unit,
-      plannedPlayerIds: unit.plannedPlayerIds.filter(playerId => acceptedPlayerIds.has(playerId))
-    }))
-  }));
-};
-
 const authorizeGuardianInvitation = async (
   req: Request,
   activity: Activity,
@@ -448,6 +392,7 @@ export const updateActivityInvitation = async (req: Request, res: Response): Pro
   try {
     const activity = await getActivityOr404(req, res);
     if (!activity) return;
+    if (!requireActiveActivity(activity, res)) return;
     const playerId = req.params.playerId;
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
       res.status(400).json({ error: 'invitation update must be an object' });
@@ -475,8 +420,7 @@ export const updateActivityInvitation = async (req: Request, res: Response): Pro
     const updated = await dataStore.updateActivity({
       ...activity,
       invitations: result.invitations,
-      teams: teams.teams!,
-      groups: removeUnacceptedPlayersFromTrainingGroups(activity.groups, result.invitations)
+      teams: teams.teams!
     });
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
@@ -493,6 +437,7 @@ export const updateActivityInvitations = async (req: Request, res: Response): Pr
   try {
     const activity = await getActivityOr404(req, res);
     if (!activity) return;
+    if (!requireActiveActivity(activity, res)) return;
     if (!req.body || typeof req.body !== 'object' || !Array.isArray(req.body.invitations)) {
       res.status(400).json({ error: 'invitations must be an array' });
       return;
@@ -522,8 +467,7 @@ export const updateActivityInvitations = async (req: Request, res: Response): Pr
     const updated = await dataStore.updateActivity({
       ...activity,
       invitations,
-      teams: teams.teams!,
-      groups: removeUnacceptedPlayersFromTrainingGroups(activity.groups, invitations)
+      teams: teams.teams!
     });
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
@@ -566,6 +510,7 @@ const updateAttendance = async (
 ): Promise<void> => {
   const activity = await getActivityOr404(req, res);
   if (!activity) return;
+  if (!requireActiveActivity(activity, res)) return;
   if (Date.parse(activity.startsAt) >= Date.now()) {
     res.status(400).json({ error: 'Attendance can only be recorded after the activity starts' });
     return;
@@ -636,10 +581,7 @@ export const updateActivityTeams = async (req: Request, res: Response): Promise<
   try {
     const activity = await getActivityOr404(req, res);
     if (!activity) return;
-    if (activity.kind !== 'match' && activity.kind !== 'tournament') {
-      res.status(400).json({ error: `${activity.kind} activities do not support teams` });
-      return;
-    }
+    if (!requireActiveActivity(activity, res)) return;
     const teams = validateTeams(activity.kind, req.body?.teams, activity.invitations, activity.selectionSentAt !== undefined);
     if (teams.error || !teams.teams) {
       res.status(400).json({ error: teams.error });
@@ -661,10 +603,7 @@ export const updateActivitySelection = async (req: Request, res: Response): Prom
   try {
     const activity = await getActivityOr404(req, res);
     if (!activity) return;
-    if (activity.kind !== 'match' && activity.kind !== 'tournament') {
-      res.status(400).json({ error: `${activity.kind} activities do not support team selection` });
-      return;
-    }
+    if (!requireActiveActivity(activity, res)) return;
     const teams = validateTeams(activity.kind, req.body?.teams, activity.invitations, activity.selectionSentAt !== undefined);
     if (teams.error || !teams.teams) {
       res.status(400).json({ error: teams.error });
@@ -686,10 +625,7 @@ export const markActivitySelectionSent = async (req: Request, res: Response): Pr
   try {
     const activity = await getActivityOr404(req, res);
     if (!activity) return;
-    if (activity.kind !== 'match' && activity.kind !== 'tournament') {
-      res.status(400).json({ error: `${activity.kind} activities do not support team selection` });
-      return;
-    }
+    if (!requireActiveActivity(activity, res)) return;
     const teams = validateTeams(activity.kind, activity.teams, activity.invitations, true);
     if (teams.error || !teams.teams) {
       res.status(400).json({ error: teams.error });

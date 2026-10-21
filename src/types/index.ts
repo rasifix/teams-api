@@ -133,7 +133,8 @@ export interface Invitation {
   status: 'open' | 'accepted' | 'declined' | 'injured' | 'sick' | 'unavailable';
 }
 
-export type ActivityKind = 'match' | 'tournament' | 'training' | 'social';
+export type ActivityKind = 'match' | 'tournament';
+export type ActivityStatus = 'active' | 'cancelled';
 export type InvitationResponse = 'open' | 'accepted' | 'declined';
 export type InvitationDeclineReason = 'injured' | 'sick' | 'unavailable';
 
@@ -169,6 +170,7 @@ export interface Activity {
   spondId?: string | null;
   squadId: string;
   kind: ActivityKind;
+  status: ActivityStatus;
   name: string;
   startsAt: string;
   endsAt?: string;
@@ -181,8 +183,6 @@ export interface Activity {
   invitations: ActivityInvitation[];
   selectionSentAt?: string;
   attendance?: ActivityAttendance[];
-  trainerIds?: string[];
-  groups?: TrainingGroup[];
 }
 
 export type TeamSelectionStatus = 'new' | 'selected';
@@ -191,11 +191,10 @@ export interface Team {
   id: string;
   name: string;
   strength: number; // 1 (highest) to 3 (lowest), default 2
-  startTime: string; // HH:MM format - each team can have different start times
+  startTime?: string; // HH:MM format - each team can have different start times
   location?: string; // Optional team-specific location overriding event location
   selectedPlayers: string[]; // Player IDs assigned to this team
-  trainerId?: string; // Trainer ID assigned to this team
-  responsiblePersonIds?: string[];
+  responsiblePersonId?: string;
   shirtSetId?: string; // Shirt set ID assigned to this team
   shirtAssignments?: Array<{ playerId: string; shirtNumber: number }>; // Individual shirt assignments by number
   status?: TeamSelectionStatus; // Backward compatible team selection status

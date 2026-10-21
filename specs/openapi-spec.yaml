@@ -3884,6 +3884,13 @@ components:
           type: string
         groupId:
           type: string
+        type:
+          type: string
+        matchEvent:
+          type: boolean
+        status:
+          type: string
+          enum: [active, cancelled, deleted]
         name:
           type: string
         startsAt:
@@ -3898,7 +3905,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SpondEventResponse'
-      required: [id, groupId, name, startsAt, responses]
+      required: [id, groupId, type, status, name, startsAt, responses]
     SpondSnapshot:
       type: object
       properties:
@@ -3912,14 +3919,14 @@ components:
                   items:
                     $ref: '#/components/schemas/SpondMemberSnapshot'
               required: [members]
-        events:
+        activities:
           type: array
           items:
             $ref: '#/components/schemas/SpondEventSnapshot'
         sourceReadAt:
           type: string
           format: date-time
-      required: [group, events, sourceReadAt]
+      required: [group, activities, sourceReadAt]
     SpondMemberDecision:
       oneOf:
         - type: object

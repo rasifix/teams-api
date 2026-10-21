@@ -39,6 +39,9 @@ export interface SpondMemberSnapshot {
 export interface SpondEventSnapshot {
   id: string;
   groupId: string;
+  type: string;
+  matchEvent?: boolean;
+  status: 'active' | 'cancelled' | 'deleted';
   name: string;
   startsAt: string;
   endsAt?: string;
@@ -51,7 +54,7 @@ export interface SpondEventSnapshot {
 
 export interface SpondSnapshot {
   group: SpondGroupSummary & { members: SpondMemberSnapshot[] };
-  events: SpondEventSnapshot[];
+  activities: SpondEventSnapshot[];
   sourceReadAt: string;
 }
 
@@ -446,12 +449,23 @@ const eventMatchesSubGroup = (event: unknown, subGroupId?: string): boolean => {
   return subGroupIds.includes(subGroupId);
 };
 
+const normalizeSpondActivityStatus = (event: UnknownRecord): 'active' | 'cancelled' | 'deleted' => {
+  const raw = optionalString(event.status) ?? optionalString(event.activityStatus) ?? optionalString(event.eventStatus);
+  if (raw?.toLocaleLowerCase() === 'deleted' || event.deleted === true || event.isDeleted === true) return 'deleted';
+  if (raw?.toLocaleLowerCase() === 'cancelled' || raw?.toLocaleLowerCase() === 'canceled'
+    || event.cancelled === true || event.canceled === true || event.isCancelled === true || event.isCanceled === true) {
+    return 'cancelled';
+  }
+  return 'active';
+};
+
 const normalizeEvent = (
   value: unknown,
   parentGroupId: string,
   targetGroupId: string
 ): SpondEventSnapshot => {
   const event = asRecord(value);
+  const type = requiredString(event.type, 'event.type');
   const { groupId: eventGroupId } = extractEventRecipients(event);
   if (eventGroupId && eventGroupId !== parentGroupId && eventGroupId !== targetGroupId) {
     throw new SpondProxyError('SPOND_GROUP_MISMATCH', 502);
@@ -470,6 +484,9 @@ const normalizeEvent = (
   return {
     id: requiredString(event.id),
     groupId: targetGroupId,
+    type,
+    ...(typeof event.matchEvent === 'boolean' ? { matchEvent: event.matchEvent } : {}),
+    status: normalizeSpondActivityStatus(event),
     name: heading,
     startsAt,
     endsAt,
@@ -583,6 +600,9 @@ const getEvents = async (
   }
   const value = await get('/sponds', token, params);
   if (!Array.isArray(value)) throw new SpondProxyError('SPOND_INVALID_RESPONSE', 502);
+  value.forEach((event, index) => {
+    console.log(`[spond] raw activity[${index}] ${JSON.stringify(event)}`);
+  });
   const targetGroupId = subGroupId ?? parentGroupId;
   if (value.length < MAX_EVENTS_PER_REQUEST) {
     return value
@@ -658,7 +678,7 @@ export const readSpondSnapshot = async (
     if (!parentGroup) throw new SpondProxyError('SPOND_GROUP_NOT_FOUND', 404, `Group or subgroup ${groupId} not found`);
 
     const resolvedSubGroupId = targetSubGroup?.id;
-    const events = await getEvents(token, parentGroup.id, from, to, resolvedSubGroupId);
+    const activities = await getEvents(token, parentGroup.id, from, to, resolvedSubGroupId);
 
     const snapshotGroup = targetSubGroup
       ? {
@@ -675,7 +695,7 @@ export const readSpondSnapshot = async (
           members: parentGroup.members.map(({ subGroupIds, ...member }) => member)
         };
 
-    return { group: snapshotGroup, events, sourceReadAt: new Date().toISOString() };
+    return { group: snapshotGroup, activities, sourceReadAt: new Date().toISOString() };
   } catch (error) {
     console.error(`[spond] readSpondSnapshot failed (groupId=${groupId}, subGroupId=${subGroupId}):`, error);
     throw error;
