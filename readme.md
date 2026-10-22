@@ -99,16 +99,6 @@ npm start
 * `PUT /api/members/:id` - Update an existing member
 * `DELETE /api/members/:id` - Delete a member
 
-### Events
-* `GET /api/events` - Get all events
-* `GET /api/events/:id` - Get an event by ID
-* `POST /api/events` - Create a new event
-* `PUT /api/events/:id` - Update an existing event
-* `DELETE /api/events/:id` - Delete an event
-* `PUT /api/events/:id/players` - Upsert invitations for an event
-* `PUT /api/events/:id/players/:player_id/status` - Update invitation status
-* `PUT /api/events/:id/selection` - Update player selection for teams
-
 ### Health Check
 * `GET /health` - Check if the API and database are running
 

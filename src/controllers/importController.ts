@@ -60,7 +60,7 @@ interface ImportSummary {
   errors: string[];
 }
 
-// POST /api/groups/:groupId/import
+// POST /api/squads/:groupId/import
 export const importLocalStorageData = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;

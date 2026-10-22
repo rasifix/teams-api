@@ -87,8 +87,6 @@ async function startServer() {
       console.log('  POST   /api/squads/:squadId/members/:memberId/evaluations');
       console.log('  PUT    /api/squads/:squadId/members/:memberId/evaluations/:evaluationId');
       console.log('  DELETE /api/squads/:squadId/members/:memberId/evaluations/:evaluationId');
-      console.log('  GET    /api/squads/:squadId/events');
-      console.log('  POST   /api/squads/:squadId/events');
       console.log('  GET    /api/squads/:squadId/shirtsets');
       console.log('  POST   /api/squads/:squadId/shirtsets');
       console.log('  GET    /api/squads/:squadId/periods');

@@ -28,7 +28,7 @@ function validatePeriodShape(period: Pick<Period, 'name' | 'startDate' | 'endDat
   return null;
 }
 
-// GET /api/groups/:groupId/periods
+// GET /api/squads/:groupId/periods
 export const getPeriods = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -46,7 +46,7 @@ export const getPeriods = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-// POST /api/groups/:groupId/periods
+// POST /api/squads/:groupId/periods
 export const createPeriod = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -83,7 +83,7 @@ export const createPeriod = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// PUT /api/groups/:groupId/periods/:periodId
+// PUT /api/squads/:groupId/periods/:periodId
 export const updatePeriod = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, periodId } = req.params;
@@ -136,7 +136,7 @@ export const updatePeriod = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// DELETE /api/groups/:groupId/periods/:periodId
+// DELETE /api/squads/:groupId/periods/:periodId
 export const deletePeriod = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, periodId } = req.params;

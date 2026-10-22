@@ -16,7 +16,7 @@ const isValidShirtStatus = (status: unknown): status is (typeof SHIRT_STATUSES)[
   return typeof status === 'string' && SHIRT_STATUSES.includes(status as (typeof SHIRT_STATUSES)[number]);
 };
 
-// GET /api/groups/:groupId/shirtsets
+// GET /api/squads/:groupId/shirtsets
 export const getShirtSets = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -102,7 +102,7 @@ export const updateShirtSet = async (req: Request, res: Response): Promise<void>
   }
 };
 
-// PUT /api/groups/:groupId/shirtsets/:id/shirts/:shirtNumber/status
+// PUT /api/squads/:groupId/shirtsets/:id/shirts/:shirtNumber/status
 export const updateShirtStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id, shirtNumber } = req.params;

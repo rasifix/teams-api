@@ -91,7 +91,7 @@ export const browserConsoleScript = `
   URL.revokeObjectURL(url);
   
   console.log('📁 Download started: teams-app-export-' + timestamp + '.json');
-  console.log('📤 Use this file with: POST /api/groups/{groupId}/import');
+  console.log('📤 Use this file with: POST /api/squads/{squadId}/import');
   
   return data;
 })();
@@ -113,7 +113,7 @@ export const migrationInstructions = `
    - This will download a JSON file with all your data
 
 2. CREATE A GROUP IN TEAMS-API:
-   POST /api/groups
+   POST /api/squads
    {
      "name": "My Team"
    }
@@ -121,7 +121,7 @@ export const migrationInstructions = `
    - Note the returned group ID
 
 3. IMPORT YOUR DATA:
-   POST /api/groups/{groupId}/import
+   POST /api/squads/{squadId}/import
    Content-Type: application/json
    
    - Upload the JSON file from step 1 as the request body
@@ -129,9 +129,9 @@ export const migrationInstructions = `
 4. VERIFY IMPORT:
    - Check the response for import summary
    - Test API endpoints to verify data:
-     GET /api/groups/{groupId}/members
-     GET /api/groups/{groupId}/events
-     GET /api/groups/{groupId}/shirtsets
+     GET /api/squads/{squadId}/members
+     GET /api/squads/{squadId}/activities
+     GET /api/squads/{squadId}/shirtsets
 
 5. UPDATE YOUR APPLICATION:
    - Update frontend to use new API endpoints

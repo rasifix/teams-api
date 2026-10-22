@@ -218,7 +218,7 @@ paths:
         the catalog date and distinguishes categories that play tournaments
         from categories with a default match format.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       responses:
@@ -237,7 +237,7 @@ paths:
   /api/squads/{squadId}/activities:
     get:
       operationId: getGroupActivities
-      summary: List activities in a group
+      summary: List activities in a squad
       tags:
         - Activities
       security:
@@ -742,7 +742,7 @@ paths:
       summary: Get match formats for a squad
       description: Compatibility alias of the squad's playing-modes collection.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -777,7 +777,7 @@ paths:
       summary: Create a match format for a squad
       description: Compatibility alias of creating a playing mode.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -816,7 +816,7 @@ paths:
       operationId: updateSquadMatchFormat
       summary: Update a squad match format
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -853,7 +853,7 @@ paths:
       operationId: deleteSquadMatchFormat
       summary: Delete a squad match format
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -881,7 +881,7 @@ paths:
       operationId: setSquadDefaultMatchFormat
       summary: Set the default match format for a squad
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -1202,7 +1202,7 @@ paths:
       summary: Get all groups
       description: Retrieve all groups where the authenticated user is a trainer member
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       responses:
@@ -1213,7 +1213,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Group'
+                  $ref: '#/components/schemas/Squad'
         '401':
           description: Not authenticated
           content:
@@ -1231,7 +1231,7 @@ paths:
       summary: Create a new group
       description: Create a new group
       tags:
-        - Groups
+        - Squads
       requestBody:
         required: true
         content:
@@ -1240,11 +1240,11 @@ paths:
               $ref: '#/components/schemas/CreateGroupRequest'
       responses:
         '201':
-          description: Group created successfully
+          description: Squad created successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Group'
+                $ref: '#/components/schemas/Squad'
         '400':
           description: Invalid request data
           content:
@@ -1263,7 +1263,7 @@ paths:
       summary: Get group by ID
       description: Retrieve a specific group by ID
       tags:
-        - Groups
+        - Squads
       parameters:
         - name: squadId
           in: path
@@ -1272,13 +1272,13 @@ paths:
             type: string
       responses:
         '200':
-          description: Group found
+          description: Squad found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Group'
+                $ref: '#/components/schemas/Squad'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -1294,7 +1294,7 @@ paths:
       summary: Update group by ID
       description: Update a specific group by ID
       tags:
-        - Groups
+        - Squads
       parameters:
         - name: squadId
           in: path
@@ -1309,11 +1309,11 @@ paths:
               $ref: '#/components/schemas/UpdateGroupRequest'
       responses:
         '200':
-          description: Group updated successfully
+          description: Squad updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Group'
+                $ref: '#/components/schemas/Squad'
         '400':
           description: Invalid request data
           content:
@@ -1321,7 +1321,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -1337,7 +1337,7 @@ paths:
       summary: Delete group by ID
       description: Delete a specific group by ID
       tags:
-        - Groups
+        - Squads
       parameters:
         - name: squadId
           in: path
@@ -1346,9 +1346,9 @@ paths:
             type: string
       responses:
         '204':
-          description: Group deleted successfully
+          description: Squad deleted successfully
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -1365,7 +1365,7 @@ paths:
       summary: Import localStorage-style group data
       description: Import players, trainers, shirt sets, and events into an existing group using a localStorage-compatible payload.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -1518,7 +1518,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -1532,7 +1532,7 @@ paths:
   /api/squads/{squadId}/members:
     get:
       operationId: getAllMembers
-      summary: Get all members in a group
+      summary: Get all members in a squad
       description: Retrieve all members for a specific group in a single response (players and trainers). Guardians can read this endpoint, but sensitive player fields are hidden.
       tags:
         - Members
@@ -1580,7 +1580,7 @@ paths:
                 $ref: '#/components/schemas/Error'
     post:
       operationId: createMember
-      summary: Create a new member in a group
+      summary: Create a new member in a squad
       description: Create either a player or trainer based on the role field in a specific group
       tags:
         - Members
@@ -2186,253 +2186,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/squads/{squadId}/events:
-    get:
-      operationId: getAllEvents
-      summary: Get all events in a group
-      description: Retrieve all events in a specific group
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Successfully retrieved events
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Event'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    post:
-      operationId: createEvent
-      summary: Create a new event in a group
-      description: Create a new event in a specific group
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateEventRequest'
-      responses:
-        '201':
-          description: Event created successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-        '400':
-          description: Invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/squads/{squadId}/events/{id}:
-    get:
-      operationId: getEventById
-      summary: Get event by ID
-      description: Retrieve a specific event by ID in a specific group
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Event found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Event not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      operationId: updateEventById
-      summary: Update event by ID
-      description: Update a specific event by ID in a specific group
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateEventRequest'
-      responses:
-        '200':
-          description: Event updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-        '400':
-          description: Invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Event not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    delete:
-      operationId: deleteEventById
-      summary: Delete event by ID
-      description: Delete a specific event by ID in a specific group
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '204':
-          description: Event deleted successfully
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
   /api/squads/{squadId}/periods:
     get:
       operationId: getGroupPeriods
-      summary: Get periods for a group
+      summary: Get periods for a squad
       description: Retrieve all periods belonging to a specific group
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2457,7 +2217,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -2470,10 +2230,10 @@ paths:
                 $ref: '#/components/schemas/Error'
     post:
       operationId: createGroupPeriod
-      summary: Create period for a group
+      summary: Create period for a squad
       description: Add a new period to a specific group
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2508,7 +2268,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -2522,10 +2282,10 @@ paths:
   /api/squads/{squadId}/periods/{periodId}:
     put:
       operationId: updateGroupPeriod
-      summary: Update period for a group
+      summary: Update period for a squad
       description: Update an existing period belonging to a specific group
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2565,7 +2325,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group or period not found
+          description: Squad or period not found
           content:
             application/json:
               schema:
@@ -2578,10 +2338,10 @@ paths:
                 $ref: '#/components/schemas/Error'
     delete:
       operationId: deleteGroupPeriod
-      summary: Delete period for a group
+      summary: Delete period for a squad
       description: Delete an existing period from a specific group
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2605,7 +2365,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group or period not found
+          description: Squad or period not found
           content:
             application/json:
               schema:
@@ -2621,13 +2381,13 @@ paths:
       - /api/squads/{squadId}/playing-modes
     get:
       operationId: getGroupPlayingModes
-      summary: Get playing modes for a group
+      summary: Get playing modes for a squad
       description: >-
         Retrieve all Playing Modes belonging to a specific group. This is a
         group-scoped subresource; there is no top-level playing-modes
         collection.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2658,7 +2418,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -2671,13 +2431,13 @@ paths:
                 $ref: '#/components/schemas/Error'
     post:
       operationId: createGroupPlayingMode
-      summary: Create playing mode for a group
+      summary: Create playing mode for a squad
       description: >-
         Add a new Playing Mode to a group. Requires admin or trainer role in
         the group (same authorization as event/team modification). The first
-        Playing Mode created for a group is automatically marked default.
+        Playing Mode created for a squad is automatically marked default.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2723,7 +2483,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -2737,12 +2497,12 @@ paths:
   /api/squads/{squadId}/playing-modes/{playingModeId}:
     put:
       operationId: updateGroupPlayingMode
-      summary: Update playing mode for a group
+      summary: Update playing mode for a squad
       description: >-
         Update an existing Playing Mode belonging to a specific group.
         Requires admin or trainer role in the group.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2793,7 +2553,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group or playing mode not found
+          description: Squad or playing mode not found
           content:
             application/json:
               schema:
@@ -2806,12 +2566,12 @@ paths:
                 $ref: '#/components/schemas/Error'
     delete:
       operationId: deleteGroupPlayingMode
-      summary: Delete playing mode for a group
+      summary: Delete playing mode for a squad
       description: >-
         Delete an existing Playing Mode from a specific group. Requires admin
         or trainer role in the group.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2842,7 +2602,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group or playing mode not found
+          description: Squad or playing mode not found
           content:
             application/json:
               schema:
@@ -2871,7 +2631,7 @@ paths:
         between two concurrent updates both claiming default. Requires admin
         or trainer role in the group.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2906,7 +2666,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group or playing mode not found
+          description: Squad or playing mode not found
           content:
             application/json:
               schema:
@@ -2920,13 +2680,13 @@ paths:
   /api/squads/{squadId}/formations:
     get:
       operationId: getGroupFormations
-      summary: Get formations for a group
+      summary: Get formations for a squad
       description: >-
         Retrieve all Formations belonging to a specific group. This is a
         group-scoped subresource; there is no top-level formations
         collection.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -2957,7 +2717,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -2970,12 +2730,12 @@ paths:
                 $ref: '#/components/schemas/Error'
     post:
       operationId: createGroupFormation
-      summary: Create formation for a group
+      summary: Create formation for a squad
       description: >-
         Add a new Formation to a group. Requires admin or trainer role in
         the group (same authorization as event/team modification).
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -3020,7 +2780,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group not found
+          description: Squad not found
           content:
             application/json:
               schema:
@@ -3034,12 +2794,12 @@ paths:
   /api/squads/{squadId}/formations/{formationId}:
     put:
       operationId: updateGroupFormation
-      summary: Update formation for a group
+      summary: Update formation for a squad
       description: >-
         Update an existing Formation belonging to a specific group. Requires
         admin or trainer role in the group.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -3089,7 +2849,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group or formation not found
+          description: Squad or formation not found
           content:
             application/json:
               schema:
@@ -3102,12 +2862,12 @@ paths:
                 $ref: '#/components/schemas/Error'
     delete:
       operationId: deleteGroupFormation
-      summary: Delete formation for a group
+      summary: Delete formation for a squad
       description: >-
         Delete an existing Formation from a specific group. Requires admin or
         trainer role in the group.
       tags:
-        - Groups
+        - Squads
       security:
         - bearerAuth: []
       parameters:
@@ -3138,7 +2898,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: Group or formation not found
+          description: Squad or formation not found
           content:
             application/json:
               schema:
@@ -3157,298 +2917,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/squads/{squadId}/events/{id}/players:
-    put:
-      operationId: upsertEventInvitations
-      summary: Upsert event invitations
-      description: Add new player invitations to an event
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                playerIds:
-                  type: array
-                  items:
-                    type: string
-              required:
-                - playerIds
-      responses:
-        '200':
-          description: Invitations updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-        '400':
-          description: Invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Event not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/squads/{squadId}/events/{id}/players/{player_id}/status:
-    put:
-      operationId: updateInvitationStatus
-      summary: Update invitation status
-      description: Update the status of a player's invitation. Guardians can update only invitations for their own children and only to accepted or declined.
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: player_id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [open, accepted, declined, injured, sick, unavailable]
-              required:
-                - status
-      responses:
-        '200':
-          description: Invitation status updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-        '400':
-          description: Invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Event or invitation not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/squads/{squadId}/events/{id}/selection:
-    put:
-      operationId: updateTeamSelection
-      summary: Update team selection
-      description: Update the team player selection for an event
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                teams:
-                  type: array
-                  items:
-                    $ref: '#/components/schemas/Team'
-              required:
-                - teams
-      responses:
-        '200':
-          description: Team selection updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-        '400':
-          description: Invalid request data
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Event not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/squads/{squadId}/events/{id}/teams/{teamId}/status:
-    put:
-      operationId: updateTeamStatus
-      summary: Update team selection status
-      description: Update the selection status of a single team within an event. Transitioning to selected requires at least minPlayersPerTeam selected players.
-      tags:
-        - Events
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: teamId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                status:
-                  type: string
-                  enum: [new, selected]
-              required:
-                - status
-      responses:
-        '200':
-          description: Team status updated successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Event'
-        '400':
-          description: Invalid status value or team does not meet minimum player requirement for selection
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Not authenticated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Not authorized to access this group
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Event or team not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
   /api/squads/{squadId}/shirtsets:
     get:
       operationId: getAllShirtSets
-      summary: Get all shirt sets in a group
+      summary: Get all shirt sets in a squad
       description: Retrieve all shirt sets in a specific group
       tags:
         - Shirt Sets
@@ -3489,7 +2961,7 @@ paths:
                 $ref: '#/components/schemas/Error'
     post:
       operationId: createShirtSet
-      summary: Create a new shirt set in a group
+      summary: Create a new shirt set in a squad
       description: Create a new shirt set in a specific group
       tags:
         - Shirt Sets
@@ -4051,7 +3523,7 @@ components:
       required:
         - id
         - email
-    Group:
+    Squad:
       type: object
       properties:
         id:
@@ -4098,7 +3570,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PlayingMode'
-          description: Group-scoped only; never shared with other groups.
+          description: Squad-scoped only; never shared with other groups.
         matchFormats:
           type: array
           items:
@@ -4110,7 +3582,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Formation'
-          description: Group-scoped only; never shared with other groups.
+          description: Squad-scoped only; never shared with other groups.
         createdAt:
           type: string
           format: date-time
@@ -4278,7 +3750,7 @@ components:
     PlayingMode:
       type: object
       description: >-
-        Group-scoped subresource (see Group.playingModes). Never referenced
+        Squad-scoped subresource (see Squad.playingModes). Never referenced
         across groups.
       properties:
         id:
@@ -4423,7 +3895,7 @@ components:
     Formation:
       type: object
       description: >-
-        Group-scoped subresource (see Group.formations). Never referenced
+        Squad-scoped subresource (see Squad.formations). Never referenced
         across groups.
       properties:
         id:
@@ -5050,120 +4522,6 @@ components:
         - strength
         - startTime
         - selectedPlayers
-    Event:
-      type: object
-      properties:
-        id:
-          type: string
-        squadId:
-          type: string
-        name:
-          type: string
-        date:
-          type: string
-          format: date
-        maxPlayersPerTeam:
-          type: integer
-          minimum: 1
-        minPlayersPerTeam:
-          type: integer
-          minimum: 1
-        location:
-          type: string
-        playingModeId:
-          type: string
-          nullable: true
-          description: >-
-            References a Playing Mode in the same group. Only usable when the
-            group has matchPlanningEnabled true. Always optional/resettable.
-        matchFormatId:
-          type: string
-          nullable: true
-          description: Squad alias for playingModeId. Both values refer to the same stored field.
-        teams:
-          type: array
-          items:
-            $ref: '#/components/schemas/Team'
-        invitations:
-          type: array
-          items:
-            $ref: '#/components/schemas/Invitation'
-      required:
-        - id
-        - name
-        - date
-        - minPlayersPerTeam
-        - maxPlayersPerTeam
-        - teams
-        - invitations
-    CreateEventRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        date:
-          type: string
-          format: date
-        maxPlayersPerTeam:
-          type: integer
-          minimum: 1
-        minPlayersPerTeam:
-          type: integer
-          minimum: 1
-          default: 1
-        location:
-          type: string
-        playingModeId:
-          type: string
-          nullable: true
-          description: >-
-            Omit to auto-assign the group's default Playing Mode (if any);
-            pass null explicitly to opt out at creation.
-        matchFormatId:
-          type: string
-          nullable: true
-          description: Squad alias for playingModeId; takes precedence when both are supplied.
-        teams:
-          type: array
-          items:
-            $ref: '#/components/schemas/Team'
-      required:
-        - name
-        - date
-        - maxPlayersPerTeam
-        - minPlayersPerTeam
-    UpdateEventRequest:
-      type: object
-      properties:
-        name:
-          type: string
-        date:
-          type: string
-          format: date
-        maxPlayersPerTeam:
-          type: integer
-          minimum: 1
-        location:
-          type: string
-        playingModeId:
-          type: string
-          nullable: true
-          description: >-
-            Set to a Playing Mode id from the same group, or null to reset to
-            none. Rejected with 400 if the group has matchPlanningEnabled
-            false.
-        matchFormatId:
-          type: string
-          nullable: true
-          description: Squad alias for playingModeId; takes precedence when both are supplied.
-        teams:
-          type: array
-          items:
-            $ref: '#/components/schemas/Team'
-        invitations:
-          type: array
-          items:
-            $ref: '#/components/schemas/Invitation'
     Shirt:
       type: object
       properties:
@@ -5239,13 +4597,11 @@ tags:
     description: User registration and authentication endpoints
   - name: Health
     description: API health check endpoints
-  - name: Groups
-    description: Operations on groups for organizing teams
+  - name: Squads
+    description: Operations on squads for organizing teams
   - name: Members
-    description: Operations on members (players and trainers) within a group
+    description: Operations on members (players and trainers) within a squad
   - name: Evaluations
-    description: Operations on player evaluations within a group
-  - name: Events
-    description: Operations on events and team management within a group
+    description: Operations on player evaluations within a squad
   - name: Shirt Sets
-    description: Operations on shirt sets and equipment within a group
+    description: Operations on shirt sets and equipment within a squad

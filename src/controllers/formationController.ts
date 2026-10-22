@@ -96,7 +96,7 @@ async function normalizeUpdateSlots(
   return normalized;
 }
 
-// GET /api/groups/:groupId/formations
+// GET /api/squads/:groupId/formations
 export const getFormations = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -114,7 +114,7 @@ export const getFormations = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// POST /api/groups/:groupId/formations
+// POST /api/squads/:groupId/formations
 export const createFormation = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -152,7 +152,7 @@ export const createFormation = async (req: Request, res: Response): Promise<void
   }
 };
 
-// PUT /api/groups/:groupId/formations/:formationId
+// PUT /api/squads/:groupId/formations/:formationId
 export const updateFormation = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, formationId } = req.params;
@@ -209,7 +209,7 @@ export const updateFormation = async (req: Request, res: Response): Promise<void
   }
 };
 
-// DELETE /api/groups/:groupId/formations/:formationId
+// DELETE /api/squads/:groupId/formations/:formationId
 export const deleteFormation = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, formationId } = req.params;
