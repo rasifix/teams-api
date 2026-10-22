@@ -1,5 +1,6 @@
 // Base MongoDB document interface
 import type { GroupCategory } from './index';
+import type { ActivityEvent } from './activityEvents';
 
 export interface BaseDocument {
   _id: string;
@@ -178,6 +179,11 @@ export interface EventDocument extends BaseDocument {
   invitations: InvitationEmbedded[];
 }
 
+// Append-only Activity event store collection
+export type ActivityEventDocument = Omit<ActivityEvent, 'recordedAt'> & {
+  recordedAt: Date;
+};
+
 // Embedded shirt document (within shirt sets)
 export interface ShirtEmbedded {
   number: number;
@@ -242,6 +248,7 @@ export const COLLECTIONS = {
   MEMBERS: 'members',
   GUARDIAN_CHILD_LINKS: 'guardian-child-links',
   EVENTS: 'events',
+  ACTIVITY_EVENTS: 'activity-events',
   SHIRT_SETS: 'shirt-sets',
   USERS: 'users',
   PASSWORD_RESETS: 'password-resets'

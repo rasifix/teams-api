@@ -75,3 +75,6 @@ export interface ActivityEvent<TEvents extends DomainEvent[] = DomainEvent[]> {
   correlationId: string;
   events: TEvents;
 }
+
+export type ActivityEventToAppend<TEvents extends DomainEvent[] = DomainEvent[]> =
+  Omit<ActivityEvent<TEvents>, 'recordedAt'> & { recordedAt?: never };

@@ -7,7 +7,8 @@ import {
   ShirtSetDocument,
   UserDocument,
   PasswordResetDocument,
-  COLLECTIONS 
+  ActivityEventDocument,
+  COLLECTIONS
 } from '../types/mongodb';
 import { initializeSequences } from '../utils/sequence';
 
@@ -130,6 +131,10 @@ class DatabaseConnection {
     return this.getDb().collection<EventDocument>(COLLECTIONS.EVENTS);
   }
 
+  getActivityEventsCollection(): Collection<ActivityEventDocument> {
+    return this.getDb().collection<ActivityEventDocument>(COLLECTIONS.ACTIVITY_EVENTS);
+  }
+
   getShirtSetsCollection(): Collection<ShirtSetDocument> {
     return this.getDb().collection<ShirtSetDocument>(COLLECTIONS.SHIRT_SETS);
   }
@@ -154,7 +159,76 @@ class DatabaseConnection {
 
       for (const collectionName of Object.values(COLLECTIONS)) {
         if (!existingNames.includes(collectionName)) {
-          await db.createCollection(collectionName);
+          if (collectionName === COLLECTIONS.ACTIVITY_EVENTS) {
+            await db.createCollection(collectionName, {
+              validator: {
+                $jsonSchema: {
+                  bsonType: 'object',
+                  required: [
+                    '_id',
+                    'streamId',
+                    'aggregateType',
+                    'aggregateId',
+                    'squadId',
+                    'revision',
+                    'command',
+                    'actor',
+                    'recordedAt',
+                    'correlationId',
+                    'events'
+                  ],
+                  properties: {
+                    _id: { bsonType: 'string' },
+                    streamId: { bsonType: 'string' },
+                    aggregateType: { enum: ['activity'] },
+                    aggregateId: { bsonType: 'string' },
+                    squadId: { bsonType: 'string' },
+                    revision: { bsonType: 'int', minimum: 1 },
+                    command: {
+                      bsonType: 'object',
+                      required: ['type', 'idempotencyKey', 'requestHash'],
+                      properties: {
+                        type: { bsonType: 'string' },
+                        idempotencyKey: { bsonType: ['string', 'null'] },
+                        requestHash: { bsonType: 'string' }
+                      }
+                    },
+                    actor: {
+                      bsonType: 'object',
+                      required: ['type'],
+                      properties: {
+                        type: { enum: ['user', 'system'] },
+                        userId: { bsonType: 'string' },
+                        memberId: { bsonType: 'string' },
+                        displayName: { bsonType: 'string' },
+                        roles: { bsonType: 'array', items: { bsonType: 'string' } }
+                      }
+                    },
+                    recordedAt: { bsonType: 'date' },
+                    correlationId: { bsonType: 'string' },
+                    events: {
+                      bsonType: 'array',
+                      minItems: 1,
+                      items: {
+                        bsonType: 'object',
+                        required: ['ordinal', 'type', 'schemaVersion', 'data'],
+                        properties: {
+                          ordinal: { bsonType: 'int', minimum: 0 },
+                          type: { bsonType: 'string' },
+                          schemaVersion: { bsonType: 'int', minimum: 1 },
+                          data: {}
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              validationLevel: 'strict',
+              validationAction: 'error'
+            });
+          } else {
+            await db.createCollection(collectionName);
+          }
           console.log(`📁 Created collection: ${collectionName}`);
         }
       }
@@ -223,6 +297,29 @@ class DatabaseConnection {
     await eventsCollection.createIndex(
       { groupId: 1, spondId: 1 },
       { unique: true, partialFilterExpression: { spondId: { $type: 'string' } } }
+    );
+
+    // Activity event store indexes
+    const activityEventsCollection = this.getActivityEventsCollection();
+    await activityEventsCollection.createIndex(
+      { streamId: 1, revision: 1 },
+      { unique: true, name: 'activity_events_stream_revision_unique' }
+    );
+    await activityEventsCollection.createIndex(
+      { squadId: 1, aggregateId: 1, revision: 1 },
+      { name: 'activity_events_stream_replay' }
+    );
+    await activityEventsCollection.createIndex(
+      { squadId: 1, recordedAt: -1, _id: -1 },
+      { name: 'activity_events_audit_pagination' }
+    );
+    await activityEventsCollection.createIndex(
+      { squadId: 1, 'command.idempotencyKey': 1 },
+      {
+        unique: true,
+        name: 'activity_events_idempotency_unique',
+        partialFilterExpression: { 'command.idempotencyKey': { $type: 'string' } }
+      }
     );
 
     // Shirt Sets collection indexes
