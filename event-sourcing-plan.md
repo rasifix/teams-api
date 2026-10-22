@@ -7,7 +7,7 @@
 | Document status | Proposed |
 | Discovery and architecture decisions | Complete |
 | Naming and public API alignment | Complete |
-| Event-sourcing implementation | In progress (ES-03 review) |
+| Event-sourcing implementation | In progress (ES-04 review) |
 | Data migration | Not started |
 | Production rollout | Not started |
 | Last reviewed | 2026-10-22 |
@@ -33,8 +33,8 @@ Tasks are intentionally scoped to one focused change set. A task is complete onl
 | --- | --- | --- | --- | --- | --- |
 | ES-01 | Align public Activity/Squad vocabulary and document the persistence boundary | S | — | Complete | Public types and API documentation use Activity/Squad; historical projection names are documented as compatibility details. |
 | ES-02 | Define versioned `DomainEvent`, `ActivityEvent`, actor snapshot, command metadata, and stream identity types | M | ES-01 | Complete | Types compile and fixtures cover every planned event envelope field. |
-| ES-03 | Add the `activity-events` MongoDB collection, validation, indexes, and append-only repository | M | ES-02 | In review | Repository supports append and ordered stream reads but exposes no update/delete operation. |
-| ES-04 | Add projection metadata fields and conditional projection-write helpers | M | ES-03 | Not started | Existing Activity documents remain readable; projection updates cannot regress revisions. |
+| ES-03 | Add the `activity-events` MongoDB collection, validation, indexes, and append-only repository | M | ES-02 | Complete | Repository supports append and ordered stream reads but exposes no update/delete operation. |
+| ES-04 | Add projection metadata fields and conditional projection-write helpers | M | ES-03 | In review | Existing Activity documents remain readable; projection updates cannot regress revisions. |
 | ES-05 | Implement the pure Activity aggregate reducer and replay service | L | ES-02 | Not started | All planned event types replay into a complete Activity state with fixtures for each Activity kind and lifecycle. |
 | ES-06 | Implement Activity command handlers and semantic state diffing | L | ES-05 | Not started | Create, update, invitation, selection, team, attendance, import, cancellation, and deletion commands produce deterministic event batches and reject invalid transitions. |
 | ES-07 | Route Activity and Spond-import writes through event-first dual persistence | L | ES-03, ES-06 | Not started | A successful command appends one commit first, updates the existing projection second, and returns event-derived state. |

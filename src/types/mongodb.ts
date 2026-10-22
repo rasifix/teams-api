@@ -177,6 +177,11 @@ export interface EventDocument extends BaseDocument {
   }>;
   teams: TeamEmbedded[];
   invitations: InvitationEmbedded[];
+  projectedRevision?: number;
+  projectedCommitId?: string;
+  projectionSchemaVersion?: number;
+  projectionUpdatedAt?: Date;
+  deletedAt?: Date | null;
 }
 
 // Append-only Activity event store collection
