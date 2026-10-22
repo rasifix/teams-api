@@ -6,10 +6,51 @@
 | --- | --- |
 | Document status | Proposed |
 | Discovery and architecture decisions | Complete |
-| Implementation | Not started |
+| Naming and public API alignment | Complete |
+| Event-sourcing implementation | In progress (ES-02 review) |
 | Data migration | Not started |
 | Production rollout | Not started |
-| Last reviewed | 2026-10-10 |
+| Last reviewed | 2026-10-22 |
+
+## Current implementation status
+
+The public API now uses Squad and Activity terminology. The unused Event API has been removed from the backend OpenAPI specification and route surface, while the existing MongoDB `events` collection and its historical document shape remain untouched for migration safety.
+
+The following event-sourcing capabilities are not implemented yet:
+
+- No append-only activity event collection exists.
+- No Activity aggregate, reducer, command handler, or event upcaster exists.
+- Activity writes still update the existing projection directly.
+- Existing activities have not been converted into baseline events.
+- No replay-vs-projection comparison or reconciler exists.
+- No audit-event endpoint, revision headers, or idempotency handling exists.
+
+## Implementation-sized task backlog
+
+Tasks are intentionally scoped to one focused change set. A task is complete only when its code, tests, and documentation are included. `S` is up to one day, `M` is one to three days, and `L` is three to five days; larger work must be split before implementation.
+
+| ID | Task | Size | Depends on | Status | Completion criteria |
+| --- | --- | --- | --- | --- | --- |
+| ES-01 | Align public Activity/Squad vocabulary and document the persistence boundary | S | — | Complete | Public types and API documentation use Activity/Squad; historical projection names are documented as compatibility details. |
+| ES-02 | Define versioned `DomainEvent`, `ActivityEvent`, actor snapshot, command metadata, and stream identity types | M | ES-01 | In review | Types compile and fixtures cover every planned event envelope field. |
+| ES-03 | Add the `activity-events` MongoDB collection, validation, indexes, and append-only repository | M | ES-02 | Not started | Repository supports append and ordered stream reads but exposes no update/delete operation. |
+| ES-04 | Add projection metadata fields and conditional projection-write helpers | M | ES-03 | Not started | Existing Activity documents remain readable; projection updates cannot regress revisions. |
+| ES-05 | Implement the pure Activity aggregate reducer and replay service | L | ES-02 | Not started | All planned event types replay into a complete Activity state with fixtures for each Activity kind and lifecycle. |
+| ES-06 | Implement Activity command handlers and semantic state diffing | L | ES-05 | Not started | Create, update, invitation, selection, team, attendance, import, cancellation, and deletion commands produce deterministic event batches and reject invalid transitions. |
+| ES-07 | Route Activity and Spond-import writes through event-first dual persistence | L | ES-03, ES-06 | Not started | A successful command appends one commit first, updates the existing projection second, and returns event-derived state. |
+| ES-08 | Add baseline migration from existing projections to `ActivityImported` commits | M | ES-03, ES-05 | Not started | Migration is paused-write, deterministic, rerunnable, count-checked, and leaves source projection documents intact. |
+| ES-09 | Add canonical replay/projection comparison and mismatch diagnostics | M | ES-04, ES-05, ES-08 | Not started | Every migrated Activity compares equal after normalization; mismatches include Squad, Activity, revision, and field-level differences. |
+| ES-10 | Add read-time repair and the background projection reconciler | L | ES-07, ES-09 | Not started | Missing or stale projections rebuild idempotently; stale rebuilds cannot overwrite newer state. |
+| ES-11 | Add revision concurrency, ETags, `If-Match`, idempotency keys, and command IDs | M | ES-07 | Not started | Concurrent writes produce `409`; identical retries return the original result; mismatched retries are rejected. |
+| ES-12 | Add the Squad-scoped audit-events endpoint and authorization tests | M | ES-03, ES-07 | Not started | Admins can filter and paginate logical events within their Squad; other Squads and restricted data remain inaccessible. |
+| ES-13 | Add migration, replay, failure-recovery, and load-test coverage | M | ES-08, ES-10 | Not started | CI covers replay equality, crash-after-commit recovery, projection corruption, concurrent writes, rerunnable migration, and production-scale lists. |
+| ES-14 | Execute staged rollout, monitoring, backup verification, and contract cleanup | M | ES-11, ES-12, ES-13 | Not started | Feature flag rollout succeeds, metrics and alerts are active, restore drill passes, and direct projection writes are disabled. |
+
+### Recommended implementation order
+
+Implement tasks in dependency order: ES-02 → ES-03 → ES-04/ES-05 → ES-06 → ES-07 → ES-08/ES-09 → ES-10/ES-11/ES-12 → ES-13 → ES-14. ES-01 is complete and is the naming baseline for all remaining work.
+
+Do not begin the baseline migration or enable event-first writes until ES-05, ES-07, and their replay/equality tests are complete. Do not remove or repurpose the existing projection until ES-13 and the backup-restore acceptance criteria pass.
 
 The first iteration covers Activities only. MongoDB remains a standalone deployment for cost reasons. Immutable event documents are the source of truth; projections are disposable and must detect and repair stale state.
 
@@ -25,7 +66,7 @@ Public terminology is deliberately separate from historical persistence terminol
 
 ## MongoDB document model
 
-### `activity-event-commits`
+### `activity-events`
 
 Store one document per accepted command. A commit can contain several ordered semantic events, allowing all consequences of one command to be persisted atomically in a single MongoDB document without transactions.
 
