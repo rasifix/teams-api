@@ -1,4 +1,7 @@
 import { mongoConnection } from '../database/connection';
+import { executeActivityCommand, isActivityEventSourcingEnabled, systemActivityWriteContext, type ActivityWriteContext } from '../domain/activityCommandService';
+import { activityReconciler } from '../domain/activityReconciler';
+import { activityProjectionStore } from './activityProjectionStore';
 import { Player, Event, Activity, ActivityKind, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole, Guardian, PlayingMode, Formation } from '../types';
 import { 
   GroupDocument,
@@ -872,6 +875,22 @@ class DataStore {
     squadId: string,
     filters: { kind?: ActivityKind; startsAfter?: Date; startsBefore?: Date } = {}
   ): Promise<Activity[]> {
+    if (isActivityEventSourcingEnabled()) {
+      const results = await Promise.all(
+        (await activityProjectionStore.list(squadId))
+          .filter(document => !['training', 'social'].includes(String(document.kind)))
+          .map(async document =>
+          activityReconciler.reconcile({ squadId, activityId: document._id })
+          )
+      );
+      return results
+        .filter((result): result is typeof result & { activity: Activity } => Boolean(result.activity) && !result.deleted)
+        .map(result => result.activity)
+        .filter(activity => !filters.kind || activity.kind === filters.kind)
+        .filter(activity => !filters.startsAfter || new Date(activity.startsAt) >= filters.startsAfter)
+        .filter(activity => !filters.startsBefore || new Date(activity.startsAt) <= filters.startsBefore)
+        .sort((left, right) => right.startsAt.localeCompare(left.startsAt));
+    }
     const eventsCollection = mongoConnection.getEventsCollection();
     const docs = await eventsCollection.find({ groupId: squadId }).toArray();
     return docs
@@ -884,14 +903,37 @@ class DataStore {
   }
 
   async getActivityById(squadId: string, activityId: string): Promise<Activity | undefined> {
+    if (isActivityEventSourcingEnabled()) {
+      const result = await activityReconciler.reconcile({ squadId, activityId });
+      return result.deleted || !result.activity || !['match', 'tournament'].includes(result.activity.kind)
+        ? undefined
+        : result.activity;
+    }
     const eventsCollection = mongoConnection.getEventsCollection();
     const doc = await eventsCollection.findOne({ _id: activityId, groupId: squadId });
     return doc && !['training', 'social'].includes(String(doc.kind)) ? eventDocumentToActivity(doc) : undefined;
   }
 
   async getActivityBySpondId(squadId: string, spondId: string): Promise<Activity | undefined> {
+    if (isActivityEventSourcingEnabled()) {
+      const projection = await activityProjectionStore.list(squadId);
+      const matching = projection.find(document => document.spondId === spondId);
+      if (!matching) return undefined;
+      const result = await activityReconciler.reconcile({ squadId, activityId: matching._id });
+      return result.deleted || !result.activity || !['match', 'tournament'].includes(result.activity.kind)
+        ? undefined
+        : result.activity;
+    }
     const doc = await mongoConnection.getEventsCollection().findOne({ groupId: squadId, spondId });
     return doc && !['training', 'social'].includes(String(doc.kind)) ? eventDocumentToActivity(doc) : undefined;
+  }
+
+  async getActivityRevision(squadId: string, activityId: string): Promise<number> {
+    if (isActivityEventSourcingEnabled()) {
+      return (await activityReconciler.reconcile({ squadId, activityId })).revision;
+    }
+    const document = await activityProjectionStore.get(squadId, activityId);
+    return document?.projectedRevision ?? 0;
   }
 
   async getGroupMemberIds(groupId: string): Promise<string[]> {
@@ -903,7 +945,12 @@ class DataStore {
     return members.map(member => member._id);
   }
 
-  async createActivity(activity: Activity): Promise<Activity> {
+  async createActivity(activity: Activity, context: ActivityWriteContext = systemActivityWriteContext): Promise<Activity> {
+    if (isActivityEventSourcingEnabled()) {
+      const created = await executeActivityCommand(null, { type: 'CreateActivity', activity }, context);
+      if (!created) throw new Error(`Activity creation produced no state: ${activity.id}`);
+      return created;
+    }
     const eventsCollection = mongoConnection.getEventsCollection();
     const document = activityToEventDocument(activity);
     const now = new Date();
@@ -916,7 +963,12 @@ class DataStore {
     return activity;
   }
 
-  async updateActivity(activity: Activity): Promise<Activity | null> {
+  async updateActivity(activity: Activity, context: ActivityWriteContext = systemActivityWriteContext): Promise<Activity | null> {
+    if (isActivityEventSourcingEnabled()) {
+      const current = await this.getActivityById(activity.squadId, activity.id);
+      if (!current) return null;
+      return executeActivityCommand(current, { type: 'UpdateActivity', activity }, context);
+    }
     const eventsCollection = mongoConnection.getEventsCollection();
     const document = activityToEventDocument(activity);
     const { groupId, ...updates } = document;
@@ -940,7 +992,17 @@ class DataStore {
     return result ? eventDocumentToActivity(result) : null;
   }
 
-  async deleteActivity(squadId: string, activityId: string): Promise<boolean> {
+  async deleteActivity(
+    squadId: string,
+    activityId: string,
+    context: ActivityWriteContext = systemActivityWriteContext
+  ): Promise<boolean> {
+    if (isActivityEventSourcingEnabled()) {
+      const current = await this.getActivityById(squadId, activityId);
+      if (!current) return false;
+      const deleted = await executeActivityCommand(current, { type: 'DeleteActivity' }, context);
+      return deleted === null;
+    }
     const eventsCollection = mongoConnection.getEventsCollection();
     const result = await eventsCollection.deleteOne({ _id: activityId, groupId: squadId });
     return result.deletedCount > 0;

@@ -22,6 +22,7 @@ import periodsRoutes from './periodsRoutes';
 import playingModeRoutes from './playingModeRoutes';
 import formationRoutes from './formationRoutes';
 import activityRoutes from './activityRoutes';
+import { getActivityAuditEvents } from '../controllers/activityEventController';
 
 const router = Router({ mergeParams: true });
 
@@ -36,6 +37,7 @@ router.post('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, r
 router.delete('/:id/birthday-calendar', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), revokeBirthdayCalendarSubscription);
 
 router.post('/:groupId/spond/import', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin', 'trainer']), importSpondSnapshot);
+router.get('/:groupId/activity-events', authenticateToken, authorizeGroupAccess, requireGroupRole(['admin']), getActivityAuditEvents);
 
 // Nested routes under groups - all protected by authentication and group membership
 // All nested routes will have groupId available in req.params

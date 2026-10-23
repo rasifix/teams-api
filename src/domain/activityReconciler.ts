@@ -1,0 +1,154 @@
+import { activityEventStore, type ActivityEventStore, type ActivityEventStream } from '../data/activityEventStore';
+import {
+  activityProjectionStore,
+  type ActivityProjectionStore,
+  type ActivityProjectionMetadata
+} from '../data/activityProjectionStore';
+import { replayActivityEvents } from './activityAggregate';
+import { compareActivities } from './activityComparison';
+import type { Activity } from '../types';
+import { eventDocumentToActivity } from '../types/mappers';
+import { recordActivityEventSourcingMetric } from './activityEventSourcingMetrics';
+
+export interface ActivityReconcileResult {
+  activity?: Activity;
+  deleted: boolean;
+  hadEvents: boolean;
+  repaired: boolean;
+  revision: number;
+  differences: ReturnType<typeof compareActivities>['differences'];
+}
+
+export interface ActivityReconcileReport {
+  scanned: number;
+  repaired: number;
+  deleted: number;
+  withoutEvents: number;
+  failed: Array<{ squadId: string; activityId: string; error: string }>;
+}
+
+export interface ActivityReconcilerDependencies {
+  eventStore?: ActivityEventStore;
+  projectionStore?: ActivityProjectionStore;
+}
+
+/**
+ * Ensures one legacy Activity projection is consistent with its event stream.
+ * A missing or stale projection is rebuilt with the conditional projection
+ * writer, so an older repair cannot overwrite a newer projection.
+ */
+export class ActivityReconciler {
+  private readonly eventStore: ActivityEventStore;
+  private readonly projectionStore: ActivityProjectionStore;
+
+  constructor(dependencies: ActivityReconcilerDependencies = {}) {
+    this.eventStore = dependencies.eventStore ?? activityEventStore;
+    this.projectionStore = dependencies.projectionStore ?? activityProjectionStore;
+  }
+
+  async reconcile(stream: ActivityEventStream): Promise<ActivityReconcileResult> {
+    const projection = await this.projectionStore.get(stream.squadId, stream.activityId);
+    const commits = await this.eventStore.getStream(stream);
+    if (commits.length === 0) {
+      return {
+        activity: projection && !projection.deletedAt ? eventDocumentToActivity(projection) : undefined,
+        deleted: Boolean(projection?.deletedAt),
+        hadEvents: false,
+        repaired: false,
+        revision: projection?.projectedRevision ?? 0,
+        differences: []
+      };
+    }
+
+    let replayed;
+    try {
+      replayed = replayActivityEvents(commits);
+    } catch (error) {
+      recordActivityEventSourcingMetric('replayFailures');
+      throw error;
+    }
+    const latestCommit = commits[commits.length - 1];
+    const metadata: ActivityProjectionMetadata = {
+      projectedRevision: replayed.revision,
+      projectedCommitId: latestCommit._id,
+      projectionSchemaVersion: 1,
+      deletedAt: replayed.deleted ? new Date() : null
+    };
+
+    if (!replayed.activity) {
+      const marked = projection
+        ? await this.projectionStore.markProjected(stream.squadId, stream.activityId, metadata)
+        : { applied: false, document: null };
+      return {
+        deleted: true,
+        hadEvents: true,
+        repaired: marked.applied,
+        revision: replayed.revision,
+        differences: []
+      };
+    }
+
+    const comparison = projection
+      ? compareActivities(replayed.activity, eventDocumentToActivity(projection))
+      : null;
+    const requiresRepair = !projection
+      || Boolean(projection.deletedAt)
+      || projection.projectedRevision !== replayed.revision
+      || projection.projectedCommitId !== latestCommit._id
+      || !comparison?.equal;
+
+    if (!requiresRepair) {
+      return {
+        activity: eventDocumentToActivity(projection),
+        deleted: false,
+        hadEvents: true,
+        repaired: false,
+        revision: replayed.revision,
+        differences: []
+      };
+    }
+
+    const applied = await this.projectionStore.apply(replayed.activity, metadata);
+    if (applied.applied) recordActivityEventSourcingMetric('projectionRepairs');
+    return {
+      activity: eventDocumentToActivity(applied.document),
+      deleted: false,
+      hadEvents: true,
+      repaired: applied.applied,
+      revision: replayed.revision,
+      differences: comparison?.differences ?? []
+    };
+  }
+
+  async reconcileSquad(squadId: string): Promise<ActivityReconcileReport> {
+    const projections = await this.projectionStore.list(squadId);
+    const report: ActivityReconcileReport = {
+      scanned: 0,
+      repaired: 0,
+      deleted: 0,
+      withoutEvents: 0,
+      failed: []
+    };
+
+    for (const projection of projections) {
+      const activity = eventDocumentToActivity(projection);
+      report.scanned += 1;
+      try {
+        const result = await this.reconcile({ squadId, activityId: activity.id });
+        if (result.repaired) report.repaired += 1;
+        if (result.deleted) report.deleted += 1;
+        if (!result.hadEvents) report.withoutEvents += 1;
+      } catch (error) {
+        report.failed.push({
+          squadId,
+          activityId: activity.id,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    return report;
+  }
+}
+
+export const activityReconciler = new ActivityReconciler();

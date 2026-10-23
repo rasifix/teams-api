@@ -8,6 +8,7 @@ import sfvCategoryRoutes from './routes/sfvCategoryRoutes';
 import spondRoutes from './routes/spondRoutes';
 import birthdayCalendarRoutes from './routes/birthdayCalendarRoutes';
 import { AuthRequest } from './middleware/auth';
+import { getActivityEventSourcingMetrics } from './domain/activityEventSourcingMetrics';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -47,7 +48,11 @@ app.get('/health', async (_req, res) => {
     res.json({ 
       status: 'ok', 
       message: 'Teams API is running',
-      database: dbHealth
+      database: dbHealth,
+      activityEventSourcing: {
+        enabled: process.env.ACTIVITY_EVENT_SOURCING_ENABLED === 'true',
+        metrics: getActivityEventSourcingMetrics()
+      }
     });
   } catch (error) {
     res.status(503).json({ 
@@ -74,28 +79,69 @@ async function startServer() {
       console.log(`🚀 Server is running on http://localhost:${PORT}`);
       console.log(`📡 API endpoints available at http://localhost:${PORT}/api`);
       console.log(`🩺 Health check: http://localhost:${PORT}/health`);
+      console.log(`🧪 Activity event sourcing: ${process.env.ACTIVITY_EVENT_SOURCING_ENABLED === 'true' ? 'ENABLED' : 'disabled'}`);
       console.log('');
       console.log('Available endpoints:');
       console.log('  POST   /auth/register');
       console.log('  POST   /auth/login');
+      console.log('  POST   /auth/request-reset');
+      console.log('  POST   /auth/reset-password');
       console.log('  GET    /auth/me (protected)');
+      console.log('  GET    /api/sfv-categories');
       console.log('  GET    /api/squads');
       console.log('  POST   /api/squads');
+      console.log('  GET    /api/squads/:squadId');
+      console.log('  PUT    /api/squads/:squadId');
+      console.log('  DELETE /api/squads/:squadId');
+      console.log('  GET    /api/squads/:squadId/birthday-calendar');
+      console.log('  POST   /api/squads/:squadId/birthday-calendar');
+      console.log('  DELETE /api/squads/:squadId/birthday-calendar');
       console.log('  GET    /api/squads/:squadId/members?roles=player|trainer');
       console.log('  POST   /api/squads/:squadId/members');
+      console.log('  GET    /api/squads/:squadId/members/:id');
+      console.log('  PUT    /api/squads/:squadId/members/:id');
+      console.log('  DELETE /api/squads/:squadId/members/:id');
+      console.log('  POST   /api/squads/:squadId/members/:id/guardians');
+      console.log('  DELETE /api/squads/:squadId/members/:id/guardians/:guardianId');
+      console.log('  DELETE /api/squads/:squadId/members/:id/roles/:role');
       console.log('  GET    /api/squads/:squadId/members/:memberId/evaluations');
       console.log('  POST   /api/squads/:squadId/members/:memberId/evaluations');
       console.log('  PUT    /api/squads/:squadId/members/:memberId/evaluations/:evaluationId');
       console.log('  DELETE /api/squads/:squadId/members/:memberId/evaluations/:evaluationId');
+      console.log('  GET    /api/squads/:squadId/activities');
+      console.log('  POST   /api/squads/:squadId/activities');
+      console.log('  GET    /api/squads/:squadId/activities/:id');
+      console.log('  PUT    /api/squads/:squadId/activities/:id');
+      console.log('  DELETE /api/squads/:squadId/activities/:id');
+      console.log('  PUT    /api/squads/:squadId/activities/:id/status');
+      console.log('  PUT    /api/squads/:squadId/activities/:id/invitations/:playerId');
+      console.log('  PUT    /api/squads/:squadId/activities/:id/teams');
+      console.log('  PUT    /api/squads/:squadId/activities/:id/selection');
+      console.log('  PUT    /api/squads/:squadId/activities/:id/selection/sent');
+      console.log('  PUT    /api/squads/:squadId/activities/:id/attendance');
+      console.log('  GET    /api/squads/:squadId/activity-events (admin)');
       console.log('  GET    /api/squads/:squadId/shirtsets');
       console.log('  POST   /api/squads/:squadId/shirtsets');
+      console.log('  GET    /api/squads/:squadId/shirtsets/:id');
+      console.log('  PUT    /api/squads/:squadId/shirtsets/:id');
+      console.log('  DELETE /api/squads/:squadId/shirtsets/:id');
       console.log('  GET    /api/squads/:squadId/periods');
       console.log('  POST   /api/squads/:squadId/periods');
       console.log('  PUT    /api/squads/:squadId/periods/:periodId');
       console.log('  DELETE /api/squads/:squadId/periods/:periodId');
+      console.log('  GET    /api/squads/:squadId/playing-modes');
+      console.log('  POST   /api/squads/:squadId/playing-modes');
+      console.log('  PUT    /api/squads/:squadId/playing-modes/:playingModeId');
+      console.log('  DELETE /api/squads/:squadId/playing-modes/:playingModeId');
+      console.log('  POST   /api/squads/:squadId/playing-modes/:playingModeId/set-default');
+      console.log('  GET    /api/squads/:squadId/formations');
+      console.log('  POST   /api/squads/:squadId/formations');
+      console.log('  PUT    /api/squads/:squadId/formations/:formationId');
+      console.log('  DELETE /api/squads/:squadId/formations/:formationId');
       console.log('  POST   /api/squads/:squadId/spond/import');
       console.log('  POST   /api/integrations/spond/groups');
       console.log('  POST   /api/integrations/spond/snapshot');
+      console.log('  GET    /api/birthday-calendars/:token.ics');
     });
     
   } catch (error) {

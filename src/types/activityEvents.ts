@@ -1,3 +1,13 @@
+import type {
+  Activity,
+  ActivityAttendance,
+  ActivityInvitation,
+  InvitationDeclineReason,
+  InvitationResponse,
+  Team,
+  TeamLineupPeriod
+} from './index';
+
 /**
  * Event-sourcing types for the Activity aggregate.
  *
@@ -43,6 +53,7 @@ export interface ActivityEventActor {
 }
 
 export interface ActivityEventCommand {
+  id?: string;
   type: string;
   idempotencyKey: string | null;
   requestHash: string;
@@ -61,6 +72,45 @@ export interface DomainEvent<TType extends ActivityEventType = ActivityEventType
   schemaVersion: number;
   data: TData;
 }
+
+export interface ActivityEventPayloads {
+  ActivityCreated: Activity;
+  ActivityImported: Activity;
+  ActivityDetailsChanged: Partial<Pick<
+    Activity,
+    'spondId' | 'kind' | 'status' | 'name' | 'startsAt' | 'endsAt' | 'location' |
+    'matchFormatId' | 'opponentName' | 'maxPlayersPerTeam' | 'minPlayersPerTeam'
+  >>;
+  ActivityDeleted: { deletedAt?: string };
+  InvitationAdded: ActivityInvitation;
+  InvitationRemoved: { invitationId: string };
+  InvitationResponseChanged: {
+    invitationId: string;
+    playerId: string;
+    response: InvitationResponse;
+    declineReason?: InvitationDeclineReason;
+    respondedBy?: string;
+  };
+  TeamAdded: Team;
+  TeamChanged: Team;
+  TeamRemoved: { teamId: string };
+  PlayerSelected: { teamId: string; playerId: string };
+  PlayerUnselected: { teamId: string; playerId: string };
+  LineupChanged: { teamId: string; lineup?: TeamLineupPeriod[] };
+  SelectionPublished: { selectionSentAt: string };
+  AttendanceRecorded: ActivityAttendance;
+  AttendanceRemoved: { personId: string };
+  TaskCreated: unknown;
+  TaskChanged: unknown;
+  TaskDeleted: unknown;
+  TaskSignupAdded: unknown;
+  TaskSignupRemoved: unknown;
+  TrainingPlanChanged: unknown;
+}
+
+export type ActivityDomainEvent = {
+  [TType in ActivityEventType]: DomainEvent<TType, ActivityEventPayloads[TType]>
+}[ActivityEventType];
 
 export interface ActivityEvent<TEvents extends DomainEvent[] = DomainEvent[]> {
   _id: string;

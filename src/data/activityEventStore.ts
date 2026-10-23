@@ -3,6 +3,7 @@ import { mongoConnection } from '../database/connection';
 import type {
   ActivityEvent,
   ActivityEventToAppend,
+  ActivityEventType,
   DomainEvent
 } from '../types/activityEvents';
 import type { ActivityEventDocument } from '../types/mongodb';
@@ -10,6 +11,18 @@ import type { ActivityEventDocument } from '../types/mongodb';
 export interface ActivityEventStream {
   squadId: string;
   activityId: string;
+}
+
+export interface ActivityAuditQuery {
+  activityId?: string;
+  eventType?: ActivityEventType;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface ActivityAuditPage {
+  items: ActivityEvent[];
+  nextCursor?: string;
 }
 
 /**
@@ -61,6 +74,60 @@ export class ActivityEventStore {
     const latest = await this.getCollection().find(filter).sort({ revision: -1 }).limit(1).next();
     return latest?.revision ?? 0;
   }
+
+  async getByIdempotencyKey(squadId: string, idempotencyKey: string): Promise<ActivityEvent | null> {
+    const document = await this.getCollection().findOne({
+      squadId,
+      'command.idempotencyKey': idempotencyKey
+    });
+    return document ? activityEventDocumentToDomain(document) : null;
+  }
+
+  async getSquadAuditEvents(squadId: string, query: ActivityAuditQuery = {}): Promise<ActivityAuditPage> {
+    const limit = Math.min(Math.max(query.limit ?? 50, 1), 100);
+    const filters: Filter<ActivityEventDocument>[] = [{ squadId }];
+    if (query.activityId) filters.push({ aggregateId: query.activityId });
+    if (query.eventType) filters.push({ 'events.type': query.eventType });
+    if (query.cursor) filters.push(cursorFilter(query.cursor));
+
+    const documents = await this.getCollection()
+      .find({ $and: filters })
+      .sort({ recordedAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .toArray();
+    const pageDocuments = documents.slice(0, limit);
+    const items = pageDocuments.map(activityEventDocumentToDomain);
+    return {
+      items,
+      ...(documents.length > limit && items.length > 0
+        ? { nextCursor: encodeCursor(items[items.length - 1]) }
+        : {})
+    };
+  }
+}
+
+function cursorFilter(cursor: string): Filter<ActivityEventDocument> {
+  let parsed: { recordedAt: string; id: string };
+  try {
+    parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { recordedAt: string; id: string };
+  } catch {
+    throw new Error('Invalid audit-events cursor');
+  }
+  if (!parsed || typeof parsed.recordedAt !== 'string' || typeof parsed.id !== 'string') {
+    throw new Error('Invalid audit-events cursor');
+  }
+  const recordedAt = new Date(parsed.recordedAt);
+  if (Number.isNaN(recordedAt.getTime())) throw new Error('Invalid audit-events cursor');
+  return {
+    $or: [
+      { recordedAt: { $lt: recordedAt } },
+      { recordedAt, _id: { $lt: parsed.id } }
+    ]
+  };
+}
+
+function encodeCursor(event: ActivityEvent): string {
+  return Buffer.from(JSON.stringify({ recordedAt: event.recordedAt, id: event._id })).toString('base64url');
 }
 
 function activityEventDocumentToDomain(document: ActivityEventDocument): ActivityEvent {

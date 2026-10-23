@@ -17,6 +17,11 @@ export interface ActivityProjectionWriteResult {
   document: EventDocument;
 }
 
+export interface ActivityProjectionMetadataWriteResult {
+  applied: boolean;
+  document: EventDocument | null;
+}
+
 /**
  * Conditional writer for the existing Activity projection.
  *
@@ -29,6 +34,14 @@ export class ActivityProjectionStore {
 
   private getCollection(): Collection<EventDocument> {
     return this.collection ?? mongoConnection.getEventsCollection();
+  }
+
+  async get(squadId: string, activityId: string): Promise<EventDocument | null> {
+    return this.getCollection().findOne({ _id: activityId, groupId: squadId });
+  }
+
+  async list(squadId: string): Promise<EventDocument[]> {
+    return this.getCollection().find({ groupId: squadId }).toArray();
   }
 
   async apply(
@@ -76,6 +89,44 @@ export class ActivityProjectionStore {
 
   toActivity(result: ActivityProjectionWriteResult): Activity {
     return eventDocumentToActivity(result.document);
+  }
+
+  /**
+   * Records projection bookkeeping without rewriting the legacy projection.
+   * This is used by the baseline migration to keep the existing document
+   * byte-for-byte intact apart from event-sourcing metadata.
+   */
+  async markProjected(
+    squadId: string,
+    activityId: string,
+    metadata: ActivityProjectionMetadata
+  ): Promise<ActivityProjectionMetadataWriteResult> {
+    const now = new Date();
+    const document = await this.getCollection().findOneAndUpdate(
+      {
+        _id: activityId,
+        groupId: squadId,
+        $or: [
+          { projectedRevision: { $exists: false } },
+          { projectedRevision: { $lte: metadata.projectedRevision } }
+        ]
+      },
+      {
+        $set: {
+          projectedRevision: metadata.projectedRevision,
+          projectedCommitId: metadata.projectedCommitId,
+          projectionSchemaVersion: metadata.projectionSchemaVersion ?? 1,
+          projectionUpdatedAt: now,
+          deletedAt: metadata.deletedAt ?? null
+        }
+      },
+      { returnDocument: 'after' }
+    );
+
+    return {
+      applied: document !== null,
+      document
+    };
   }
 
   private async updateIfNewer(

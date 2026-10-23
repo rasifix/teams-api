@@ -291,6 +291,7 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -306,6 +307,58 @@ paths:
                 $ref: '#/components/schemas/Activity'
         '400':
           description: Activity invariants were not satisfied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/squads/{squadId}/activity-events:
+    get:
+      operationId: getSquadActivityAuditEvents
+      summary: List Activity audit events for a squad
+      tags:
+        - Activities
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: squadId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: activityId
+          in: query
+          schema:
+            type: string
+        - name: eventType
+          in: query
+          schema:
+            $ref: '#/components/schemas/ActivityEventType'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Immutable Activity event commits in descending record order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityAuditEventPage'
+        '400':
+          description: Invalid filter or cursor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Only Squad administrators may access the audit stream
           content:
             application/json:
               schema:
@@ -332,6 +385,9 @@ paths:
       responses:
         '200':
           description: Activity
+          headers:
+            ETag:
+              $ref: '#/components/headers/ActivityETag'
           content:
             application/json:
               schema:
@@ -360,6 +416,8 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
       requestBody:
         required: true
         content:
@@ -369,6 +427,9 @@ paths:
       responses:
         '200':
           description: Activity updated
+          headers:
+            ETag:
+              $ref: '#/components/headers/ActivityETag'
           content:
             application/json:
               schema:
@@ -381,6 +442,12 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           description: Activity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Activity revision or idempotency conflict
           content:
             application/json:
               schema:
@@ -403,11 +470,19 @@ paths:
           required: true
           schema:
             type: string
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
       responses:
         '204':
           description: Activity deleted
         '404':
           description: Activity not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Activity revision or idempotency conflict
           content:
             application/json:
               schema:
@@ -3251,6 +3326,29 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: JWT token obtained from /auth/login or /auth/register
+  parameters:
+    ActivityIfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: Expected Activity event revision, returned as the ETag from a previous read.
+      schema:
+        type: string
+        pattern: '^"activity-revision-[0-9]+"$'
+    ActivityIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Client-generated key for safely retrying the same Activity command.
+      schema:
+        type: string
+        minLength: 1
+  headers:
+    ActivityETag:
+      description: Current Activity event revision.
+      schema:
+        type: string
+        pattern: '^"activity-revision-[0-9]+"$'
   schemas:
     SpondCredentials:
       type: object
@@ -3491,6 +3589,64 @@ components:
           type: array
           items: { type: string }
       required: [importId, created, linked, updated, unchanged, skipped, warnings]
+    ActivityEventType:
+      type: string
+      enum:
+        - ActivityCreated
+        - ActivityImported
+        - ActivityDetailsChanged
+        - ActivityDeleted
+        - InvitationAdded
+        - InvitationRemoved
+        - InvitationResponseChanged
+        - TeamAdded
+        - TeamChanged
+        - TeamRemoved
+        - PlayerSelected
+        - PlayerUnselected
+        - LineupChanged
+        - SelectionPublished
+        - AttendanceRecorded
+        - AttendanceRemoved
+        - TaskCreated
+        - TaskChanged
+        - TaskDeleted
+        - TaskSignupAdded
+        - TaskSignupRemoved
+        - TrainingPlanChanged
+    ActivityAuditEvent:
+      type: object
+      properties:
+        _id: { type: string }
+        streamId: { type: string }
+        aggregateType: { type: string, enum: [activity] }
+        aggregateId: { type: string }
+        squadId: { type: string }
+        revision: { type: integer, minimum: 1 }
+        command:
+          type: object
+          additionalProperties: true
+        actor:
+          type: object
+          additionalProperties: true
+        recordedAt: { type: string, format: date-time }
+        correlationId: { type: string }
+        events:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+      required: [_id, streamId, aggregateType, aggregateId, squadId, revision, command, actor, recordedAt, correlationId, events]
+    ActivityAuditEventPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityAuditEvent'
+        nextCursor:
+          type: string
+      required: [items]
     Error:
       type: object
       properties:
