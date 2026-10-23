@@ -19,8 +19,13 @@ import {
 } from '../domain/activityCommandService';
 
 const writeContextFromRequest = (req: Request): ActivityWriteContext => {
-  const idempotencyHeader = req.header('Idempotency-Key');
-  const ifMatch = req.header('If-Match');
+  const readHeader = (name: string): string | undefined => {
+    if (typeof req.header === 'function') return req.header(name) ?? undefined;
+    if (typeof req.get === 'function') return req.get(name) ?? undefined;
+    return undefined;
+  };
+  const idempotencyHeader = readHeader('Idempotency-Key');
+  const ifMatch = readHeader('If-Match');
   let expectedRevision: number | undefined;
   if (ifMatch) {
     const match = /^"activity-revision-(\d+)"$/.exec(ifMatch.trim());

@@ -85,6 +85,21 @@ export class ActivityEventStore {
     return latest?.revision ?? 0;
   }
 
+  async listStreams(squadId: string): Promise<ActivityEventStream[]> {
+    const aggregateIds = await this.getCollection().distinct('aggregateId', {
+      squadId,
+      aggregateType: 'activity'
+    });
+    return aggregateIds
+      .filter((aggregateId): aggregateId is string => typeof aggregateId === 'string')
+      .map(activityId => ({ squadId, activityId }));
+  }
+
+  async listSquadIds(): Promise<string[]> {
+    const squadIds = await this.getCollection().distinct('squadId', { aggregateType: 'activity' });
+    return squadIds.filter((squadId): squadId is string => typeof squadId === 'string');
+  }
+
   async getByIdempotencyKey(squadId: string, idempotencyKey: string): Promise<ActivityEvent | null> {
     const document = await this.getCollection().findOne({
       squadId,

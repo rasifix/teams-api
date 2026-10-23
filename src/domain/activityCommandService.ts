@@ -61,7 +61,7 @@ export async function executeActivityCommand(
   const eventStore = dependencies.eventStore ?? activityEventStore;
   const projectionStore = dependencies.projectionStore ?? activityProjectionStore;
   const snapshotStore = dependencies.snapshotStore ?? activitySnapshotStore;
-  const requestHash = createHash('sha256').update(JSON.stringify(command)).digest('hex');
+  const requestHash = createHash('sha256').update(JSON.stringify(hashableCommand(command))).digest('hex');
   if (context.idempotencyKey && typeof eventStore.getByIdempotencyKey === 'function') {
     const previous = await eventStore.getByIdempotencyKey(activityIdentity(current, command), context.idempotencyKey);
     if (previous) {
@@ -188,6 +188,13 @@ async function maybeSaveSnapshot(
 function activityIdentity(current: Activity | null, command: ActivityCommand): string {
   const activity = 'activity' in command ? command.activity : current;
   return activity?.squadId ?? '';
+}
+
+/** Create IDs are server-assigned and are not part of create request identity. */
+function hashableCommand(command: ActivityCommand): unknown {
+  if (command.type !== 'CreateActivity') return command;
+  const { id: _generatedId, ...activity } = command.activity;
+  return { ...command, activity };
 }
 
 export const systemActivityWriteContext: ActivityWriteContext = {

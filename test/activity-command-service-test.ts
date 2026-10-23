@@ -21,14 +21,16 @@ const activity: Activity = {
 const commits: ActivityEvent[] = [];
 const projections: Activity[] = [];
 const eventStore = {
-  getLatestRevision: async () => commits.length,
+  getLatestRevision: async ({ activityId }: { activityId: string }) =>
+    commits.filter(commit => commit.aggregateId === activityId).length,
   getByIdempotencyKey: async (squadId: string, key: string) =>
     commits.find(commit => commit.squadId === squadId && commit.command.idempotencyKey === key) ?? null,
   append: async (commit: ActivityEvent) => {
     commits.push({ ...commit, recordedAt: commit.recordedAt });
     return commit;
   },
-  getStream: async () => commits
+  getStream: async ({ activityId }: { activityId: string }) =>
+    commits.filter(commit => commit.aggregateId === activityId)
 } as any;
 const projectionStore = {
   apply: async (next: Activity) => {
@@ -109,6 +111,23 @@ const main = async (): Promise<void> => {
     ),
     ActivityRevisionConflictError
   );
+
+  const createRetryActivity = { ...activity, id: 'activity-create-1', name: 'Create retry' };
+  const createRetryCount = commits.length;
+  await executeActivityCommand(
+    null,
+    { type: 'CreateActivity', activity: createRetryActivity },
+    { idempotencyKey: 'create-retry-1' },
+    { eventStore, projectionStore, snapshotStore }
+  );
+  const retriedCreate = await executeActivityCommand(
+    null,
+    { type: 'CreateActivity', activity: { ...createRetryActivity, id: 'activity-create-2' } },
+    { idempotencyKey: 'create-retry-1' },
+    { eventStore, projectionStore, snapshotStore }
+  );
+  assert.equal(retriedCreate?.id, 'activity-create-1', 'create retry must return the original Activity');
+  assert.equal(commits.length, createRetryCount + 1, 'create retry must not append a duplicate commit');
   console.log('Activity command service tests passed');
 };
 

@@ -8,7 +8,10 @@ import sfvCategoryRoutes from './routes/sfvCategoryRoutes';
 import spondRoutes from './routes/spondRoutes';
 import birthdayCalendarRoutes from './routes/birthdayCalendarRoutes';
 import { AuthRequest } from './middleware/auth';
-import { getActivityEventSourcingMetrics } from './domain/activityEventSourcingMetrics';
+import {
+  getActivityEventSourcingMetrics,
+  renderActivityEventSourcingMetrics
+} from './domain/activityEventSourcingMetrics';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -61,6 +64,13 @@ app.get('/health', async (_req, res) => {
       error: error instanceof Error ? error.message : 'Unknown database error'
     });
   }
+});
+
+// Local, process-memory metrics only. No external collector or persistence is used.
+app.get('/metrics', (_req, res) => {
+  res.type('text/plain; version=0.0.4').send(
+    renderActivityEventSourcingMetrics(process.env.ACTIVITY_EVENT_SOURCING_ENABLED === 'true')
+  );
 });
 
 // 404 handler

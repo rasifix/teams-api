@@ -56,13 +56,13 @@ export class ActivityReconciler {
     const commits = snapshot
       ? await this.eventStore.getStreamAfterRevision(stream, snapshot.revision)
       : await this.eventStore.getStream(stream);
-    if (commits.length === 0) {
+    if (commits.length === 0 && !snapshot) {
       return {
         activity: projection && !projection.deletedAt ? eventDocumentToActivity(projection) : undefined,
         deleted: Boolean(projection?.deletedAt),
         hadEvents: false,
         repaired: false,
-        revision: snapshot?.revision ?? projection?.projectedRevision ?? 0,
+        revision: projection?.projectedRevision ?? 0,
         differences: []
       };
     }
@@ -116,7 +116,7 @@ export class ActivityReconciler {
     const requiresRepair = !projection
       || Boolean(projection.deletedAt)
       || projection.projectedRevision !== replayed.revision
-      || projection.projectedCommitId !== latestCommit._id
+      || projection.projectedCommitId !== latestCommitId
       || !comparison?.equal;
 
     if (!requiresRepair) {
@@ -144,6 +144,11 @@ export class ActivityReconciler {
 
   async reconcileSquad(squadId: string): Promise<ActivityReconcileReport> {
     const projections = await this.projectionStore.list(squadId);
+    const eventStreams = await this.eventStore.listStreams(squadId);
+    const activityIds = new Set([
+      ...projections.map(projection => projection._id),
+      ...eventStreams.map(stream => stream.activityId)
+    ]);
     const report: ActivityReconcileReport = {
       scanned: 0,
       repaired: 0,
@@ -152,24 +157,32 @@ export class ActivityReconciler {
       failed: []
     };
 
-    for (const projection of projections) {
-      const activity = eventDocumentToActivity(projection);
+    for (const activityId of activityIds) {
       report.scanned += 1;
       try {
-        const result = await this.reconcile({ squadId, activityId: activity.id });
+        const result = await this.reconcile({ squadId, activityId });
         if (result.repaired) report.repaired += 1;
         if (result.deleted) report.deleted += 1;
         if (!result.hadEvents) report.withoutEvents += 1;
       } catch (error) {
+        recordActivityEventSourcingMetric('reconciliationFailures');
         report.failed.push({
           squadId,
-          activityId: activity.id,
+          activityId,
           error: error instanceof Error ? error.message : String(error)
         });
       }
     }
 
     return report;
+  }
+
+  async listSquadIds(): Promise<string[]> {
+    const [projectionSquads, eventSquads] = await Promise.all([
+      this.projectionStore.listSquadIds(),
+      this.eventStore.listSquadIds()
+    ]);
+    return [...new Set([...projectionSquads, ...eventSquads])].sort();
   }
 }
 

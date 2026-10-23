@@ -28,6 +28,8 @@ const event = (revision: number): ActivityEventDocument => ({
 
 const documents: ActivityEventDocument[] = [];
 const collection = {
+  distinct: async (_field: string, filter: { squadId: string }) =>
+    [...new Set(documents.filter(document => document.squadId === filter.squadId).map(document => document.aggregateId))],
   insertOne: async (document: ActivityEventDocument) => {
     documents.push(document);
     return {};
@@ -67,6 +69,7 @@ const main = async (): Promise<void> => {
   documents.push(event(2));
   const stream = await store.getStream({ squadId: 'squad-1', activityId: 'activity-1' });
   assert.deepEqual(stream.map(item => item.revision), [1, 2]);
+  assert.deepEqual(await store.listStreams('squad-1'), [{ squadId: 'squad-1', activityId: 'activity-1' }]);
   assert.equal(await store.getLatestRevision({ squadId: 'squad-1', activityId: 'activity-1' }), 2);
   console.log('Activity event store tests passed');
 };

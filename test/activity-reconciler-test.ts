@@ -71,6 +71,57 @@ const main = async (): Promise<void> => {
   assert.equal(healthy.repaired, false);
   assert.equal(healthy.differences.length, 0);
   assert.equal(applied, 1);
+
+  let snapshotProjection: EventDocument | null = { ...document, name: 'Stale snapshot projection', projectedRevision: 0 };
+  const snapshotReconciler = new ActivityReconciler({
+    eventStore: { getStreamAfterRevision: async () => [] } as any,
+    projectionStore: {
+      get: async () => snapshotProjection,
+      apply: async (next: Activity) => {
+        snapshotProjection = { ...snapshotProjection!, name: next.name, projectedRevision: 1, projectedCommitId: 'commit-1' };
+        return { applied: true, document: snapshotProjection };
+      },
+      markProjected: async () => ({ applied: true, document: snapshotProjection })
+    } as any,
+    snapshotStore: {
+      getLatest: async () => ({
+        streamId: commit.streamId,
+        aggregateId: activity.id,
+        squadId: activity.squadId,
+        revision: 1,
+        commitId: 'commit-1',
+        schemaVersion: 1,
+        deleted: false,
+        activity
+      }),
+      save: async () => true
+    } as any
+  });
+  const repairedFromSnapshot = await snapshotReconciler.reconcile({ squadId: activity.squadId, activityId: activity.id });
+  assert.equal(repairedFromSnapshot.repaired, true, 'a snapshot must repair a stale projection without a tail');
+  assert.equal(repairedFromSnapshot.activity?.name, activity.name);
+
+  let rebuiltProjection: EventDocument | null = null;
+  const eventOnlyReconciler = new ActivityReconciler({
+    eventStore: {
+      listStreams: async () => [{ squadId: activity.squadId, activityId: activity.id }],
+      getStream: async () => [commit],
+      listSquadIds: async () => [activity.squadId]
+    } as any,
+    projectionStore: {
+      list: async () => [],
+      get: async () => null,
+      apply: async (next: Activity) => {
+        rebuiltProjection = { ...document, name: next.name, projectedRevision: 1, projectedCommitId: 'commit-1' };
+        return { applied: true, document: rebuiltProjection };
+      }
+    } as any,
+    snapshotStore: { getLatest: async () => null, save: async () => true } as any
+  });
+  const eventOnlyReport = await eventOnlyReconciler.reconcileSquad(activity.squadId);
+  assert.equal(eventOnlyReport.scanned, 1, 'reconciliation must scan event-only streams');
+  assert.equal(eventOnlyReport.repaired, 1, 'reconciliation must rebuild a missing projection');
+  assert.equal(eventOnlyReport.failed.length, 0);
   console.log('Activity reconciler tests passed');
 };
 

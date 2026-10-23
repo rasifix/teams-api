@@ -1,6 +1,7 @@
 import { mongoConnection } from '../database/connection';
 import { executeActivityCommand, isActivityEventSourcingEnabled, systemActivityWriteContext, type ActivityWriteContext } from '../domain/activityCommandService';
 import { activityReconciler } from '../domain/activityReconciler';
+import { activityEventStore } from './activityEventStore';
 import { activityProjectionStore } from './activityProjectionStore';
 import { Player, Event, Activity, ActivityKind, Trainer, ShirtSet, Group, User, PasswordReset, PlayerEvaluation, Period, GroupRole, Guardian, PlayingMode, Formation } from '../types';
 import { 
@@ -876,12 +877,16 @@ class DataStore {
     filters: { kind?: ActivityKind; startsAfter?: Date; startsBefore?: Date } = {}
   ): Promise<Activity[]> {
     if (isActivityEventSourcingEnabled()) {
-      const results = await Promise.all(
-        (await activityProjectionStore.list(squadId))
+      const projectionDocuments = await activityProjectionStore.list(squadId);
+      const eventStreams = await activityEventStore.listStreams(squadId);
+      const activityIds = new Set([
+        ...projectionDocuments
           .filter(document => !['training', 'social'].includes(String(document.kind)))
-          .map(async document =>
-          activityReconciler.reconcile({ squadId, activityId: document._id })
-          )
+          .map(document => document._id),
+        ...eventStreams.map(stream => stream.activityId)
+      ]);
+      const results = await Promise.all(
+        [...activityIds].map(activityId => activityReconciler.reconcile({ squadId, activityId }))
       );
       return results
         .filter((result): result is typeof result & { activity: Activity } => Boolean(result.activity) && !result.deleted)
@@ -917,12 +922,17 @@ class DataStore {
   async getActivityBySpondId(squadId: string, spondId: string): Promise<Activity | undefined> {
     if (isActivityEventSourcingEnabled()) {
       const projection = await activityProjectionStore.list(squadId);
-      const matching = projection.find(document => document.spondId === spondId);
-      if (!matching) return undefined;
-      const result = await activityReconciler.reconcile({ squadId, activityId: matching._id });
-      return result.deleted || !result.activity || !['match', 'tournament'].includes(result.activity.kind)
-        ? undefined
-        : result.activity;
+      const projectionIds = projection.map(document => document._id);
+      const eventIds = (await activityEventStore.listStreams(squadId)).map(stream => stream.activityId);
+      const activityIds = [...new Set([...projectionIds, ...eventIds])];
+      for (const activityId of activityIds) {
+        const result = await activityReconciler.reconcile({ squadId, activityId });
+        if (!result.deleted && result.activity?.spondId === spondId
+          && ['match', 'tournament'].includes(result.activity.kind)) {
+          return result.activity;
+        }
+      }
+      return undefined;
     }
     const doc = await mongoConnection.getEventsCollection().findOne({ groupId: squadId, spondId });
     return doc && !['training', 'social'].includes(String(doc.kind)) ? eventDocumentToActivity(doc) : undefined;

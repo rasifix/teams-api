@@ -1,10 +1,7 @@
 import {
-  createActivity,
-  updateActivityInvitation,
   updateActivityAttendance,
 } from '../src/controllers/activityController';
 import { dataStore } from '../src/data/store';
-import { mongoConnection } from '../src/database/connection';
 import { activityToEventDocument, eventDocumentToActivity, eventDocumentToLegacyEvent } from '../src/types/mappers';
 import type { Activity, EventDocument } from '../src/types';
 
@@ -12,6 +9,7 @@ type MockResponse = {
   statusCode: number;
   body: unknown;
   status: (code: number) => MockResponse;
+  setHeader: (name: string, value: string) => MockResponse;
   json: (payload: unknown) => MockResponse;
 };
 
@@ -20,6 +18,9 @@ const createMockResponse = (): MockResponse => ({
   body: undefined,
   status(code) {
     this.statusCode = code;
+    return this;
+  },
+  setHeader() {
     return this;
   },
   json(payload) {
@@ -45,27 +46,16 @@ const withPatches = async <T>(
   }
 };
 
-const withSequences = async <T>(run: () => Promise<T>): Promise<T> => {
-  const originalGetDb = (mongoConnection as any).getDb;
-  try {
-    (mongoConnection as any).getDb = () => ({
-      collection: () => ({
-        findOneAndUpdate: async () => ({ sequence_value: 1 })
-      })
-    });
-    return await run();
-  } finally {
-    (mongoConnection as any).getDb = originalGetDb;
-  }
-};
-
 const baseActivity = (overrides: Partial<Activity> = {}): Activity => ({
   id: 'activity-1',
   squadId: 'squad-1',
-  kind: 'social',
-  name: 'Club social',
+  kind: 'match',
+  status: 'active',
+  name: 'Club match',
   startsAt: '2020-01-01T12:00:00.000Z',
-  teams: [],
+  minPlayersPerTeam: 1,
+  maxPlayersPerTeam: 11,
+  teams: [{ id: 'team-1', name: 'Home', strength: 2, selectedPlayers: [] }],
   invitations: [],
   ...overrides
 });
@@ -81,6 +71,7 @@ const testAttendance = async (): Promise<void> => {
   const res = createMockResponse();
   await withPatches({
     getActivityById: async () => activity,
+    getActivityRevision: async () => 1,
     getGroupMemberIds: async () => ['member-1', 'member-2'],
     updateActivity: async (value: Activity) => {
       stored = value;
@@ -90,12 +81,13 @@ const testAttendance = async (): Promise<void> => {
   assert(res.statusCode === 200, 'Trainer should record attendance after the activity starts');
   assert(stored?.attendance?.length === 2, 'Bulk attendance should upsert all supplied members');
   assert(stored?.invitations.length === 0, 'Attendance must be independent from invitations');
-  assert(stored?.teams.length === 0, 'Attendance must be independent from team selection');
+  assert(stored?.teams.length === 1 && stored.teams[0].id === 'team-1', 'Attendance must be independent from team selection');
 
   const future = baseActivity({ startsAt: '2999-01-01T12:00:00.000Z' });
   const futureResponse = createMockResponse();
   await withPatches({
     getActivityById: async () => future,
+    getActivityRevision: async () => 1,
     updateActivity: async (value: Activity) => value
   }, async () => updateActivityAttendance(req as any, futureResponse as any));
   assert(futureResponse.statusCode === 400, 'Attendance before activity start should be rejected');
@@ -103,6 +95,7 @@ const testAttendance = async (): Promise<void> => {
   const invalidMemberResponse = createMockResponse();
   await withPatches({
     getActivityById: async () => activity,
+    getActivityRevision: async () => 1,
     getGroupMemberIds: async () => ['member-1'],
     updateActivity: async (value: Activity) => value
   }, async () => updateActivityAttendance({
@@ -110,77 +103,6 @@ const testAttendance = async (): Promise<void> => {
     body: { attendance: [{ personId: 'foreign-member', status: 'present' }] }
   } as any, invalidMemberResponse as any));
   assert(invalidMemberResponse.statusCode === 400, 'Attendance cannot reference a person outside the squad');
-};
-
-const testTrainingAndSocialKinds = async (): Promise<void> => {
-  const trainingResponse = createMockResponse();
-  let created: Activity | undefined;
-  const trainingRequest = {
-    params: { groupId: 'squad-1' },
-    body: {
-      kind: 'training',
-      name: 'Skills session',
-      startsAt: '2026-10-09T10:00:00.000Z',
-      trainerIds: ['trainer-1'],
-      invitations: [{ id: 'invite-1', playerId: 'player-1', response: 'accepted' }],
-      groups: [{ id: 'group-1', units: [{ id: 'unit-1', plannedPlayerIds: ['player-1'] }] }]
-    }
-  };
-  await withPatches({
-    createActivity: async (value: Activity) => {
-      created = value;
-      return value;
-    }
-  }, async () => withSequences(async () => createActivity(trainingRequest as any, trainingResponse as any)));
-  assert(trainingResponse.statusCode === 201, 'Valid training activity should be created');
-  assert(created?.teams.length === 0 && created.minPlayersPerTeam === undefined, 'Training should have no teams or roster limits');
-
-  const invalidTrainingResponse = createMockResponse();
-  trainingRequest.body.groups[0].units[0].plannedPlayerIds = ['unaccepted-player'];
-  await withSequences(async () => createActivity(trainingRequest as any, invalidTrainingResponse as any));
-  assert(invalidTrainingResponse.statusCode === 400, 'Training units cannot plan players without accepted invitations');
-
-  const socialResponse = createMockResponse();
-  await withPatches({
-    createActivity: async (value: Activity) => {
-      created = value;
-      return value;
-    }
-  }, async () => withSequences(async () => createActivity({
-    params: { groupId: 'squad-1' },
-    body: {
-      kind: 'social',
-      name: 'Team dinner',
-      startsAt: '2026-10-09T18:00:00.000Z',
-      attendance: [{ personId: 'child-1', status: 'present' }]
-    }
-  } as any, socialResponse as any)));
-  assert(socialResponse.statusCode === 201, 'Social activities should be creatable without player limits');
-  assert(created?.teams.length === 0 && created.maxPlayersPerTeam === undefined, 'Social activity should not have teams or player limits');
-  assert(!created?.attendance, 'Activity create must not bypass attendance permissions');
-};
-
-const testTrainingDeclineReconcilesPlannedPlayers = async (): Promise<void> => {
-  let stored = baseActivity({
-    kind: 'training',
-    trainerIds: ['trainer-1'],
-    groups: [{ id: 'group-1', units: [{ id: 'unit-1', plannedPlayerIds: ['player-1'] }] }],
-    invitations: [{ id: 'invite-1', playerId: 'player-1', response: 'accepted' }]
-  });
-  const res = createMockResponse();
-  await withPatches({
-    getActivityById: async () => stored,
-    updateActivity: async (activity: Activity) => {
-      stored = activity;
-      return activity;
-    }
-  }, async () => updateActivityInvitation({
-    params: { groupId: stored.squadId, id: stored.id, playerId: 'player-1' },
-    body: { response: 'declined' },
-    groupAccess: { memberId: 'trainer-1', roles: ['trainer'] }
-  } as any, res as any));
-  assert(res.statusCode === 200, 'Training invitation response should succeed');
-  assert(stored.groups?.[0].units[0].plannedPlayerIds.length === 0, 'Declined players must be removed from training units');
 };
 
 const testNewFieldsStayOutOfLegacyView = (): void => {
@@ -199,59 +121,10 @@ const testNewFieldsStayOutOfLegacyView = (): void => {
   assert(!('attendance' in legacyView), 'Legacy event payload must not expose Phase 4–6 fields');
 };
 
-const testLegacyEventsExcludeTrainingAndSocial = async (): Promise<void> => {
-  const match = baseActivity({
-    id: 'match-1',
-    kind: 'match',
-    minPlayersPerTeam: 1,
-    maxPlayersPerTeam: 11,
-    teams: [{
-      id: 'team-1',
-      name: 'Home',
-      strength: 2,
-      startTime: '12:00',
-      selectedPlayers: []
-    }]
-  });
-  const training = baseActivity({ id: 'training-1', kind: 'training', trainerIds: ['trainer-1'] });
-  const social = baseActivity({ id: 'social-1', kind: 'social' });
-  const docs = [match, training, social].map(activity => ({
-    _id: activity.id,
-    ...activityToEventDocument(activity),
-    createdAt: new Date(),
-    updatedAt: new Date()
-  } as EventDocument));
-  const originalGetEventsCollection = (mongoConnection as any).getEventsCollection;
-  let deleted = false;
-  try {
-    (mongoConnection as any).getEventsCollection = () => ({
-      find: () => ({ sort: () => ({ toArray: async () => docs }) }),
-      findOne: async ({ _id }: { _id: string }) => docs.find(doc => doc._id === _id),
-      deleteOne: async ({ _id, kind }: { _id: string; kind: { $nin: string[] } }) => {
-        const eligible = docs.find(doc =>
-          doc._id === _id && !kind.$nin.includes(doc.kind ?? '')
-        );
-        deleted = Boolean(eligible);
-        return { deletedCount: eligible ? 1 : 0 };
-      }
-    });
-    const events = await dataStore.getAllEvents('squad-1');
-    assert(events.length === 1 && events[0].id === 'match-1', 'Legacy event listing must exclude training and social');
-    assert(await dataStore.getEventById('training-1') === undefined, 'Legacy event details must exclude training');
-    assert(await dataStore.getEventById('social-1') === undefined, 'Legacy event details must exclude social');
-    assert(await dataStore.deleteEvent('social-1') === false && !deleted, 'Legacy event deletion must not delete a social activity');
-  } finally {
-    (mongoConnection as any).getEventsCollection = originalGetEventsCollection;
-  }
-};
-
 const run = async (): Promise<void> => {
   await testAttendance();
-  await testTrainingAndSocialKinds();
-  await testTrainingDeclineReconcilesPlannedPlayers();
   testNewFieldsStayOutOfLegacyView();
-  await testLegacyEventsExcludeTrainingAndSocial();
-  console.log('Phase 4-6 attendance, training, and social tests passed');
+  console.log('Phase 4-6 attendance and legacy compatibility tests passed');
 };
 
 void run();

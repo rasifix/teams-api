@@ -44,6 +44,11 @@ export class ActivityProjectionStore {
     return this.getCollection().find({ groupId: squadId }).toArray();
   }
 
+  async listSquadIds(): Promise<string[]> {
+    const squadIds = await this.getCollection().distinct('groupId');
+    return squadIds.filter((squadId): squadId is string => typeof squadId === 'string');
+  }
+
   async apply(
     activity: Activity,
     metadata: ActivityProjectionMetadata
