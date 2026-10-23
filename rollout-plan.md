@@ -23,7 +23,7 @@ Proceed only when every gate is green:
 | Gate | Required result | Status |
 | --- | --- | --- |
 | Reviewed release | ES-15 code and tests are included in the release | ![Pending](https://img.shields.io/badge/pending-yellow) |
-| Runtime | Production uses Node 22 | ![Pending](https://img.shields.io/badge/pending-yellow) |
+| Runtime | Production uses Node 24 | ![Pending](https://img.shields.io/badge/pending-yellow) |
 | Backup | Backup completed and restored successfully into an isolated target | ![Required](https://img.shields.io/badge/required-orange) |
 | Write pause | Activity writes and Spond Activity imports can be paused | ![Required](https://img.shields.io/badge/required-orange) |
 | Migration | `mismatches` is empty and every scanned Activity is verified | ![Not started](https://img.shields.io/badge/not%20started-lightgrey) |
@@ -34,7 +34,7 @@ Proceed only when every gate is green:
 
 Use a release containing the reviewed ES-15 implementation. Confirm that:
 
-- CI passes under Node 22.
+- CI passes under Node 24.
 - MongoDB backups are current.
 - A restore drill has succeeded.
 - Activity writes can be paused without losing requests.
