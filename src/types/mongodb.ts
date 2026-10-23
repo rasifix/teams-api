@@ -1,6 +1,7 @@
 // Base MongoDB document interface
 import type { GroupCategory } from './index';
 import type { ActivityEvent } from './activityEvents';
+import type { Activity } from './index';
 
 export interface BaseDocument {
   _id: string;
@@ -189,6 +190,20 @@ export type ActivityEventDocument = Omit<ActivityEvent, 'recordedAt'> & {
   recordedAt: Date;
 };
 
+export interface ActivitySnapshotDocument {
+  _id: string;
+  streamId: string;
+  aggregateId: string;
+  squadId: string;
+  revision: number;
+  commitId: string;
+  schemaVersion: number;
+  deleted: boolean;
+  activity: Activity | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // Embedded shirt document (within shirt sets)
 export interface ShirtEmbedded {
   number: number;
@@ -254,6 +269,7 @@ export const COLLECTIONS = {
   GUARDIAN_CHILD_LINKS: 'guardian-child-links',
   EVENTS: 'events',
   ACTIVITY_EVENTS: 'activity-events',
+  ACTIVITY_SNAPSHOTS: 'activity-snapshots',
   SHIRT_SETS: 'shirt-sets',
   USERS: 'users',
   PASSWORD_RESETS: 'password-resets'

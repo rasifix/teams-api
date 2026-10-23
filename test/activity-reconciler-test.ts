@@ -59,7 +59,8 @@ const projectionStore = {
 const eventStore = { getStream: async () => [commit] } as any;
 
 const main = async (): Promise<void> => {
-  const reconciler = new ActivityReconciler({ eventStore, projectionStore });
+  const snapshotStore = { getLatest: async () => null, save: async () => true } as any;
+  const reconciler = new ActivityReconciler({ eventStore, projectionStore, snapshotStore });
   const repaired = await reconciler.reconcile({ squadId: activity.squadId, activityId: activity.id });
   assert.equal(repaired.repaired, true);
   assert.equal(repaired.activity?.name, activity.name);

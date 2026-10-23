@@ -70,6 +70,20 @@ const main = (): void => {
   assert.equal(result.activity?.selectionSentAt, '2026-01-01T12:00:00.000Z');
   assert.deepEqual(result.activity?.attendance, [{ personId: 'player-1', status: 'present' }]);
 
+  const checkpoint = replayActivityEvents([
+    commit(1, [event('ActivityImported', baseActivity)]),
+    commit(2, [event('ActivityDetailsChanged', { name: 'Updated name' })]),
+    commit(3, [event('InvitationResponseChanged', {
+      invitationId: 'invitation-1', playerId: 'player-1', response: 'accepted'
+    })])
+  ]);
+  const tail = replayActivityEvents([
+    commit(4, [event('PlayerSelected', { teamId: 'team-1', playerId: 'player-1' })]),
+    commit(5, [event('SelectionPublished', { selectionSentAt: '2026-01-01T12:00:00.000Z' })]),
+    commit(6, [event('AttendanceRecorded', { personId: 'player-1', status: 'present' })])
+  ], checkpoint);
+  assert.deepEqual(tail, result, 'snapshot checkpoint plus event tail must equal full replay');
+
   const deleted = replayActivityEvents([
     commit(1, [event('ActivityImported', baseActivity)]),
     commit(2, [event('ActivityDeleted', {})])

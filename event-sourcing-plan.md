@@ -7,7 +7,7 @@
 | Document status | Proposed |
 | Discovery and architecture decisions | Complete |
 | Naming and public API alignment | Complete |
-| Event-sourcing implementation | In progress (ES-14 review) |
+| Event-sourcing implementation | In progress (ES-15 review) |
 | Data migration | Not started |
 | Production rollout | Not started |
 | Last reviewed | 2026-10-22 |
@@ -48,14 +48,25 @@ Tasks are intentionally scoped to one focused change set. A task is complete onl
 | ES-12 | Add the Squad-scoped audit-events endpoint and authorization tests | M | ES-03, ES-07 | Complete | Admins can filter and paginate logical events within their Squad; other Squads and restricted data remain inaccessible. |
 | ES-13 | Add migration, replay, failure-recovery, and load-test coverage | M | ES-08, ES-10 | Complete | CI covers replay equality, crash-after-commit recovery, projection corruption, concurrent writes, rerunnable migration, and production-scale lists. |
 | ES-14 | Execute staged rollout, monitoring, backup verification, and contract cleanup | M | ES-11, ES-12, ES-13 | In review | Feature flag rollout succeeds, metrics and alerts are active, restore drill passes, and direct projection writes are disabled. |
+| ES-15 | Add Activity snapshots and bounded-tail replay | M | ES-05, ES-10 | In review | The latest snapshot plus the event tail produces the same aggregate as full replay; snapshots advance monotonically and remain disposable. |
 
 ### Recommended implementation order
 
-Implement tasks in dependency order: ES-02 → ES-03 → ES-04/ES-05 → ES-06 → ES-07 → ES-08/ES-09 → ES-10/ES-11/ES-12 → ES-13 → ES-14. ES-01 is complete and is the naming baseline for all remaining work.
+Implement tasks in dependency order: ES-02 → ES-03 → ES-04/ES-05 → ES-06 → ES-07 → ES-08/ES-09 → ES-10/ES-11/ES-12 → ES-13 → ES-15 → ES-14. ES-01 is complete and is the naming baseline for all remaining work.
 
 Do not begin the baseline migration or enable event-first writes until ES-05, ES-07, and their replay/equality tests are complete. Do not remove or repurpose the existing projection until ES-13 and the backup-restore acceptance criteria pass.
 
 The first iteration covers Activities only. MongoDB remains a standalone deployment for cost reasons. Immutable event documents are the source of truth; projections are disposable and must detect and repair stale state.
+
+### Activity snapshots
+
+The `activity-snapshots` collection is a disposable acceleration layer. Each
+Activity stream has at most one latest snapshot containing the aggregate state,
+the event revision, and the commit ID represented by that state. Replay loads
+that snapshot and only events with a higher revision. Event commits remain the
+source of truth; deleting all snapshots is safe because they can be rebuilt by
+reconciliation or subsequent writes. Snapshots advance monotonically and are
+currently created after a 100-event tail.
 
 ## Summary
 

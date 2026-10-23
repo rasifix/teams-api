@@ -8,6 +8,7 @@ import {
   UserDocument,
   PasswordResetDocument,
   ActivityEventDocument,
+  ActivitySnapshotDocument,
   COLLECTIONS
 } from '../types/mongodb';
 import { initializeSequences } from '../utils/sequence';
@@ -135,6 +136,10 @@ class DatabaseConnection {
     return this.getDb().collection<ActivityEventDocument>(COLLECTIONS.ACTIVITY_EVENTS);
   }
 
+  getActivitySnapshotsCollection(): Collection<ActivitySnapshotDocument> {
+    return this.getDb().collection<ActivitySnapshotDocument>(COLLECTIONS.ACTIVITY_SNAPSHOTS);
+  }
+
   getShirtSetsCollection(): Collection<ShirtSetDocument> {
     return this.getDb().collection<ShirtSetDocument>(COLLECTIONS.SHIRT_SETS);
   }
@@ -226,6 +231,30 @@ class DatabaseConnection {
               validationLevel: 'strict',
               validationAction: 'error'
             });
+          } else if (collectionName === COLLECTIONS.ACTIVITY_SNAPSHOTS) {
+            await db.createCollection(collectionName, {
+              validator: {
+                $jsonSchema: {
+                  bsonType: 'object',
+                  required: ['_id', 'streamId', 'aggregateId', 'squadId', 'revision', 'commitId', 'schemaVersion', 'deleted', 'activity', 'createdAt', 'updatedAt'],
+                  properties: {
+                    _id: { bsonType: 'string' },
+                    streamId: { bsonType: 'string' },
+                    aggregateId: { bsonType: 'string' },
+                    squadId: { bsonType: 'string' },
+                    revision: { bsonType: 'int', minimum: 1 },
+                    commitId: { bsonType: 'string' },
+                    schemaVersion: { bsonType: 'int', minimum: 1 },
+                    deleted: { bsonType: 'bool' },
+                    activity: { bsonType: ['object', 'null'] },
+                    createdAt: { bsonType: 'date' },
+                    updatedAt: { bsonType: 'date' }
+                  }
+                }
+              },
+              validationLevel: 'strict',
+              validationAction: 'error'
+            });
           } else {
             await db.createCollection(collectionName);
           }
@@ -304,6 +333,16 @@ class DatabaseConnection {
     await activityEventsCollection.createIndex(
       { streamId: 1, revision: 1 },
       { unique: true, name: 'activity_events_stream_revision_unique' }
+    );
+
+    const activitySnapshotsCollection = this.getActivitySnapshotsCollection();
+    await activitySnapshotsCollection.createIndex(
+      { streamId: 1 },
+      { unique: true, name: 'activity_snapshots_stream_unique' }
+    );
+    await activitySnapshotsCollection.createIndex(
+      { squadId: 1, aggregateId: 1, revision: -1 },
+      { name: 'activity_snapshots_lookup' }
     );
     await activityEventsCollection.createIndex(
       { squadId: 1, aggregateId: 1, revision: 1 },

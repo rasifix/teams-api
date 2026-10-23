@@ -16,6 +16,12 @@ export interface ActivityReplayResult {
   revision: number;
 }
 
+export interface ActivityReplayCheckpoint {
+  activity: Activity | null;
+  deleted: boolean;
+  revision: number;
+}
+
 export class ActivityReplayError extends Error {
   constructor(message: string) {
     super(message);
@@ -30,11 +36,14 @@ export class UnsupportedActivityEventError extends ActivityReplayError {
   }
 }
 
-export function replayActivityEvents(commits: ActivityEvent[]): ActivityReplayResult {
+export function replayActivityEvents(
+  commits: ActivityEvent[],
+  checkpoint?: ActivityReplayCheckpoint
+): ActivityReplayResult {
   const orderedCommits = [...commits].sort((left, right) => left.revision - right.revision);
-  let activity: Activity | null = null;
-  let deleted = false;
-  let expectedRevision = 1;
+  let activity: Activity | null = checkpoint?.activity ?? null;
+  let deleted = checkpoint?.deleted ?? false;
+  let expectedRevision = (checkpoint?.revision ?? 0) + 1;
 
   for (const commit of orderedCommits) {
     if (commit.revision !== expectedRevision) {
@@ -60,7 +69,9 @@ export function replayActivityEvents(commits: ActivityEvent[]): ActivityReplayRe
   return {
     activity,
     deleted,
-    revision: orderedCommits.length === 0 ? 0 : orderedCommits[orderedCommits.length - 1].revision
+    revision: orderedCommits.length === 0
+      ? checkpoint?.revision ?? 0
+      : orderedCommits[orderedCommits.length - 1].revision
   };
 }
 

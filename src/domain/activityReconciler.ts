@@ -9,6 +9,7 @@ import { compareActivities } from './activityComparison';
 import type { Activity } from '../types';
 import { eventDocumentToActivity } from '../types/mappers';
 import { recordActivityEventSourcingMetric } from './activityEventSourcingMetrics';
+import { activitySnapshotStore, type ActivitySnapshotStore, ACTIVITY_SNAPSHOT_INTERVAL } from '../data/activitySnapshotStore';
 
 export interface ActivityReconcileResult {
   activity?: Activity;
@@ -30,6 +31,7 @@ export interface ActivityReconcileReport {
 export interface ActivityReconcilerDependencies {
   eventStore?: ActivityEventStore;
   projectionStore?: ActivityProjectionStore;
+  snapshotStore?: ActivitySnapshotStore;
 }
 
 /**
@@ -40,37 +42,44 @@ export interface ActivityReconcilerDependencies {
 export class ActivityReconciler {
   private readonly eventStore: ActivityEventStore;
   private readonly projectionStore: ActivityProjectionStore;
+  private readonly snapshotStore: ActivitySnapshotStore;
 
   constructor(dependencies: ActivityReconcilerDependencies = {}) {
     this.eventStore = dependencies.eventStore ?? activityEventStore;
     this.projectionStore = dependencies.projectionStore ?? activityProjectionStore;
+    this.snapshotStore = dependencies.snapshotStore ?? activitySnapshotStore;
   }
 
   async reconcile(stream: ActivityEventStream): Promise<ActivityReconcileResult> {
     const projection = await this.projectionStore.get(stream.squadId, stream.activityId);
-    const commits = await this.eventStore.getStream(stream);
+    const snapshot = await this.snapshotStore.getLatest(stream);
+    const commits = snapshot
+      ? await this.eventStore.getStreamAfterRevision(stream, snapshot.revision)
+      : await this.eventStore.getStream(stream);
     if (commits.length === 0) {
       return {
         activity: projection && !projection.deletedAt ? eventDocumentToActivity(projection) : undefined,
         deleted: Boolean(projection?.deletedAt),
         hadEvents: false,
         repaired: false,
-        revision: projection?.projectedRevision ?? 0,
+        revision: snapshot?.revision ?? projection?.projectedRevision ?? 0,
         differences: []
       };
     }
 
     let replayed;
     try {
-      replayed = replayActivityEvents(commits);
+      replayed = replayActivityEvents(commits, snapshot ?? undefined);
     } catch (error) {
       recordActivityEventSourcingMetric('replayFailures');
       throw error;
     }
     const latestCommit = commits[commits.length - 1];
+    const latestCommitId = latestCommit?._id ?? snapshot?.commitId;
+    if (!latestCommitId) throw new Error(`Activity stream has no commit at revision ${replayed.revision}`);
     const metadata: ActivityProjectionMetadata = {
       projectedRevision: replayed.revision,
-      projectedCommitId: latestCommit._id,
+      projectedCommitId: latestCommitId,
       projectionSchemaVersion: 1,
       deletedAt: replayed.deleted ? new Date() : null
     };
@@ -86,6 +95,19 @@ export class ActivityReconciler {
         revision: replayed.revision,
         differences: []
       };
+    }
+
+    if (replayed.revision - (snapshot?.revision ?? 0) >= ACTIVITY_SNAPSHOT_INTERVAL) {
+      await this.snapshotStore.save({
+        streamId: `activity:squad-${stream.squadId}:activity-${stream.activityId}`,
+        aggregateId: stream.activityId,
+        squadId: stream.squadId,
+        revision: replayed.revision,
+        commitId: latestCommitId,
+        schemaVersion: 1,
+        deleted: replayed.deleted,
+        activity: replayed.activity
+      });
     }
 
     const comparison = projection

@@ -4,6 +4,7 @@ import { decideActivityCommand, type ActivityCommand } from './activityCommands'
 import { replayActivityEvents } from './activityAggregate';
 import { activityEventStore, type ActivityEventStore } from '../data/activityEventStore';
 import { activityProjectionStore, type ActivityProjectionStore } from '../data/activityProjectionStore';
+import { activitySnapshotStore, type ActivitySnapshotStore, ACTIVITY_SNAPSHOT_INTERVAL } from '../data/activitySnapshotStore';
 import type { Activity, GroupRole } from '../types';
 import type { ActivityEventActor } from '../types/activityEvents';
 import { recordActivityEventSourcingMetric } from './activityEventSourcingMetrics';
@@ -45,6 +46,7 @@ export class ActivityPreconditionError extends Error {
 export interface ActivityCommandServiceDependencies {
   eventStore?: ActivityEventStore;
   projectionStore?: ActivityProjectionStore;
+  snapshotStore?: ActivitySnapshotStore;
 }
 
 export const isActivityEventSourcingEnabled = (): boolean =>
@@ -58,6 +60,7 @@ export async function executeActivityCommand(
 ): Promise<Activity | null> {
   const eventStore = dependencies.eventStore ?? activityEventStore;
   const projectionStore = dependencies.projectionStore ?? activityProjectionStore;
+  const snapshotStore = dependencies.snapshotStore ?? activitySnapshotStore;
   const requestHash = createHash('sha256').update(JSON.stringify(command)).digest('hex');
   if (context.idempotencyKey && typeof eventStore.getByIdempotencyKey === 'function') {
     const previous = await eventStore.getByIdempotencyKey(activityIdentity(current, command), context.idempotencyKey);
@@ -144,6 +147,7 @@ export async function executeActivityCommand(
       projectedCommitId: commit._id,
       deletedAt: null
     });
+    await maybeSaveSnapshot(snapshotStore, activity, replayed, commit._id);
     return replayed.activity;
   }
 
@@ -153,10 +157,32 @@ export async function executeActivityCommand(
       projectedCommitId: commit._id,
       deletedAt: new Date()
     });
+    await maybeSaveSnapshot(snapshotStore, current, replayed, commit._id);
     return null;
   }
 
   throw new Error(`Activity stream replay produced no state for ${activity.id}`);
+}
+
+async function maybeSaveSnapshot(
+  snapshotStore: ActivitySnapshotStore,
+  activity: Activity,
+  replayed: { activity: Activity | null; deleted: boolean; revision: number },
+  commitId: string
+): Promise<void> {
+  const streamId = `activity:squad-${activity.squadId}:activity-${activity.id}`;
+  const existing = await snapshotStore.getLatest({ squadId: activity.squadId, activityId: activity.id });
+  if (replayed.revision - (existing?.revision ?? 0) < ACTIVITY_SNAPSHOT_INTERVAL) return;
+  await snapshotStore.save({
+    streamId,
+    aggregateId: activity.id,
+    squadId: activity.squadId,
+    revision: replayed.revision,
+    commitId,
+    schemaVersion: 1,
+    deleted: replayed.deleted,
+    activity: replayed.activity
+  });
 }
 
 function activityIdentity(current: Activity | null, command: ActivityCommand): string {

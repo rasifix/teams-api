@@ -36,13 +36,14 @@ const projectionStore = {
     return { applied: true, document: {} };
   }
 } as any;
+const snapshotStore = { getLatest: async () => null, save: async () => true } as any;
 
 const main = async (): Promise<void> => {
   const created = await executeActivityCommand(
     null,
     { type: 'CreateActivity', activity },
     { correlationId: 'correlation-1' },
-    { eventStore, projectionStore }
+    { eventStore, projectionStore, snapshotStore }
   );
   assert.equal(created?.name, 'Initial name');
   assert.equal(commits[0].revision, 1);
@@ -53,18 +54,30 @@ const main = async (): Promise<void> => {
     created,
     { type: 'UpdateActivity', activity: { ...activity, name: 'Updated name' } },
     { correlationId: 'correlation-2' },
-    { eventStore, projectionStore }
+    { eventStore, projectionStore, snapshotStore }
   );
   assert.equal(updated?.name, 'Updated name');
   assert.equal(commits[1].revision, 2);
   assert.equal(commits[1].events[0].type, 'ActivityDetailsChanged');
   assert.equal(projections.length, 2);
 
+  const commitCountBeforeNoOp = commits.length;
+  const projectionCountBeforeNoOp = projections.length;
+  const unchanged = await executeActivityCommand(
+    updated,
+    { type: 'UpdateActivity', activity: updated! },
+    { correlationId: 'correlation-no-op' },
+    { eventStore, projectionStore, snapshotStore }
+  );
+  assert.deepEqual(unchanged, updated);
+  assert.equal(commits.length, commitCountBeforeNoOp, 'an unchanged update must not append an event');
+  assert.equal(projections.length, projectionCountBeforeNoOp, 'an unchanged update must not reapply the projection');
+
   const replayed = await executeActivityCommand(
     created,
     { type: 'UpdateActivity', activity: { ...activity, name: 'Updated name' } },
     { idempotencyKey: 'retry-1' },
-    { eventStore, projectionStore }
+    { eventStore, projectionStore, snapshotStore }
   );
   assert.equal(replayed?.name, 'Updated name');
   const commitCount = commits.length;
@@ -72,7 +85,7 @@ const main = async (): Promise<void> => {
     updated,
     { type: 'UpdateActivity', activity: { ...activity, name: 'Updated name' } },
     { idempotencyKey: 'retry-1' },
-    { eventStore, projectionStore }
+    { eventStore, projectionStore, snapshotStore }
   );
   assert.equal(replayedRetry?.name, 'Updated name');
   assert.equal(commits.length, commitCount);
@@ -82,7 +95,7 @@ const main = async (): Promise<void> => {
       updated,
       { type: 'UpdateActivity', activity: { ...activity, name: 'Different retry' } },
       { idempotencyKey: 'retry-1' },
-      { eventStore, projectionStore }
+      { eventStore, projectionStore, snapshotStore }
     ),
     ActivityIdempotencyConflictError
   );
@@ -92,7 +105,7 @@ const main = async (): Promise<void> => {
       updated,
       { type: 'UpdateActivity', activity: { ...activity, name: 'Concurrent update' } },
       { expectedRevision: 0 },
-      { eventStore, projectionStore }
+      { eventStore, projectionStore, snapshotStore }
     ),
     ActivityRevisionConflictError
   );

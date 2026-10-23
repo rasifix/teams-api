@@ -28,12 +28,14 @@
       border-color: var(--primary);
     }
     #activity-es-visualization .es-stage {
-      display: grid;
-      grid-template-columns: repeat(5, minmax(110px, 1fr));
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--es-gap);
       align-items: stretch;
       margin-bottom: 14px;
     }
+    #activity-es-visualization .es-stage > .es-node { flex: 1 1 125px; }
+    #activity-es-visualization .es-stage > .es-arrow { flex: 0 0 24px; }
     #activity-es-visualization .es-node {
       position: relative;
       min-height: 92px;
@@ -70,8 +72,29 @@
     #activity-es-visualization .es-legend span::before { content: ''; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--viz-series-1, var(--primary)); margin-right: 6px; }
     #activity-es-visualization .es-legend span:nth-child(2)::before { background: var(--viz-series-2, var(--accent)); }
     #activity-es-visualization .es-legend span:nth-child(3)::before { background: var(--viz-series-3, var(--green)); }
+    #activity-es-visualization .es-sequences { margin-top: 18px; }
+    #activity-es-visualization .es-sequence-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+    #activity-es-visualization .es-sequence-controls button {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--card);
+      color: var(--card-foreground);
+      padding: 7px 10px;
+      cursor: pointer;
+    }
+    #activity-es-visualization .es-sequence-controls button[aria-pressed="true"] { background: var(--secondary); color: var(--secondary-foreground); }
+    #activity-es-visualization pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 12px;
+      border-left: 3px solid var(--viz-series-3, var(--green));
+      background: var(--muted);
+      color: var(--foreground);
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre;
+    }
     @media (max-width: 680px) {
-      #activity-es-visualization .es-stage { grid-template-columns: 1fr; }
+      #activity-es-visualization .es-stage { display: grid; grid-template-columns: 1fr; }
       #activity-es-visualization .es-arrow { transform: rotate(90deg); min-height: 14px; }
     }
   </style>
@@ -84,6 +107,7 @@
     <button type="button" data-scenario="read" aria-pressed="false">Read-time repair</button>
     <button type="button" data-scenario="migration" aria-pressed="false">Baseline migration</button>
     <button type="button" data-scenario="failure" aria-pressed="false">Projection failure</button>
+    <button type="button" data-scenario="snapshot" aria-pressed="false">Snapshot replay</button>
   </div>
 
   <div class="es-stage" aria-live="polite">
@@ -94,6 +118,8 @@
     <button class="es-node" type="button" data-node="event-store"><strong>Event store</strong><span>ActivityEventStore</span></button>
     <div class="es-arrow" aria-hidden="true">→</div>
     <button class="es-node" type="button" data-node="events"><strong>Events</strong><span>MongoDB activity-events</span></button>
+    <div class="es-arrow" aria-hidden="true">→</div>
+    <button class="es-node" type="button" data-node="snapshots"><strong>Snapshots</strong><span>ActivitySnapshotStore</span></button>
     <div class="es-arrow" aria-hidden="true">→</div>
     <button class="es-node" type="button" data-node="replay"><strong>Replay</strong><span>Activity aggregate</span></button>
     <div class="es-arrow" aria-hidden="true">→</div>
@@ -110,6 +136,17 @@
     <span>Existing compatibility projection</span>
     <span>Repair / verification</span>
   </div>
+
+  <section class="es-sequences" aria-labelledby="es-sequences-title">
+    <h3 id="es-sequences-title">UML sequence views</h3>
+    <div class="es-sequence-controls" role="group" aria-label="Sequence use cases">
+      <button type="button" data-sequence="command" aria-pressed="true">Command write</button>
+      <button type="button" data-sequence="read" aria-pressed="false">Read-time repair</button>
+      <button type="button" data-sequence="migration" aria-pressed="false">Baseline migration</button>
+      <button type="button" data-sequence="failure" aria-pressed="false">Failure recovery</button>
+    </div>
+    <pre data-sequence-output role="img" aria-label="UML sequence diagram"></pre>
+  </section>
 
   <script>
     (() => {
@@ -135,18 +172,26 @@
           title: 'Projection failure',
           body: 'If the projection write fails after the event commit, the immutable commit remains. A retry is idempotent, and the reconciler can rebuild the projection from the event stream.',
           nodes: ['event-store', 'events', 'replay', 'projection']
+        },
+        snapshot: {
+          title: 'Snapshot replay',
+          body: 'The latest ActivitySnapshotStore checkpoint supplies aggregate state and revision. The event store returns only the tail after that revision, keeping replay bounded while events remain authoritative.',
+          nodes: ['events', 'snapshots', 'replay', 'projection']
         }
       };
       const buttons = [...root.querySelectorAll('[data-scenario]')];
       const nodes = [...root.querySelectorAll('[data-node]')];
       const title = root.querySelector('[data-detail-title]');
       const body = root.querySelector('[data-detail-body]');
+      const sequenceOutput = root.querySelector('[data-sequence-output]');
+      const sequenceButtons = [...root.querySelectorAll('[data-sequence]')];
       let scenario = 'write';
       const nodeDetails = {
         controller: ['Controller', 'ActivityController and SpondImportController receive API requests and pass Activity intent into the data layer.'],
         commands: ['Commands', 'ActivityCommandService performs idempotency and revision checks; decideActivityCommand emits semantic domain events.'],
         'event-store': ['Event store', 'ActivityEventStore is append-only. It writes one commit per accepted command and reads ordered streams.'],
         events: ['Events', 'The activity-events collection is the immutable source of truth: stream, revision, actor, command, and domain events.'],
+        snapshots: ['Snapshots', 'ActivitySnapshotStore stores disposable aggregate checkpoints. Replay loads the latest revision and reads only the event tail after it.'],
         replay: ['Replay', 'replayActivityEvents rebuilds the Activity aggregate. Comparison and reconciliation detect missing or stale projections.'],
         projection: ['Projection', 'ActivityProjectionStore maintains the historical events collection so existing API reads and data remain compatible.']
       };
@@ -170,7 +215,19 @@
         title.textContent = detail[0] + ' · ' + scenarios[scenario].title;
         body.textContent = detail[1];
       }));
+      const sequences = {
+        command: `participant Controller\nparticipant CommandService\nparticipant EventStore\nparticipant Events\nparticipant SnapshotStore\nparticipant ProjectionStore\n\nController -> CommandService: execute command + If-Match\nCommandService -> EventStore: check revision / idempotency\nCommandService -> CommandService: decideActivityCommand()\nCommandService -> EventStore: append commit\nEventStore -> Events: insert immutable ActivityEvent\nCommandService -> Events: load stream or snapshot + tail\nCommandService -> SnapshotStore: save checkpoint when tail >= 100\nCommandService -> ProjectionStore: apply replayed Activity\nProjectionStore -> Controller: return Activity + ETag`,
+        read: `participant Controller\nparticipant Reconciler\nparticipant SnapshotStore\nparticipant EventStore\nparticipant Aggregate\nparticipant ProjectionStore\n\nController -> Reconciler: read Activity\nReconciler -> SnapshotStore: get latest checkpoint\nReconciler -> EventStore: get events after snapshot revision\nEventStore --> Reconciler: event tail\nReconciler -> Aggregate: replay(snapshot, tail)\nReconciler -> ProjectionStore: compare legacy projection\nalt projection stale or corrupt\n  Reconciler -> ProjectionStore: conditional repair\nend\nReconciler -> Controller: return Activity`,
+        migration: `participant Migration\nparticipant ProjectionStore\nparticipant EventStore\nparticipant Aggregate\nparticipant SnapshotStore\n\nMigration -> ProjectionStore: scan legacy events documents\nloop each Activity\n  Migration -> EventStore: append ActivityImported baseline\n  Migration -> Aggregate: replay baseline\n  Migration -> ProjectionStore: compare + mark metadata only\n  Migration -> SnapshotStore: optional checkpoint after threshold\nend\nMigration --> Migration: report imported / verified / mismatches`,
+        failure: `participant CommandService\nparticipant EventStore\nparticipant Events\nparticipant ProjectionStore\nparticipant Reconciler\n\nCommandService -> EventStore: append commit\nEventStore -> Events: commit succeeds\nCommandService -> ProjectionStore: apply projection\nProjectionStore --> CommandService: failure\nCommandService --> Controller: error after durable commit\nController -> CommandService: retry with same Idempotency-Key\nCommandService -> Events: find original commit\nEvents --> CommandService: return original result\nReconciler -> Events: replay authoritative stream\nReconciler -> ProjectionStore: rebuild projection`
+      };
+      const selectSequence = (next) => {
+        sequenceButtons.forEach(button => button.setAttribute('aria-pressed', String(button.dataset.sequence === next)));
+        sequenceOutput.textContent = sequences[next];
+      };
+      sequenceButtons.forEach(button => button.addEventListener('click', () => selectSequence(button.dataset.sequence)));
       selectScenario('write');
+      selectSequence('command');
     })();
   </script>
 </div>

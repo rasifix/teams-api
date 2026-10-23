@@ -66,6 +66,16 @@ export class ActivityEventStore {
     return documents.map(activityEventDocumentToDomain);
   }
 
+  async getStreamAfterRevision(stream: ActivityEventStream, revision: number): Promise<ActivityEvent[]> {
+    const filter: Filter<ActivityEventDocument> = {
+      squadId: stream.squadId,
+      aggregateId: stream.activityId,
+      revision: { $gt: revision }
+    };
+    const documents = await this.getCollection().find(filter).sort({ revision: 1 }).toArray();
+    return documents.map(activityEventDocumentToDomain);
+  }
+
   async getLatestRevision(stream: ActivityEventStream): Promise<number> {
     const filter: Filter<ActivityEventDocument> = {
       squadId: stream.squadId,

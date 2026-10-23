@@ -58,6 +58,7 @@ const projectionStore = {
   },
   markProjected: async () => ({ applied: true, document: projection })
 } as any;
+const snapshotStore = { getLatest: async () => null, save: async () => true } as any;
 
 const main = async (): Promise<void> => {
   await assert.rejects(
@@ -65,7 +66,7 @@ const main = async (): Promise<void> => {
       null,
       { type: 'CreateActivity', activity },
       { idempotencyKey: 'crash-retry-1' },
-      { eventStore, projectionStore }
+      { eventStore, projectionStore, snapshotStore }
     ),
     /simulated crash after commit/
   );
@@ -75,12 +76,12 @@ const main = async (): Promise<void> => {
     null,
     { type: 'CreateActivity', activity },
     { idempotencyKey: 'crash-retry-1' },
-    { eventStore, projectionStore }
+    { eventStore, projectionStore, snapshotStore }
   );
   assert.equal(retried?.id, activity.id);
   assert.equal(commits.length, 1, 'idempotent retry must not append a duplicate commit');
 
-  const reconciler = new ActivityReconciler({ eventStore, projectionStore });
+  const reconciler = new ActivityReconciler({ eventStore, projectionStore, snapshotStore });
   const repaired = await reconciler.reconcile({ squadId: activity.squadId, activityId: activity.id });
   assert.equal(repaired.repaired, true);
   assert.equal(projection?.name, activity.name);
@@ -90,7 +91,7 @@ const main = async (): Promise<void> => {
       activity,
       { type: 'UpdateActivity', activity: { ...activity, name: 'Concurrent update' } },
       { expectedRevision: 0 },
-      { eventStore, projectionStore }
+      { eventStore, projectionStore, snapshotStore }
     ),
     ActivityRevisionConflictError
   );
