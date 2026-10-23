@@ -11,6 +11,63 @@ import {
 import { GroupAuthRequest } from '../middleware/groupAuth';
 import { dataStore } from '../data/store';
 import { getNextSequence } from '../utils/sequence';
+import {
+  ActivityIdempotencyConflictError,
+  ActivityPreconditionError,
+  ActivityRevisionConflictError,
+  type ActivityWriteContext
+} from '../domain/activityCommandService';
+
+const writeContextFromRequest = (req: Request): ActivityWriteContext => {
+  const readHeader = (name: string): string | undefined => {
+    if (typeof req.header === 'function') return req.header(name) ?? undefined;
+    if (typeof req.get === 'function') return req.get(name) ?? undefined;
+    return undefined;
+  };
+  const idempotencyHeader = readHeader('Idempotency-Key');
+  const ifMatch = readHeader('If-Match');
+  let expectedRevision: number | undefined;
+  if (ifMatch) {
+    const match = /^"activity-revision-(\d+)"$/.exec(ifMatch.trim());
+    if (!match) throw new ActivityPreconditionError(ifMatch);
+    expectedRevision = Number(match[1]);
+  }
+  const groupAccess = (req as GroupAuthRequest).groupAccess;
+  return {
+    idempotencyKey: idempotencyHeader || null,
+    expectedRevision,
+    actor: {
+      type: 'user',
+      userId: (req as GroupAuthRequest).user?.id,
+      memberId: groupAccess?.memberId,
+      roles: groupAccess?.roles
+    }
+  };
+};
+
+const setActivityEtag = (res: Response, revision: number): void => {
+  res.setHeader('ETag', `"activity-revision-${revision}"`);
+};
+
+const handleActivityWriteError = (error: unknown, res: Response): boolean => {
+  if (error instanceof ActivityRevisionConflictError) {
+    res.status(409).json({
+      error: 'Activity was changed by another request',
+      expectedRevision: error.expectedRevision,
+      actualRevision: error.actualRevision
+    });
+    return true;
+  }
+  if (error instanceof ActivityIdempotencyConflictError) {
+    res.status(409).json({ error: error.message });
+    return true;
+  }
+  if (error instanceof ActivityPreconditionError) {
+    res.status(400).json({ error: error.message });
+    return true;
+  }
+  return false;
+};
 
 const isActivityKind = (value: unknown): value is ActivityKind =>
   value === 'match' || value === 'tournament';
@@ -188,6 +245,8 @@ const getActivityOr404 = async (req: Request, res: Response): Promise<Activity |
     res.status(404).json({ error: 'Activity not found' });
     return undefined;
   }
+  const revision = await dataStore.getActivityRevision(groupId, id);
+  setActivityEtag(res, revision);
   return activity;
 };
 
@@ -263,9 +322,11 @@ export const createActivity = async (req: Request, res: Response): Promise<void>
       res.status(400).json({ error: validation.error ?? 'Invalid activity' });
       return;
     }
-    const created = await dataStore.createActivity(validation.activity);
+    const created = await dataStore.createActivity(validation.activity, writeContextFromRequest(req));
+    setActivityEtag(res, await dataStore.getActivityRevision(created.squadId, created.id));
     res.status(201).json(created);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error creating activity:', error);
     res.status(500).json({ error: 'Failed to create activity' });
   }
@@ -281,13 +342,15 @@ export const updateActivity = async (req: Request, res: Response): Promise<void>
       res.status(400).json({ error: validation.error ?? 'Invalid activity' });
       return;
     }
-    const updated = await dataStore.updateActivity(validation.activity);
+    const updated = await dataStore.updateActivity(validation.activity, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
+    setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
     res.json(updated);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity:', error);
     res.status(500).json({ error: 'Failed to update activity' });
   }
@@ -295,13 +358,14 @@ export const updateActivity = async (req: Request, res: Response): Promise<void>
 
 export const deleteActivity = async (req: Request, res: Response): Promise<void> => {
   try {
-    const deleted = await dataStore.deleteActivity(req.params.groupId, req.params.id);
+    const deleted = await dataStore.deleteActivity(req.params.groupId, req.params.id, writeContextFromRequest(req));
     if (!deleted) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
     res.status(204).send();
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error deleting activity:', error);
     res.status(500).json({ error: 'Failed to delete activity' });
   }
@@ -320,13 +384,15 @@ export const updateActivityStatus = async (req: Request, res: Response): Promise
       res.status(400).json({ error: 'Spond-linked activities receive status from Spond synchronization' });
       return;
     }
-    const updated = await dataStore.updateActivity({ ...activity, status });
+    const updated = await dataStore.updateActivity({ ...activity, status }, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
+    setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
     res.json(updated);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity status:', error);
     res.status(500).json({ error: 'Failed to update activity status' });
   }
@@ -421,13 +487,14 @@ export const updateActivityInvitation = async (req: Request, res: Response): Pro
       ...activity,
       invitations: result.invitations,
       teams: teams.teams!
-    });
+    }, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
     res.json(updated);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity invitation:', error);
     res.status(500).json({ error: 'Failed to update activity invitation' });
   }
@@ -468,13 +535,14 @@ export const updateActivityInvitations = async (req: Request, res: Response): Pr
       ...activity,
       invitations,
       teams: teams.teams!
-    });
+    }, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
     res.json(updated);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity invitations:', error);
     res.status(500).json({ error: 'Failed to update activity invitations' });
   }
@@ -526,11 +594,15 @@ const updateAttendance = async (
     res.status(400).json({ error: `personId ${unknownPersonId.personId} is not a member of this squad` });
     return;
   }
-  const updated = await dataStore.updateActivity({ ...activity, attendance: result.attendance });
+  const updated = await dataStore.updateActivity(
+    { ...activity, attendance: result.attendance },
+    writeContextFromRequest(req)
+  );
   if (!updated) {
     res.status(404).json({ error: 'Activity not found' });
     return;
   }
+  setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
   res.json(updated.attendance ?? []);
 };
 
@@ -542,6 +614,7 @@ export const updateActivityAttendance = async (req: Request, res: Response): Pro
     }
     await updateAttendance(req, res, req.body.attendance);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity attendance:', error);
     res.status(500).json({ error: 'Failed to update activity attendance' });
   }
@@ -556,6 +629,7 @@ export const updateActivityAttendanceForPerson = async (req: Request, res: Respo
     }
     await updateAttendance(req, res, [{ personId, status: req.body.status }]);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity attendance:', error);
     res.status(500).json({ error: 'Failed to update activity attendance' });
   }
@@ -587,13 +661,18 @@ export const updateActivityTeams = async (req: Request, res: Response): Promise<
       res.status(400).json({ error: teams.error });
       return;
     }
-    const updated = await dataStore.updateActivity({ ...activity, teams: teams.teams });
+    const updated = await dataStore.updateActivity(
+      { ...activity, teams: teams.teams },
+      writeContextFromRequest(req)
+    );
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
+    setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
     res.json(updated.teams);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity teams:', error);
     res.status(500).json({ error: 'Failed to update activity teams' });
   }
@@ -609,13 +688,18 @@ export const updateActivitySelection = async (req: Request, res: Response): Prom
       res.status(400).json({ error: teams.error });
       return;
     }
-    const updated = await dataStore.updateActivity({ ...activity, teams: teams.teams });
+    const updated = await dataStore.updateActivity(
+      { ...activity, teams: teams.teams },
+      writeContextFromRequest(req)
+    );
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
+    setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
     res.json(updated);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error updating activity selection:', error);
     res.status(500).json({ error: 'Failed to update activity selection' });
   }
@@ -635,13 +719,15 @@ export const markActivitySelectionSent = async (req: Request, res: Response): Pr
       ...activity,
       teams: teams.teams,
       selectionSentAt: new Date().toISOString()
-    });
+    }, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
+    setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
     res.json(updated);
   } catch (error) {
+    if (handleActivityWriteError(error, res)) return;
     console.error('Error sending activity selection:', error);
     res.status(500).json({ error: 'Failed to send activity selection' });
   }

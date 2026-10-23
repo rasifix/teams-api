@@ -14,32 +14,32 @@ import { requireGroupRole } from '../middleware/groupAuth';
 
 const router = Router({ mergeParams: true });
 
-// GET /api/groups/:groupId/members?roles=player|trainer
+// GET /api/squads/:squadId/members?roles=player|trainer
 router.get('/', requireGroupRole(['admin', 'trainer', 'guardian']), getAllMembers);
 
-// GET /api/groups/:groupId/members/:id
+// GET /api/squads/:squadId/members/:id
 router.get('/:id', requireGroupRole(['admin', 'trainer', 'guardian']), getMemberById);
 
-// POST /api/groups/:groupId/members
+// POST /api/squads/:squadId/members
 router.post('/', requireGroupRole(['admin', 'trainer']), createMember);
 
-// PUT /api/groups/:groupId/members/:id
+// PUT /api/squads/:squadId/members/:id
 router.put('/:id', requireGroupRole(['admin', 'trainer']), updateMember);
 
-// POST /api/groups/:groupId/members/:id/guardians
+// POST /api/squads/:squadId/members/:id/guardians
 router.post('/:id/guardians', requireGroupRole(['admin', 'trainer']), addGuardianToPlayer);
 
-// DELETE /api/groups/:groupId/members/:id/guardians/:guardianId
+// DELETE /api/squads/:squadId/members/:id/guardians/:guardianId
 router.delete('/:id/guardians/:guardianId', requireGroupRole(['admin', 'trainer']), deleteGuardianFromPlayer);
 
-// DELETE /api/groups/:groupId/members/:id/roles/:role
+// DELETE /api/squads/:squadId/members/:id/roles/:role
 router.delete('/:id/roles/:role', requireGroupRole(['admin', 'trainer']), revokeRoleFromMember);
 
-// DELETE /api/groups/:groupId/members/:id
+// DELETE /api/squads/:squadId/members/:id
 router.delete('/:id', requireGroupRole(['admin', 'trainer']), deleteMember);
 
 // Nested evaluation routes for members
-// /api/groups/:groupId/members/:memberId/evaluations
+// /api/squads/:squadId/members/:memberId/evaluations
 router.use('/:memberId/evaluations', evaluationRoutes);
 
 export default router;

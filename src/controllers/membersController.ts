@@ -46,7 +46,7 @@ const sanitizePlayerForGuardian = (player: Player): Omit<Player, 'birthDate' | '
   return safePlayer;
 };
 
-// GET /api/groups/:groupId/members
+// GET /api/squads/:groupId/members
 export const getAllMembers = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -114,7 +114,7 @@ export const getMemberById = async (req: Request, res: Response): Promise<void> 
   }
 };
 
-// POST /api/groups/:groupId/members
+// POST /api/squads/:groupId/members
 export const createMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -284,7 +284,7 @@ export const updateMember = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// POST /api/groups/:groupId/members/:id/guardians
+// POST /api/squads/:groupId/members/:id/guardians
 export const addGuardianToPlayer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -341,7 +341,7 @@ export const addGuardianToPlayer = async (req: Request, res: Response): Promise<
   }
 };
 
-// DELETE /api/groups/:groupId/members/:id/guardians/:guardianId
+// DELETE /api/squads/:groupId/members/:id/guardians/:guardianId
 export const deleteGuardianFromPlayer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id, guardianId } = req.params;
@@ -378,7 +378,7 @@ export const deleteGuardianFromPlayer = async (req: Request, res: Response): Pro
   }
 };
 
-// DELETE /api/groups/:groupId/members/:id/roles/:role
+// DELETE /api/squads/:groupId/members/:id/roles/:role
 export const revokeRoleFromMember = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, id, role } = req.params;

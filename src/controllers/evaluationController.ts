@@ -4,7 +4,7 @@ import { dataStore } from '../data/store';
 import { PlayerEvaluation } from '../types';
 import { getNextSequence } from '../utils/sequence';
 
-// GET /api/groups/:groupId/members/:memberId/evaluations
+// GET /api/squads/:groupId/members/:memberId/evaluations
 export const getAllEvaluationsForMember = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { groupId, memberId } = req.params;
@@ -31,7 +31,7 @@ export const getAllEvaluationsForMember = async (req: AuthRequest, res: Response
   }
 };
 
-// POST /api/groups/:groupId/members/:memberId/evaluations
+// POST /api/squads/:groupId/members/:memberId/evaluations
 export const createEvaluation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { groupId, memberId } = req.params;
@@ -106,7 +106,7 @@ export const createEvaluation = async (req: AuthRequest, res: Response): Promise
   }
 };
 
-// PUT /api/groups/:groupId/members/:memberId/evaluations/:evaluationId
+// PUT /api/squads/:groupId/members/:memberId/evaluations/:evaluationId
 export const updateEvaluation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { groupId, memberId, evaluationId } = req.params;
@@ -188,7 +188,7 @@ export const updateEvaluation = async (req: AuthRequest, res: Response): Promise
   }
 };
 
-// DELETE /api/groups/:groupId/members/:memberId/evaluations/:evaluationId
+// DELETE /api/squads/:groupId/members/:memberId/evaluations/:evaluationId
 export const deleteEvaluation = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { groupId, memberId, evaluationId } = req.params;

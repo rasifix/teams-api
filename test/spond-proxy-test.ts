@@ -61,6 +61,7 @@ const testGroupSummaries = async (): Promise<void> => {
 const testSnapshotNormalization = async (): Promise<void> => {
   await withFetch([loginResponse(), groupsResponse(), jsonResponse([{
     id: 'event-1',
+    type: 'match',
     heading: 'Training',
     startTimestamp: '2026-10-10T10:00:00.000Z',
     location: { feature: 'Musterstrasse 12', address: '8000 Zürich' },
@@ -80,31 +81,31 @@ const testSnapshotNormalization = async (): Promise<void> => {
     );
     assert(snapshot.group.members[0].birthDate === '2014-01-02', 'birth date must be normalized');
     assert(snapshot.group.members.length === 1, 'trainers and administrators must be excluded from player snapshots');
-    assert(snapshot.events[0].responses[0].response === 'accepted', 'accepted response must be preserved');
-    assert(snapshot.events[0].responses[1].response === 'open', 'waiting-list response must map to open');
-    assert(snapshot.events[0].responses[2].response === 'open', 'unconfirmed response must map to open');
-    assert(snapshot.events[0].startsAt === '2026-10-10T10:00:00.000Z', 'Offset-bearing Spond timestamps must preserve their instant in UTC');
-    assert(snapshot.events[0].location === 'Musterstrasse 12, 8000 Zürich', 'location must retain street, house number, and locality');
+    assert(snapshot.activities[0].responses[0].response === 'accepted', 'accepted response must be preserved');
+    assert(snapshot.activities[0].responses[1].response === 'open', 'waiting-list response must map to open');
+    assert(snapshot.activities[0].responses[2].response === 'open', 'unconfirmed response must map to open');
+    assert(snapshot.activities[0].startsAt === '2026-10-10T10:00:00.000Z', 'Offset-bearing Spond timestamps must preserve their instant in UTC');
+    assert(snapshot.activities[0].location === 'Musterstrasse 12, 8000 Zürich', 'location must retain street, house number, and locality');
     assert(!JSON.stringify(snapshot).includes('secret-token'), 'snapshot must never expose the bearer token');
   });
 };
 
 const testTimestampTimezoneNormalization = async (): Promise<void> => {
   await withFetch([loginResponse(), groupsResponse(), jsonResponse([{
-    id: 'summer-local', heading: 'Summer local', startTimestamp: '2026-07-10T18:30:00',
+    id: 'summer-local', type: 'match', heading: 'Summer local', startTimestamp: '2026-07-10T18:30:00',
     timeZone: 'Europe/Zurich', recipients: { group: { id: 'group-1' } }, responses: {}
   }, {
-    id: 'winter-local', heading: 'Winter local', startTimestamp: '2026-12-10T18:30:00',
+    id: 'winter-local', type: 'match', heading: 'Winter local', startTimestamp: '2026-12-10T18:30:00',
     timeZone: 'Europe/Zurich', recipients: { group: { id: 'group-1' } }, responses: {}
   }, {
-    id: 'explicit-offset', heading: 'Explicit offset', startTimestamp: '2026-07-10T18:30:00+02:00',
+    id: 'explicit-offset', type: 'match', heading: 'Explicit offset', startTimestamp: '2026-07-10T18:30:00+02:00',
     recipients: { group: { id: 'group-1' } }, responses: {}
   }])], async () => {
     const snapshot = await readSpondSnapshot(
       'coach@example.com', 'password', 'group-1',
       '2026-01-01T00:00:00.000Z', '2027-01-01T00:00:00.000Z'
     );
-    const events = new Map(snapshot.events.map(event => [event.id, event]));
+    const events = new Map(snapshot.activities.map(event => [event.id, event]));
     assert(events.get('summer-local')?.startsAt === '2026-07-10T16:30:00.000Z', 'Zurich summer time must use UTC+02:00');
     assert(events.get('winter-local')?.startsAt === '2026-12-10T17:30:00.000Z', 'Zurich winter time must use UTC+01:00');
     assert(events.get('explicit-offset')?.startsAt === '2026-07-10T16:30:00.000Z', 'Explicit source offsets must be honored');
@@ -125,6 +126,7 @@ const testSanitizedErrors = async (): Promise<void> => {
 
   await withFetch([loginResponse(), groupsResponse(), jsonResponse([{
     id: 'event-1',
+    type: 'match',
     heading: 'Training',
     startTimestamp: '2026-10-10T10:00:00.000Z',
     recipients: { group: { id: 'group-1' } },
@@ -203,6 +205,7 @@ const testSubgroupSnapshotBySubgroupIdDirectly = async (): Promise<void> => {
     jsonResponse([
       {
         id: 'event-1',
+        type: 'match',
         heading: 'Training E1',
         startTimestamp: '2026-10-10T10:00:00.000Z',
         recipients: { group: { id: 'group-1', subGroups: ['subgroup-1'] } },
@@ -210,6 +213,7 @@ const testSubgroupSnapshotBySubgroupIdDirectly = async (): Promise<void> => {
       },
       {
         id: 'event-2',
+        type: 'match',
         name: 'Match E1',
         startTimestamp: '2026-10-12T10:00:00.000Z',
         recipients: { subGroups: [{ id: 'subgroup-1' }] },
@@ -217,6 +221,7 @@ const testSubgroupSnapshotBySubgroupIdDirectly = async (): Promise<void> => {
       },
       {
         id: 'event-3',
+        type: 'match',
         heading: 'Club Day',
         startTimestamp: '2026-10-14T10:00:00.000Z',
         recipients: {},
@@ -253,11 +258,11 @@ const testSubgroupSnapshotBySubgroupIdDirectly = async (): Promise<void> => {
     assert(Array.isArray(snapshot.group.members[0].guardians) && snapshot.group.members[0].guardians.length === 0, 'null guardians must normalize to empty array');
 
     // Verify events
-    assert(snapshot.events.length === 3, 'all events applicable to subgroup must be included');
-    for (const ev of snapshot.events) {
+    assert(snapshot.activities.length === 3, 'all activities applicable to subgroup must be included');
+    for (const ev of snapshot.activities) {
       assert(ev.groupId === 'subgroup-1', 'event groupId must match subgroup ID');
     }
-    assert(snapshot.events[1].name === 'Match E1', 'event name fallback must work when heading is absent');
+    assert(snapshot.activities[1].name === 'Match E1', 'activity name fallback must work when heading is absent');
   });
 };
 
@@ -268,6 +273,7 @@ const testSubgroupSnapshotWithExplicitSubgroupId = async (): Promise<void> => {
     jsonResponse([
       {
         id: 'event-sub2',
+        type: 'match',
         name: 'Training E2',
         startTimestamp: '2026-10-10T10:00:00.000Z',
         recipients: { group: { id: 'group-1' }, subGroups: ['subgroup-2'] },
@@ -294,7 +300,7 @@ const testSubgroupSnapshotWithExplicitSubgroupId = async (): Promise<void> => {
     const memberIds = snapshot.group.members.map(m => m.id);
     assert(memberIds.includes('member-2') && memberIds.includes('member-3'), 'correct members included');
     assert(!memberIds.includes('member-1'), 'member-1 excluded');
-    assert(snapshot.events.length === 1 && snapshot.events[0].groupId === 'subgroup-2', 'event groupId must match subgroup-2');
+    assert(snapshot.activities.length === 1 && snapshot.activities[0].groupId === 'subgroup-2', 'activity groupId must match subgroup-2');
   });
 };
 

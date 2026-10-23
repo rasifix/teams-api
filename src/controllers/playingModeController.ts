@@ -181,7 +181,7 @@ function validateUpdateBody(body: PlayingModeBody, current: PlayingMode): { ok: 
   return { ok: true, value: updates };
 }
 
-// GET /api/groups/:groupId/playing-modes
+// GET /api/squads/:groupId/playing-modes
 export const getPlayingModes = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -199,7 +199,7 @@ export const getPlayingModes = async (req: Request, res: Response): Promise<void
   }
 };
 
-// POST /api/groups/:groupId/playing-modes
+// POST /api/squads/:groupId/playing-modes
 export const createPlayingMode = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId } = req.params;
@@ -228,7 +228,7 @@ export const createPlayingMode = async (req: Request, res: Response): Promise<vo
   }
 };
 
-// PUT /api/groups/:groupId/playing-modes/:playingModeId
+// PUT /api/squads/:groupId/playing-modes/:playingModeId
 export const updatePlayingMode = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, playingModeId } = req.params;
@@ -264,7 +264,7 @@ export const updatePlayingMode = async (req: Request, res: Response): Promise<vo
   }
 };
 
-// DELETE /api/groups/:groupId/playing-modes/:playingModeId
+// DELETE /api/squads/:groupId/playing-modes/:playingModeId
 export const deletePlayingMode = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, playingModeId } = req.params;
@@ -287,7 +287,7 @@ export const deletePlayingMode = async (req: Request, res: Response): Promise<vo
   }
 };
 
-// POST /api/groups/:groupId/playing-modes/:playingModeId/set-default
+// POST /api/squads/:groupId/playing-modes/:playingModeId/set-default
 export const setDefaultPlayingMode = async (req: Request, res: Response): Promise<void> => {
   try {
     const { groupId, playingModeId } = req.params;

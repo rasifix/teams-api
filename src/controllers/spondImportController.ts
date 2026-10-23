@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
 import { Activity, ActivityKind, ActivityInvitation, Player, PlayerStatus, Team } from '../types';
 import { getNextSequence } from '../utils/sequence';
+import { GroupAuthRequest } from '../middleware/groupAuth';
+import type { ActivityWriteContext } from '../domain/activityCommandService';
 
 type RecordValue = Record<string, unknown>;
 type MemberDecision =
@@ -60,6 +62,30 @@ const sourceMember = (members: unknown[], id: string): RecordValue | undefined =
 const sourceEvent = (events: unknown[], id: string): RecordValue | undefined =>
   events.find(value => isRecord(value) && value.id === id) as RecordValue | undefined;
 
+const activityWriteContextFromRequest = (req: GroupAuthRequest): ActivityWriteContext => ({
+  actor: {
+    type: 'user',
+    userId: req.user?.id,
+    memberId: req.groupAccess?.memberId,
+    roles: req.groupAccess?.roles
+  }
+});
+
+const sameInvitations = (left: ActivityInvitation[], right: ActivityInvitation[]): boolean => {
+  if (left.length !== right.length) return false;
+  const signature = (invitation: ActivityInvitation): string => JSON.stringify({
+    id: invitation.id,
+    playerId: invitation.playerId,
+    response: invitation.response,
+    declineReason: invitation.declineReason,
+    respondedBy: invitation.respondedBy
+  });
+  const sortInvitations = (invitations: ActivityInvitation[]): string[] =>
+    invitations.map(signature).sort();
+  const rightSignatures = sortInvitations(right);
+  return sortInvitations(left).every((value, index) => value === rightSignatures[index]);
+};
+
 const buildTeams = async (decision: Extract<ActivityDecision, { action: 'create' }>, startsAt: string): Promise<Team[]> => {
   if (decision.kind !== 'match' && decision.kind !== 'tournament') return [];
   const values = decision.teams ?? [];
@@ -92,6 +118,7 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
   const sourceEvents = snapshot.activities as unknown[];
   const memberDecisions = body.members as MemberDecision[];
   const activityDecisions = body.activities as ActivityDecision[];
+  const activityWriteContext = activityWriteContextFromRequest(req as GroupAuthRequest);
   const result = { importId: body.importId as string, created: 0, linked: 0, updated: 0, unchanged: 0, skipped: 0, warnings: [] as string[] };
 
   try {
@@ -209,7 +236,7 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
       const existingExternal = await dataStore.getActivityBySpondId(groupId, decision.spondEventId);
 
       if (decision.action === 'delete') {
-        if (existingExternal && !(await dataStore.deleteActivity(groupId, existingExternal.id))) {
+        if (existingExternal && !(await dataStore.deleteActivity(groupId, existingExternal.id, activityWriteContext))) {
           throw new Error('Failed to delete imported activity');
         }
         continue;
@@ -238,10 +265,16 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
         const player = playerBySpondId.get(response.spondMemberId)
           ?? await dataStore.getPlayerBySpondId(groupId, response.spondMemberId);
         if (!player) continue;
+        const existingInvitation = target?.invitations.find(invitation => invitation.playerId === player.id);
+        const nextResponse = response.response as ActivityInvitation['response'];
         invitations.push({
           id: existingInvitationIds.get(player.id) ?? await getNextSequence('invitations'),
           playerId: player.id,
-          response: response.response as ActivityInvitation['response']
+          response: nextResponse,
+          ...(existingInvitation?.response === nextResponse ? {
+            declineReason: existingInvitation.declineReason,
+            respondedBy: existingInvitation.respondedBy
+          } : {})
         });
       }
 
@@ -268,13 +301,13 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
         const changed = target.spondId !== activity.spondId || target.name !== activity.name
           || target.status !== activity.status
           || target.startsAt !== activity.startsAt || target.endsAt !== activity.endsAt
-          || target.location !== activity.location || JSON.stringify(target.invitations) !== JSON.stringify(activity.invitations);
+          || target.location !== activity.location || !sameInvitations(target.invitations, activity.invitations);
         if (changed) {
-          if (!(await dataStore.updateActivity(activity))) throw new Error('Failed to update activity');
+          if (!(await dataStore.updateActivity(activity, activityWriteContext))) throw new Error('Failed to update activity');
           result[decision.action === 'link' && !target.spondId ? 'linked' : 'updated'] += 1;
         } else result.unchanged += 1;
       } else {
-        await dataStore.createActivity(activity);
+        await dataStore.createActivity(activity, activityWriteContext);
         result.created += 1;
       }
     }

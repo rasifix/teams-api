@@ -55,7 +55,8 @@ This will:
 - Persist data in a Docker volume
 - Set up proper networking
 
-Configure your `.env` file for Docker Compose:
+Configure your `.env` file for Docker Compose (the `mongo-init` script creates
+this application user on the first volume initialization):
 ```bash
 MONGODB_HOST=localhost
 MONGODB_PORT=27017
@@ -80,6 +81,26 @@ npm run dev
 ```
 This will start the server on http://localhost:3000 with hot reload enabled.
 
+### Activity event sourcing
+
+Event-first Activity writes are disabled by default. Before enabling them,
+run the baseline migration against a paused-write environment:
+
+```bash
+npm run migrate:activity-events
+```
+
+Review the migration counts and ensure `mismatches` is empty. Then set the
+feature flag in `.env` and restart the API:
+
+```dotenv
+ACTIVITY_EVENT_SOURCING_ENABLED=true
+```
+
+The `/health` response and startup banner show whether the flag is enabled.
+Keep the flag disabled until the backup restore drill and canary checks in
+`docs/event-sourcing-rollout.md` have passed.
+
 ### Build
 ```bash
 npm run build
@@ -98,16 +119,6 @@ npm start
 * `POST /api/members` - Create a new member (player or trainer)
 * `PUT /api/members/:id` - Update an existing member
 * `DELETE /api/members/:id` - Delete a member
-
-### Events
-* `GET /api/events` - Get all events
-* `GET /api/events/:id` - Get an event by ID
-* `POST /api/events` - Create a new event
-* `PUT /api/events/:id` - Update an existing event
-* `DELETE /api/events/:id` - Delete an event
-* `PUT /api/events/:id/players` - Upsert invitations for an event
-* `PUT /api/events/:id/players/:player_id/status` - Update invitation status
-* `PUT /api/events/:id/selection` - Update player selection for teams
 
 ### Health Check
 * `GET /health` - Check if the API and database are running
@@ -131,6 +142,7 @@ The API uses MongoDB with three collections:
 | `MONGODB_USERNAME` | Username for authentication | - | `teams-user` |
 | `MONGODB_PASSWORD` | Password for authentication | - | `secure-password` |
 | `PORT` | API server port | `3000` | `8080` |
+| `ACTIVITY_EVENT_SOURCING_ENABLED` | Enable event-first Activity writes after migration | `false` | `true` |
 
 ## Data Models
 

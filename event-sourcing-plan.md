@@ -6,34 +6,91 @@
 | --- | --- |
 | Document status | Proposed |
 | Discovery and architecture decisions | Complete |
-| Implementation | Not started |
+| Naming and public API alignment | Complete |
+| Event-sourcing implementation | In progress (ES-15 review) |
 | Data migration | Not started |
 | Production rollout | Not started |
-| Last reviewed | 2026-10-10 |
+| Last reviewed | 2026-10-22 |
 
-The first iteration covers activities and the legacy event API only. MongoDB remains a standalone deployment for cost reasons. Immutable event documents are the source of truth; projections are disposable and must detect and repair stale state.
+## Current implementation status
+
+The public API now uses Squad and Activity terminology. The unused Event API has been removed from the backend OpenAPI specification and route surface, while the existing MongoDB `events` collection and its historical document shape remain untouched for migration safety.
+
+The current implementation now includes the append-only `activity-events` store,
+versioned Activity event types, aggregate replay, command decision logic,
+conditional projection writes, event-first dual persistence behind a feature
+flag, and the rerunnable baseline migration. The migration is implemented but
+awaits review and has not been run against production data.
+
+The event-sourcing implementation, reconciliation, concurrency contract,
+audit endpoint, and resilience coverage are now in place. Basic operational
+counters are exposed through `/health`, while the feature flag remains off by
+default. Production migration, backup restore verification, canary rollout,
+and removal of direct projection writes remain operational steps.
+
+## Implementation-sized task backlog
+
+Tasks are intentionally scoped to one focused change set. A task is complete only when its code, tests, and documentation are included. `S` is up to one day, `M` is one to three days, and `L` is three to five days; larger work must be split before implementation.
+
+| ID | Task | Size | Depends on | Status | Completion criteria |
+| --- | --- | --- | --- | --- | --- |
+| ES-01 | Align public Activity/Squad vocabulary and document the persistence boundary | S | — | Complete | Public types and API documentation use Activity/Squad; historical projection names are documented as compatibility details. |
+| ES-02 | Define versioned `DomainEvent`, `ActivityEvent`, actor snapshot, command metadata, and stream identity types | M | ES-01 | Complete | Types compile and fixtures cover every planned event envelope field. |
+| ES-03 | Add the `activity-events` MongoDB collection, validation, indexes, and append-only repository | M | ES-02 | Complete | Repository supports append and ordered stream reads but exposes no update/delete operation. |
+| ES-04 | Add projection metadata fields and conditional projection-write helpers | M | ES-03 | Complete | Existing Activity documents remain readable; projection updates cannot regress revisions. |
+| ES-05 | Implement the pure Activity aggregate reducer and replay service | L | ES-02 | Complete | All currently represented Activity event types replay into a complete Activity state; unsupported future fields fail explicitly rather than being dropped. |
+| ES-06 | Implement Activity command handlers and semantic state diffing | L | ES-05 | Complete | Create, update, invitation, selection, team, attendance, import, cancellation, and deletion commands produce deterministic event batches and reject invalid transitions. |
+| ES-07 | Route Activity and Spond-import writes through event-first dual persistence | L | ES-03, ES-06 | Complete | A successful command appends one commit first, updates the existing projection second, and returns event-derived state when the feature flag is enabled. |
+| ES-08 | Add baseline migration from existing projections to `ActivityImported` commits | M | ES-03, ES-05 | Complete | Migration is paused-write, deterministic, rerunnable, count-checked, and leaves source projection documents intact. |
+| ES-09 | Add canonical replay/projection comparison and mismatch diagnostics | M | ES-04, ES-05, ES-08 | Complete | Every migrated Activity compares equal after normalization; mismatches include Squad, Activity, revision, and field-level differences. |
+| ES-10 | Add read-time repair and the background projection reconciler | L | ES-07, ES-09 | Complete | Missing or stale projections rebuild idempotently; stale rebuilds cannot overwrite newer state. |
+| ES-11 | Add revision concurrency, ETags, `If-Match`, idempotency keys, and command IDs | M | ES-07 | Complete | Concurrent writes produce `409`; identical retries return the original result; mismatched retries are rejected. |
+| ES-12 | Add the Squad-scoped audit-events endpoint and authorization tests | M | ES-03, ES-07 | Complete | Admins can filter and paginate logical events within their Squad; other Squads and restricted data remain inaccessible. |
+| ES-13 | Add migration, replay, failure-recovery, and load-test coverage | M | ES-08, ES-10 | Complete | CI covers replay equality, crash-after-commit recovery, projection corruption, concurrent writes, rerunnable migration, and production-scale lists. |
+| ES-14 | Execute staged rollout, monitoring, backup verification, and contract cleanup | M | ES-11, ES-12, ES-13 | In review | Feature flag rollout succeeds, metrics and alerts are active, restore drill passes, and direct projection writes are disabled. |
+| ES-15 | Add Activity snapshots and bounded-tail replay | M | ES-05, ES-10 | In review | The latest snapshot plus the event tail produces the same aggregate as full replay; snapshots advance monotonically and remain disposable. |
+
+### Recommended implementation order
+
+Implement tasks in dependency order: ES-02 → ES-03 → ES-04/ES-05 → ES-06 → ES-07 → ES-08/ES-09 → ES-10/ES-11/ES-12 → ES-13 → ES-15 → ES-14. ES-01 is complete and is the naming baseline for all remaining work.
+
+Do not begin the baseline migration or enable event-first writes until ES-05, ES-07, and their replay/equality tests are complete. Do not remove or repurpose the existing projection until ES-13 and the backup-restore acceptance criteria pass.
+
+The first iteration covers Activities only. MongoDB remains a standalone deployment for cost reasons. Immutable event documents are the source of truth; projections are disposable and must detect and repair stale state.
+
+### Activity snapshots
+
+The `activity-snapshots` collection is a disposable acceleration layer. Each
+Activity stream has at most one latest snapshot containing the aggregate state,
+the event revision, and the commit ID represented by that state. Replay loads
+that snapshot and only events with a higher revision. Event commits remain the
+source of truth; deleting all snapshots is safe because they can be rebuilt by
+reconciliation or subsequent writes. Snapshots advance monotonically and are
+currently created after a 100-event tail.
 
 ## Summary
 
-Refactor the activity/event domain as the initial event-sourcing pilot. Store every successful activity command as an immutable event commit and use the existing `events` collection as a read projection.
+Refactor the Activity domain as the initial event-sourcing pilot. Store every successful Activity command as an immutable event commit and use the existing `events` collection as a read projection.
 
-Preserve the current `/activities` and legacy `/events` endpoints, including the `/groups` and `/squads` aliases. Reads remain immediately consistent from a client's perspective: before returning data, the API compares the projection revision with the event store and rebuilds missing or stale projections.
+Preserve the current `/api/squads/{squadId}/activities` endpoints. Reads remain immediately consistent from a client's perspective: before returning data, the API compares the projection revision with the event store and rebuilds missing or stale projections.
 
-Groups, members, guardian links, shirt sets, user accounts, and password-reset workflows remain conventionally persisted in this phase.
+Squads, members, guardian links, shirt sets, user accounts, and password-reset workflows remain conventionally persisted in this phase.
+
+Public terminology is deliberately separate from historical persistence terminology. The API and domain use `Squad` and `Activity`; the existing MongoDB projection retains its historical `events` collection name and `groupId` field until a separately planned data migration makes changing them safe.
 
 ## MongoDB document model
 
-### `activity-event-commits`
+### `activity-events`
 
 Store one document per accepted command. A commit can contain several ordered semantic events, allowing all consequences of one command to be persisted atomically in a single MongoDB document without transactions.
 
 ```json
 {
   "_id": "01J...ULID",
-  "streamId": "activity:group-12:activity-91",
+  "streamId": "activity:squad-12:activity-91",
   "aggregateType": "activity",
   "aggregateId": "91",
-  "groupId": "12",
+  "squadId": "12",
   "revision": 17,
   "command": {
     "type": "RespondToInvitation",
@@ -80,9 +137,9 @@ Apply these rules and indexes:
 - Treat commit documents as append-only. Application persistence code must expose no update or delete operation for them.
 - Order commits by `revision` and logical events within a commit by `ordinal`.
 - Add a unique `{ streamId: 1, revision: 1 }` index for optimistic concurrency.
-- Add `{ groupId: 1, aggregateId: 1, revision: 1 }` for stream replay.
-- Add `{ groupId: 1, recordedAt: -1, _id: -1 }` for audit pagination.
-- Add a partial unique index on `{ groupId: 1, "command.idempotencyKey": 1 }` where an idempotency key exists.
+- Add `{ squadId: 1, aggregateId: 1, revision: 1 }` for stream replay.
+- Add `{ squadId: 1, recordedAt: -1, _id: -1 }` for audit pagination.
+- Add a partial unique index on `{ squadId: 1, "command.idempotencyKey": 1 }` where an idempotency key exists.
 - Generate `recordedAt` on the server. Never trust a client-supplied audit timestamp.
 - Retain the actor's IDs, display name, and roles at the time of the action, but do not copy email addresses into immutable events.
 - Reject commands whose serialized commit could approach MongoDB's 16 MB document limit.
@@ -128,7 +185,7 @@ Deleted activities remain as projection tombstones and are filtered from normal 
   - `TaskCreated`, `TaskChanged`, `TaskDeleted`, `TaskSignupAdded`, and `TaskSignupRemoved`.
   - `TrainingPlanChanged`.
 - Events must contain enough domain data to rebuild state, rather than only human-readable descriptions.
-- Bulk and legacy `PUT` requests compare the submitted state with the reconstructed aggregate and emit an ordered semantic-event batch. Cascading effects, such as removing a player after an invitation is declined, become explicit events in the same commit.
+- Bulk and Activity `PUT` requests compare the submitted state with the reconstructed aggregate and emit an ordered semantic-event batch. Cascading effects, such as removing a player after an invitation is declined, become explicit events in the same commit.
 
 ### Command write path
 
@@ -142,12 +199,12 @@ For every activity mutation:
 6. Apply the committed events to the projection on a best-effort basis.
 7. Return the state calculated from the committed events, regardless of whether the projection update succeeded.
 
-Route `/activities` and legacy `/events` writes through the same command layer so no supported endpoint can bypass the audit trail.
+Route all Activity writes, including Spond imports, through the same command layer so no supported endpoint can bypass the audit trail.
 
 ### Projection consistency and recovery
 
 - For a single-activity read, obtain the latest event revision, compare it with `projectedRevision`, and replay/upsert the projection when it is missing or stale.
-- For list reads, aggregate the latest revision per activity for the group, batch-rebuild stale or missing projections, and omit tombstones.
+- For list reads, aggregate the latest revision per Activity for the Squad, batch-rebuild stale or missing projections, and omit tombstones.
 - After rebuilding, recheck the latest revision. Repeat if another commit arrived during recovery so stale state is not returned.
 - Add a background reconciler that performs the same comparison and repair proactively. Correctness must not depend on that job running.
 - Treat projection failures as recoverable cache failures. Log and measure them without rolling back or hiding an already committed source event.
@@ -164,7 +221,7 @@ Route `/activities` and legacy `/events` writes through the same command layer s
 - Add an admin-only audit endpoint:
 
 ```http
-GET /api/groups/{groupId}/audit-events
+GET /api/squads/{squadId}/audit-events
     ?aggregateId=91
     &eventType=InvitationResponseChanged
     &actorMemberId=member-8
@@ -174,13 +231,13 @@ GET /api/groups/{groupId}/audit-events
     &limit=50
 ```
 
-Return flattened logical events containing commit ID, revision, event ordinal and type, server timestamp, actor snapshot, activity ID, structured change data, and a stable pagination cursor. Enforce group isolation and never expose authentication data.
+Return flattened logical events containing commit ID, revision, event ordinal and type, server timestamp, actor snapshot, Activity ID, structured change data, and a stable pagination cursor. Enforce Squad isolation and never expose authentication data.
 
 ## Migration and rollout
 
 1. Add event types, persistence code, collection validation, indexes, projector, audit endpoint, reconciliation metrics, and a feature flag without changing the active write path.
 2. Back up MongoDB and briefly pause activity writes.
-3. For every current `events` document, append one deterministic and idempotent `ActivityImported` revision-1 commit containing its normalized complete state.
+3. For every current `events` projection document, append one deterministic and idempotent `ActivityImported` revision-1 commit containing its normalized complete state and the document's Squad identity.
 4. Attribute baseline commits to a system migration actor. Preserve legacy creation and update timestamps only as source metadata; do not present them as reconstructed history.
 5. Update the existing document with projection metadata and verify that full replay reproduces its canonical activity representation.
 6. Verify document counts, references, checksums, replay results, and indexes, then enable event-sourced writes.
@@ -202,7 +259,7 @@ Likelihood and severity use `Low`, `Medium`, `High`, and `Critical` relative to 
 | Standalone MongoDB suffers host or disk failure and loses acknowledged events | Low to Medium | Critical | Use durable storage, frequent tested backups, appropriate write concern and journaling, infrastructure monitoring, and a documented restore procedure. Event sourcing is not a substitute for replication or backups. |
 | List reads become expensive because they must determine the latest revision for every activity | Medium | High as data grows | Use the compound replay index, batch revision aggregation, proactive reconciliation, load tests, and measured thresholds for introducing snapshots or another cache. |
 | A projector bug builds plausible but incorrect state | Medium | High | Keep reducers pure, test replay exhaustively, version projection schemas, compare migration checksums, and make projections disposable. |
-| Semantic diffing of legacy whole-document `PUT` requests emits incorrect or incomplete events | Medium | High | Centralize canonicalization and diffing, add contract tests for every legacy route, and compare pre/post aggregate state in tests. |
+| Semantic diffing of whole-document Activity `PUT` requests emits incorrect or incomplete events | Medium | High | Centralize canonicalization and diffing, add contract tests for every Activity route, and compare pre/post aggregate state in tests. |
 | Future code updates or deletes immutable event documents | Low | Critical | Isolate event persistence behind an append-only interface, use MongoDB validation and restricted database credentials where practical, and alert on unexpected mutations. |
 | Event payload schemas evolve and old streams can no longer be replayed | Medium | High | Version every event, maintain upcasters and replay fixtures, and require full historical replay in CI before deployment. |
 | Immutable audit data conflicts with privacy or retention obligations | Medium | High | Store only necessary actor identity, exclude email and secrets, define retention/legal policy before production, and document any required anonymization strategy. |
@@ -210,7 +267,7 @@ Likelihood and severity use `Low`, `Medium`, `High`, and `Critical` relative to 
 | Migration races with live activity writes | Medium without controls | High | Pause activity writes, use deterministic migration command IDs, make migration rerunnable, and verify revisions before enabling the new path. |
 | The baseline import is mistaken for complete historical audit data | Medium | Medium | Label it explicitly as a system migration and communicate that reliable actor history begins at cutover. |
 | A stale rebuild overwrites a newer projection | Medium | High | Use conditional projection updates based on `projectedRevision` and recheck the event-store revision before responding. |
-| The audit endpoint leaks another group's or guardian-restricted data | Low | Critical | Restrict it to group admins, reuse group authorization, test tenant isolation, and return only the approved audit DTO. |
+| The audit endpoint leaks another Squad's or guardian-restricted data | Low | Critical | Restrict it to Squad admins, reuse Squad authorization, test tenant isolation, and return only the approved audit DTO. |
 
 The largest accepted architectural risk is standalone MongoDB durability. Projection inconsistency is recoverable because events are authoritative; loss of the standalone event database is not. Backups and restore drills are therefore release prerequisites.
 
@@ -223,11 +280,10 @@ The largest accepted architectural risk is standalone MongoDB durability. Projec
 - Delete, corrupt, and deliberately lag projections; verify that detail and list reads reconstruct correct state from events.
 - Simulate a crash after commit insertion but before projection update; verify recovery on the next read and by the reconciler.
 - Verify conditional projection writes cannot regress `projectedRevision`.
-- Run existing activity, legacy event, permission, guardian-filtering, alias, and compatibility tests unchanged.
-- Test admin-only audit access, group isolation, filters, cursor pagination, actor snapshots, and ordering within multi-event commits.
+- Run existing Activity, permission, guardian-filtering, alias, and compatibility tests unchanged.
+- Test admin-only audit access, Squad isolation, filters, cursor pagination, actor snapshots, and ordering within multi-event commits.
 - Run the migration twice to prove idempotence, then compare source documents with fully replayed aggregates.
-- Load-test group activity lists and stream replay using production-scale event counts.
+- Load-test Squad Activity lists and stream replay using production-scale event counts.
 - Test backup restoration and rebuild every activity projection from the restored event collection.
 
 The refactor is ready for production only when all existing API tests pass, migrated aggregates replay identically, deliberately stale projections self-heal, concurrent writes are rejected safely, audit results identify who did what and when, and a backup restore drill succeeds.
-

@@ -251,3 +251,5 @@ export interface PasswordReset {
   used: boolean;
   createdAt?: string;
 }
+
+export * from './activityEvents';

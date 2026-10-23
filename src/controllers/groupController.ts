@@ -18,7 +18,7 @@ const presentGroup = (req: Request, group: Group): Group => {
   };
 };
 
-// GET /api/groups - Get all groups the authenticated user is a trainer in
+// GET /api/squads - Get all groups the authenticated user is a trainer in
 export const getAllGroups = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     // User must be authenticated
@@ -54,7 +54,7 @@ export const getAllGroups = async (req: AuthRequest, res: Response): Promise<voi
   }
 };
 
-// GET /api/groups/:id
+// GET /api/squads/:id
 export const getGroupById = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -72,7 +72,7 @@ export const getGroupById = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// POST /api/groups
+// POST /api/squads
 export const createGroup = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     // User must be authenticated
@@ -145,7 +145,7 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
   }
 };
 
-// PUT /api/groups/:id
+// PUT /api/squads/:id
 export const updateGroup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
@@ -203,7 +203,7 @@ export const updateGroup = async (req: Request, res: Response): Promise<void> =>
   }
 };
 
-// DELETE /api/groups/:id
+// DELETE /api/squads/:id
 export const deleteGroup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;

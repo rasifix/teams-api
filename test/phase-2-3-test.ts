@@ -15,15 +15,22 @@ import type { EventDocument } from '../src/types/mongodb';
 type MockResponse = {
   statusCode: number;
   body: unknown;
+  headers: Record<string, string>;
   status: (code: number) => MockResponse;
+  setHeader: (name: string, value: string) => MockResponse;
   json: (payload: unknown) => MockResponse;
 };
 
 const createMockResponse = (): MockResponse => ({
   statusCode: 200,
   body: undefined,
+  headers: {},
   status(code) {
     this.statusCode = code;
+    return this;
+  },
+  setHeader(name, value) {
+    this.headers[name] = value;
     return this;
   },
   json(payload) {
@@ -173,7 +180,8 @@ const testCreateActivityAndRejectUnacceptedSelection = async (): Promise<void> =
     createActivity: async (activity: Activity) => {
       created = activity;
       return activity;
-    }
+    },
+    getActivityRevision: async () => 1
   }, async () => withSequences(async () => {
     await createActivity(req as any, res as any);
   }));
@@ -191,6 +199,7 @@ const testGuardianDeclineReconcilesSelection = async (): Promise<void> => {
     id: 'activity-1',
     squadId: 'squad-1',
     kind: 'match',
+    status: 'active',
     name: 'Saturday match',
     startsAt: '2026-10-10T12:30:00.000Z',
     minPlayersPerTeam: 7,
@@ -217,6 +226,7 @@ const testGuardianDeclineReconcilesSelection = async (): Promise<void> => {
   const res = createMockResponse();
   await withPatches({
     getActivityById: async () => activity,
+    getActivityRevision: async () => 1,
     getGuardianChildPlayerIds: async () => ['player-1'],
     updateActivity: async (value: Activity) => {
       updated = value;
@@ -243,7 +253,7 @@ const testLegacyEventRoundTrip = (): void => {
       startTime: '12:30',
       selectedPlayers: ['player-1'],
       trainerId: 'trainer-1',
-      responsiblePersonIds: ['trainer-1'],
+      responsiblePersonId: 'trainer-1',
       lineup: [{
         periodNumber: 1,
         assignments: [{ slotId: 'slot-1', playerId: 'player-1' }]
@@ -262,7 +272,7 @@ const testLegacyEventRoundTrip = (): void => {
   assert(activity.matchFormatId === 'format-1', 'Legacy playing mode should map to matchFormatId');
   assert(activity.invitations[0].response === 'declined', 'Legacy injury status should map to declined response');
   assert(activity.invitations[0].declineReason === 'injured', 'Legacy injury status should retain its reason');
-  assert(activity.teams[0].responsiblePersonIds?.[0] === 'trainer-1', 'Legacy trainer should map to responsible person');
+  assert(activity.teams[0].responsiblePersonId === 'trainer-1', 'Legacy trainer should map to responsible person');
   const activityWrite = activityToEventDocument(activity);
   const legacyView = eventDocumentToLegacyEvent({
     _id: activity.id,
