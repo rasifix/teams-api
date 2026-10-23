@@ -7,6 +7,7 @@ import authRoutes from './routes/authRoutes';
 import sfvCategoryRoutes from './routes/sfvCategoryRoutes';
 import spondRoutes from './routes/spondRoutes';
 import birthdayCalendarRoutes from './routes/birthdayCalendarRoutes';
+import { runActivityEventMigration } from './controllers/activityMigrationController';
 import { AuthRequest } from './middleware/auth';
 import {
   getActivityEventSourcingMetrics,
@@ -43,6 +44,9 @@ app.use('/api/sfv-categories', sfvCategoryRoutes);
 app.use('/api/integrations/spond', spondRoutes);
 app.use('/api/birthday-calendars', birthdayCalendarRoutes);
 app.use('/api/squads', groupRoutes);
+
+// Temporary migration endpoint. Remove this route after the production migration.
+app.post('/internal/migrations/activity-events', runActivityEventMigration);
 
 // Health check
 app.get('/health', async (_req, res) => {
