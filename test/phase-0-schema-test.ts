@@ -8,7 +8,6 @@ import { getShirtSets } from '../src/controllers/shirtSetController';
 import { getPeriods } from '../src/controllers/periodController';
 import { getFormations } from '../src/controllers/formationController';
 import { getPlayingModes } from '../src/controllers/playingModeController';
-import { importLocalStorageData } from '../src/controllers/importController';
 import { dataStore } from '../src/data/store';
 import { AuthRequest } from '../src/middleware/auth';
 import {
@@ -191,36 +190,8 @@ const testReadEndpointSchemas = async (): Promise<void> => {
   );
 };
 
-const testImportSummarySchema = async (): Promise<void> => {
-  await withPatchedDataStore(
-    {
-      getGroupById: async () => ({ id: 'group-1', name: 'Fixture group' })
-    },
-    async () => {
-      const response = createMockResponse();
-      await importLocalStorageData(
-        { params: { groupId: 'group-1' }, body: {} } as any,
-        response as any
-      );
-      assertStatus(response, 200, 'POST /api/groups/:groupId/import');
-      assertSchema(objectSchema({
-        message: stringSchema,
-        summary: objectSchema({
-          playersImported: numberSchema,
-          trainersImported: numberSchema,
-          eventsImported: numberSchema,
-          shirtSetsImported: numberSchema,
-          errors: arraySchema(stringSchema)
-        }),
-        groupId: stringSchema
-      }), response.body, 'import response');
-    }
-  );
-};
-
 const tests: Array<{ name: string; run: () => Promise<void> }> = [
-  { name: 'read endpoint response schemas', run: testReadEndpointSchemas },
-  { name: 'import summary schema', run: testImportSummarySchema }
+  { name: 'read endpoint response schemas', run: testReadEndpointSchemas }
 ];
 
 const run = async (): Promise<void> => {

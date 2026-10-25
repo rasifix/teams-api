@@ -138,6 +138,7 @@ async function startServer() {
       console.log('  POST   /api/squads/:squadId/shirtsets');
       console.log('  GET    /api/squads/:squadId/shirtsets/:id');
       console.log('  PUT    /api/squads/:squadId/shirtsets/:id');
+      console.log('  PUT    /api/squads/:squadId/shirtsets/:id/shirts/:shirtNumber/status');
       console.log('  DELETE /api/squads/:squadId/shirtsets/:id');
       console.log('  GET    /api/squads/:squadId/periods');
       console.log('  POST   /api/squads/:squadId/periods');
@@ -148,6 +149,11 @@ async function startServer() {
       console.log('  PUT    /api/squads/:squadId/playing-modes/:playingModeId');
       console.log('  DELETE /api/squads/:squadId/playing-modes/:playingModeId');
       console.log('  POST   /api/squads/:squadId/playing-modes/:playingModeId/set-default');
+      console.log('  GET    /api/squads/:squadId/match-formats');
+      console.log('  POST   /api/squads/:squadId/match-formats');
+      console.log('  PUT    /api/squads/:squadId/match-formats/:playingModeId');
+      console.log('  DELETE /api/squads/:squadId/match-formats/:playingModeId');
+      console.log('  POST   /api/squads/:squadId/match-formats/:playingModeId/set-default');
       console.log('  GET    /api/squads/:squadId/formations');
       console.log('  POST   /api/squads/:squadId/formations');
       console.log('  PUT    /api/squads/:squadId/formations/:formationId');
