@@ -140,6 +140,8 @@ export interface TeamEmbedded {
   strength: number; // 1 (highest) to 3 (lowest), default 2
   startTime?: string; // HH:MM format
   location?: string; // Optional team-specific location overriding event location
+  meetingTime?: string; // HH:MM format - when this team meets before the match
+  meetingLocation?: string; // Optional location where this team meets before the match
   selectedPlayers: string[]; // References to PersonDocument with roles containing 'player'
   responsiblePersonId?: string;
   shirtSetId?: string; // Reference to ShirtSetDocument

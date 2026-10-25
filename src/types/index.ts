@@ -193,6 +193,8 @@ export interface Team {
   strength: number; // 1 (highest) to 3 (lowest), default 2
   startTime?: string; // HH:MM format - each team can have different start times
   location?: string; // Optional team-specific location overriding event location
+  meetingTime?: string; // HH:MM format - when this team meets before the match
+  meetingLocation?: string; // Optional location where this team meets before the match
   selectedPlayers: string[]; // Player IDs assigned to this team
   responsiblePersonId?: string;
   shirtSetId?: string; // Shirt set ID assigned to this team

@@ -29,6 +29,8 @@ interface LocalStorageData {
       strength: number;
       startTime: string;
       location?: string;
+      meetingTime?: string;
+      meetingLocation?: string;
       selectedPlayers: string[];
       trainerId?: string;
       shirtSetId?: string;
@@ -177,6 +179,8 @@ export const importLocalStorageData = async (req: Request, res: Response): Promi
               strength: team.strength,
               startTime: team.startTime,
               location: team.location,
+              meetingTime: team.meetingTime,
+              meetingLocation: team.meetingLocation,
               selectedPlayers: team.selectedPlayers.map(playerId => idMap.get(playerId) || playerId),
               trainerId: team.trainerId ? idMap.get(team.trainerId) : undefined,
               shirtSetId: team.shirtSetId ? idMap.get(team.shirtSetId) : undefined,

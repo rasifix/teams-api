@@ -176,6 +176,8 @@ The API uses MongoDB with three collections:
   "id": "string",
   "name": "string",
   "strength": "number (1-5)",
+  "meetingTime": "string (HH:MM)",
+  "meetingLocation": "string",
   "selectedPlayers": ["string (player IDs)"]
 }
 ```

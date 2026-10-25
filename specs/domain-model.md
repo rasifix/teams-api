@@ -134,6 +134,8 @@ Attributes:
 - strength (1-3) (visibility: trainer, admin)
 - startTime (HH:MM)
 - location (optional, overrides event location)
+- meetingTime (HH:MM, optional; when the team meets before the match)
+- meetingLocation (optional; where the team meets before the match)
 - selectedPlayers[] (player member IDs)
 - trainerId (optional, member ID)
 - shirtSetId (optional)

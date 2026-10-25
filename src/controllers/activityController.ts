@@ -123,6 +123,12 @@ const validateTeams = (
     if (team.startTime !== undefined && (typeof team.startTime !== 'string' || !/^\d{2}:\d{2}$/.test(team.startTime))) {
       return { error: `teams[${index}].startTime must use HH:MM format` };
     }
+    if (team.meetingTime !== undefined && (typeof team.meetingTime !== 'string' || !/^\d{2}:\d{2}$/.test(team.meetingTime))) {
+      return { error: `teams[${index}].meetingTime must use HH:MM format` };
+    }
+    if (team.meetingLocation !== undefined && typeof team.meetingLocation !== 'string') {
+      return { error: `teams[${index}].meetingLocation must be a string` };
+    }
     if (selectionSent && (typeof team.responsiblePersonId !== 'string' || !team.responsiblePersonId.trim())) {
       return { error: `teams[${index}].responsiblePersonId is required when selection is sent` };
     }
@@ -139,6 +145,8 @@ const validateTeams = (
       ...team,
       strength: typeof team.strength === 'number' ? team.strength : 2,
       ...(team.startTime !== undefined ? { startTime: team.startTime } : {}),
+      ...(team.meetingTime !== undefined ? { meetingTime: team.meetingTime } : {}),
+      ...(team.meetingLocation !== undefined ? { meetingLocation: team.meetingLocation } : {}),
       selectedPlayers: team.selectedPlayers,
       responsiblePersonId: team.responsiblePersonId
     } as Team);
