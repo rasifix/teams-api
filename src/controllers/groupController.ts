@@ -149,16 +149,17 @@ export const createGroup = async (req: AuthRequest, res: Response): Promise<void
 export const updateGroup = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { name, club, category, matchPlanningEnabled, active } = req.body;
+    const { name, club, category, matchPlanningEnabled, active, spondId } = req.body;
 
     const hasNoUpdatableFields =
       name === undefined &&
       club === undefined &&
       category === undefined &&
       matchPlanningEnabled === undefined &&
-      active === undefined;
+      active === undefined &&
+      spondId === undefined;
     if (hasNoUpdatableFields) {
-      res.status(400).json({ error: 'At least one of name, club, category, matchPlanningEnabled, or active is required' });
+      res.status(400).json({ error: 'At least one updatable field is required' });
       return;
     }
 
@@ -182,12 +183,18 @@ export const updateGroup = async (req: Request, res: Response): Promise<void> =>
       return;
     }
 
-    const updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled' | 'active'>> = {};
+    if (spondId !== undefined && spondId !== null && (typeof spondId !== 'string' || !spondId.trim())) {
+      res.status(400).json({ error: 'spondId must be a non-empty string or null when provided' });
+      return;
+    }
+
+    const updates: Partial<Pick<Group, 'name' | 'club' | 'category' | 'matchPlanningEnabled' | 'active' | 'spondId'>> = {};
     if (name !== undefined) updates.name = name.trim();
     if (club !== undefined) updates.club = club;
     if (category !== undefined) updates.category = category;
     if (matchPlanningEnabled !== undefined) updates.matchPlanningEnabled = matchPlanningEnabled;
     if (active !== undefined) updates.active = active;
+    if (spondId !== undefined) updates.spondId = spondId === null ? null : spondId.trim();
 
     const updatedGroup = await dataStore.updateGroup(id, updates);
     

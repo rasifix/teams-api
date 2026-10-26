@@ -126,6 +126,26 @@ const testUpdateGroupCategory = async (): Promise<void> => {
   assert(invalidRes.statusCode === 400, 'PUT /api/groups/:id should reject an unsupported category');
 };
 
+const testUpdateGroupSpondLink = async (): Promise<void> => {
+  const res = createMockResponse();
+  let capturedSpondId: string | null | undefined;
+
+  await withPatchedDataStore({
+    updateGroup: async (_id, updates) => {
+      capturedSpondId = updates.spondId;
+      return { id: 'g-1', name: 'Group 1', spondId: updates.spondId };
+    }
+  }, async () => updateGroup({ params: { id: 'g-1' }, body: { spondId: null } } as any, res as any));
+
+  assert(res.statusCode === 200, 'PUT /api/groups/:id should accept an unlink request');
+  assert(capturedSpondId === null, 'PUT /api/groups/:id should persist spondId=null');
+  assert((res.body as { spondId?: string | null }).spondId === null, 'PUT /api/groups/:id should return the cleared link');
+
+  const invalidRes = createMockResponse();
+  await updateGroup({ params: { id: 'g-1' }, body: { spondId: 42 } } as any, invalidRes as any);
+  assert(invalidRes.statusCode === 400, 'PUT /api/groups/:id should reject an invalid Spond id');
+};
+
 const testSquadActiveLifecycle = async (): Promise<void> => {
   const updateRes = createMockResponse();
   let capturedActive: boolean | undefined;
@@ -548,6 +568,10 @@ const run = async (): Promise<void> => {
     {
       name: '8) Squad active state is validated and inactive reads are hidden',
       run: testSquadActiveLifecycle
+    },
+    {
+      name: '9) Spond link can be cleared through the squad update endpoint',
+      run: testUpdateGroupSpondLink
     }
   ];
 
