@@ -126,7 +126,7 @@ const validateTeams = (
     if (team.meetingTime !== undefined && (typeof team.meetingTime !== 'string' || !/^\d{2}:\d{2}$/.test(team.meetingTime))) {
       return { error: `teams[${index}].meetingTime must use HH:MM format` };
     }
-    if (team.meetingLocation !== undefined && typeof team.meetingLocation !== 'string') {
+    if (team.meetingLocation != null && typeof team.meetingLocation !== 'string') {
       return { error: `teams[${index}].meetingLocation must be a string` };
     }
     if (selectionSent && (typeof team.responsiblePersonId !== 'string' || !team.responsiblePersonId.trim())) {
@@ -141,12 +141,13 @@ const validateTeams = (
       }
       selectedPlayerIds.add(playerId);
     }
+    const { meetingLocation, ...teamWithoutMeetingLocation } = team;
     teams.push({
-      ...team,
+      ...teamWithoutMeetingLocation,
       strength: typeof team.strength === 'number' ? team.strength : 2,
       ...(team.startTime !== undefined ? { startTime: team.startTime } : {}),
       ...(team.meetingTime !== undefined ? { meetingTime: team.meetingTime } : {}),
-      ...(team.meetingLocation !== undefined ? { meetingLocation: team.meetingLocation } : {}),
+      ...(meetingLocation != null ? { meetingLocation } : {}),
       selectedPlayers: team.selectedPlayers,
       responsiblePersonId: team.responsiblePersonId
     } as Team);
@@ -517,37 +518,32 @@ export const updateActivityInvitations = async (req: Request, res: Response): Pr
       res.status(400).json({ error: 'invitations must be an array' });
       return;
     }
-    let invitations = activity.invitations;
-    const access = (req as GroupAuthRequest).groupAccess;
-    for (const item of req.body.invitations as Array<{ playerId?: unknown; response?: unknown; declineReason?: unknown }>) {
-      if (!item || typeof item !== 'object' || typeof item.playerId !== 'string') {
-        res.status(400).json({ error: 'each invitation update must include playerId' });
-        return;
-      }
-      const result = applyInvitationUpdate(invitations, item.playerId, item.response, item.declineReason, access?.memberId ?? '');
-      if (result.error || !result.invitations) {
-        res.status(400).json({ error: result.error });
-        return;
-      }
-      invitations = result.invitations;
-    }
-    const reconciledTeams = removeUnacceptedPlayersFromTeams(activity.teams, invitations);
-    const teams = activity.kind === 'match' || activity.kind === 'tournament'
-      ? validateTeams(activity.kind, reconciledTeams, invitations, activity.selectionSentAt !== undefined)
-      : { teams: activity.teams };
-    if (teams.error) {
-      res.status(400).json({ error: teams.error });
+    const invitations = req.body.invitations as ActivityInvitation[];
+    if (!invitations.every(invitation =>
+      invitation && typeof invitation.id === 'string' && typeof invitation.playerId === 'string' &&
+      (invitation.response === 'open' || invitation.response === 'accepted' || invitation.response === 'declined') &&
+      (invitation.declineReason === undefined || isDeclineReason(invitation.declineReason))
+    )) {
+      res.status(400).json({ error: 'each invitation must include id, playerId, and a valid response' });
       return;
     }
-    const updated = await dataStore.updateActivity({
-      ...activity,
-      invitations,
-      teams: teams.teams!
-    }, writeContextFromRequest(req));
+    if (new Set(invitations.map(invitation => invitation.id)).size !== invitations.length ||
+        new Set(invitations.map(invitation => invitation.playerId)).size !== invitations.length) {
+      res.status(400).json({ error: 'invitation IDs and player IDs must be unique' });
+      return;
+    }
+    const teams = removeUnacceptedPlayersFromTeams(activity.teams, invitations);
+    const validation = validateActivity({ ...activity, invitations, teams }, activity);
+    if (!validation.activity) {
+      res.status(400).json({ error: validation.error ?? 'Invalid activity' });
+      return;
+    }
+    const updated = await dataStore.updateActivity({ ...activity, invitations, teams: validation.activity.teams }, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
+    setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
     res.json(updated);
   } catch (error) {
     if (handleActivityWriteError(error, res)) return;

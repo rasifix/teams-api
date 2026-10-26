@@ -490,7 +490,7 @@ paths:
   /api/squads/{squadId}/activities/{id}/invitations:
     put:
       operationId: updateGroupActivityInvitations
-      summary: Bulk update activity invitations
+      summary: Set the complete activity invitation list
       tags:
         - Activities
       security:
@@ -517,7 +517,7 @@ paths:
                 invitations:
                   type: array
                   items:
-                    $ref: '#/components/schemas/ActivityInvitationUpdate'
+                    $ref: '#/components/schemas/ActivityInvitation'
       responses:
         '200':
           description: Updated activity

@@ -9,6 +9,7 @@ import {
   updateActivityStatus,
   updateActivityAttendance,
   updateActivityInvitation,
+  updateActivityInvitations,
   updateActivitySelection,
   updateActivityTeams,
 } from '../controllers/activityController';
@@ -22,6 +23,7 @@ router.get('/:id', getActivityById);
 router.put('/:id', requireGroupRole(['admin', 'trainer']), updateActivity);
 router.delete('/:id', requireGroupRole(['admin', 'trainer']), deleteActivity);
 router.put('/:id/status', requireGroupRole(['admin', 'trainer']), updateActivityStatus);
+router.put('/:id/invitations', requireGroupRole(['admin', 'trainer']), updateActivityInvitations);
 router.put('/:id/invitations/:playerId', requireGroupRole(['admin', 'trainer', 'guardian']), updateActivityInvitation);
 router.put('/:id/teams', requireGroupRole(['admin', 'trainer']), updateActivityTeams);
 router.put('/:id/selection', requireGroupRole(['admin', 'trainer']), updateActivitySelection);
