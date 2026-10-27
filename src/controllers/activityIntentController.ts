@@ -34,7 +34,13 @@ async function buildCommand(intent: Intent, req: Request, activity: Activity): P
       if (body.endsAt !== undefined && body.endsAt !== null && (typeof body.endsAt !== 'string' || Number.isNaN(Date.parse(body.endsAt)))) fail('Invalid endsAt');
       for (const field of ['location', 'opponentName', 'matchFormatId']) if (body[field] !== undefined && !nullableString(body[field])) fail(`Invalid ${field}`);
       for (const field of ['minPlayersPerTeam', 'maxPlayersPerTeam']) if (body[field] !== undefined && (!Number.isInteger(body[field]) || Number(body[field]) < 1)) fail(`Invalid ${field}`);
-      if (activity.spondId && ['kind', 'name', 'startsAt', 'endsAt', 'location', 'opponentName'].some(field => Object.prototype.hasOwnProperty.call(body, field))) fail('Spond-managed details cannot be changed');
+      const switchingToTournament = body.kind === 'tournament' && (
+        activity.kind === 'match' || (activity.kind === 'tournament' && Boolean(retryKey))
+      );
+      if (activity.spondId && (
+        ['name', 'startsAt', 'endsAt', 'location'].some(field => Object.prototype.hasOwnProperty.call(body, field)) ||
+        (Object.prototype.hasOwnProperty.call(body, 'opponentName') && !(switchingToTournament && body.opponentName === null))
+      )) fail('Spond-managed details cannot be changed');
       const changes = { ...body } as Partial<Activity>;
       for (const field of ['endsAt', 'location', 'opponentName', 'matchFormatId'] as const) if (changes[field] === null) (changes as Record<string, unknown>)[field] = undefined;
       if (changes.startsAt) changes.startsAt = new Date(changes.startsAt).toISOString();
@@ -43,7 +49,7 @@ async function buildCommand(intent: Intent, req: Request, activity: Activity): P
       const max = changes.maxPlayersPerTeam ?? activity.maxPlayersPerTeam ?? 1;
       if (min > max) fail('minPlayersPerTeam must not exceed maxPlayersPerTeam');
       if (changes.matchFormatId && !(await dataStore.getGroupPlayingModes(activity.squadId))?.some(item => item.id === changes.matchFormatId)) fail('Match format not found');
-      if (changes.kind && changes.kind !== activity.kind && activity.teams.length !== 1) fail('Activity kind is incompatible with current teams');
+      if (changes.kind === 'match' && activity.kind === 'tournament' && activity.teams.length !== 1) fail('Activity kind is incompatible with current teams');
       return { type: 'PatchActivityDetails', changes };
     }
     case 'addTeam': {

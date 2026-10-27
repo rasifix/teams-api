@@ -3506,6 +3506,12 @@ components:
         schemaVersion: { type: integer }
     ActivityDetailsPatch:
       type: object
+      description: >-
+        Switching a Match to a Tournament clears its opponent, match format,
+        and all team lineups in the same Activity commit. A Tournament can
+        become a Match only when it has exactly one team. Spond-linked
+        Activities may change kind locally while schedule fields stay managed
+        by Spond.
       additionalProperties: false
       properties:
         kind: { $ref: '#/components/schemas/ActivityKind' }

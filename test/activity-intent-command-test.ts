@@ -27,6 +27,21 @@ assert.deepEqual(buildActivityHistory(commits).items[0].changes.map(item => item
   'invitation.removed', 'selection.playerRemoved', 'lineup.changed'
 ]);
 assert.deepEqual(decideActivityCommand(activity, { type: 'PatchActivityDetails', changes: {} }), []);
+const switched = decideActivityCommand({ ...activity, opponentName: 'Rivals', matchFormatId: 'fmt' }, {
+  type: 'PatchActivityDetails', changes: { kind: 'tournament' }
+});
+assert.deepEqual(switched.map(item => item.type), ['ActivityDetailsChanged', 'LineupChanged']);
+assert.deepEqual(switched.map(item => item.ordinal), [0, 1]);
+const switchedCommit = commit(2, switched);
+const switchedState = replayActivityEvents([commit(1, decideActivityCommand(null, { type: 'CreateActivity', activity: { ...activity, opponentName: 'Rivals', matchFormatId: 'fmt' } })), switchedCommit]).activity!;
+assert.equal(switchedState.kind, 'tournament');
+assert.equal(switchedState.opponentName, undefined);
+assert.equal(switchedState.matchFormatId, undefined);
+assert.equal(switchedState.teams[0].lineup, undefined);
+assert.deepEqual(buildActivityHistory([commit(1, decideActivityCommand(null, { type: 'CreateActivity', activity: { ...activity, opponentName: 'Rivals', matchFormatId: 'fmt' } })), switchedCommit]).items[0].changes.map(item => item.type), ['activity.detailsChanged', 'activity.detailsChanged', 'activity.detailsChanged', 'lineup.changed']);
+assert.deepEqual(decideActivityCommand(switchedState, { type: 'PatchActivityDetails', changes: { kind: 'tournament' } }), []);
+const noLineup = decideActivityCommand({ ...activity, teams: [{ ...activity.teams[0], lineup: undefined }] }, { type: 'PatchActivityDetails', changes: { kind: 'tournament' } });
+assert.deepEqual(noLineup.map(item => item.type), ['ActivityDetailsChanged']);
 const unselected = decideActivityCommand(activity, { type: 'ChangeSelection', teamId: 't', add: [], remove: [{ playerId: 'p', reason: 'sick' }] });
 assert.equal((unselected.find(item => item.type === 'PlayerUnselected')?.data as { reason?: string }).reason, 'sick');
 assert.equal(typeof (unselected.find(item => item.type === 'PlayerUnselected')?.data as { removedAt?: string }).removedAt, 'string');

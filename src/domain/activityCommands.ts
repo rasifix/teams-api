@@ -75,9 +75,16 @@ export function decideActivityCommand(
         requireExisting(current, command.type);
         if (!current.attendance?.some(item => item.personId === command.personId)) return [];
         return [event('AttendanceRemoved', { personId: command.personId })];
-      case 'PatchActivityDetails':
+      case 'PatchActivityDetails': {
         requireExisting(current, command.type);
-        return diffActivity(current, { ...current, ...command.changes });
+        const next: Activity = { ...current, ...command.changes };
+        if (current.kind === 'match' && next.kind === 'tournament') {
+          next.opponentName = undefined;
+          next.matchFormatId = undefined;
+          next.teams = current.teams.map(team => ({ ...team, lineup: undefined }));
+        }
+        return diffActivity(current, next);
+      }
       case 'AddTeam':
         requireExisting(current, command.type);
         return diffActivity(current, { ...current, teams: [...current.teams, command.team] });

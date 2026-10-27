@@ -4,6 +4,7 @@ import { decideActivityCommand, type ActivityCommand } from '../src/domain/activ
 import { applyActivityEvent } from '../src/domain/activityAggregate';
 import { buildActivityHistory } from '../src/domain/activityHistory';
 import { dataStore } from '../src/data/store';
+import { activityEventStore } from '../src/data/activityEventStore';
 import type { Activity } from '../src/types';
 import type { ActivityEvent } from '../src/types/activityEvents';
 
@@ -24,12 +25,14 @@ const response = () => ({
 const main = async (): Promise<void> => {
   const names = ['getActivityById', 'getActivityRevision', 'executeActivityIntent', 'getGroupMemberIds', 'getGroupFormations', 'getGroupPlayingModes', 'getShirtSetById'] as const;
   const original = Object.fromEntries(names.map(name => [name, dataStore[name]]));
+  const originalGetByIdempotencyKey = activityEventStore.getByIdempotencyKey;
   let current = base;
   let revision = 1;
   let lastCommand: ActivityCommand | undefined;
   let lastEvents: ActivityEvent['events'] = [];
   let writes = 0;
   try {
+    (activityEventStore as any).getByIdempotencyKey = async () => ({ command: { idempotencyKey: 'type-retry' } });
     (dataStore as any).getActivityById = async () => current;
     (dataStore as any).getActivityRevision = async () => revision;
     (dataStore as any).getGroupMemberIds = async () => ['m1', 'p1', 'p2'];
@@ -46,9 +49,11 @@ const main = async (): Promise<void> => {
       if (lastEvents.length) revision += 1;
       return current;
     };
-    const call = async (intent: Parameters<typeof activityIntent>[0], body: unknown, params: Record<string, string> = {}) => {
+    const call = async (intent: Parameters<typeof activityIntent>[0], body: unknown, params: Record<string, string> = {}, idempotencyKey?: string) => {
       const res = response();
-      await activityIntent(intent)({ params: { groupId: 's', id: 'a', teamId: 't1', playerId: 'p1', ...params }, body } as any, res as any);
+      await activityIntent(intent)({ params: { groupId: 's', id: 'a', teamId: 't1', playerId: 'p1', ...params }, body,
+        header: (name: string) => name === 'Idempotency-Key' ? idempotencyKey : undefined
+      } as any, res as any);
       return res;
     };
     const reset = (activity = base) => { current = structuredClone(activity); revision = 1; lastCommand = undefined; lastEvents = []; writes = 0; };
@@ -63,6 +68,20 @@ const main = async (): Promise<void> => {
 
     reset(); await accepted('details', { location: null }, 'PatchActivityDetails'); assert.equal(current.location, undefined);
     reset(); await accepted('details', { location: 'Field' }, 'PatchActivityDetails'); assert.equal(lastEvents.length, 0); assert.equal(revision, 1);
+    reset({ ...base, spondId: 'spond-event', opponentName: 'Rivals' });
+    await accepted('details', { kind: 'tournament', opponentName: null, matchFormatId: null }, 'PatchActivityDetails');
+    assert.deepEqual(lastEvents.map(event => event.type), ['ActivityDetailsChanged', 'LineupChanged']);
+    assert.equal(current.kind, 'tournament');
+    assert.equal(current.opponentName, undefined);
+    assert.equal(current.matchFormatId, undefined);
+    assert.equal(current.teams[0].lineup, undefined);
+    const retry = await call('details', { kind: 'tournament', opponentName: null, matchFormatId: null }, {}, 'type-retry');
+    assert.equal(retry.statusCode, 200);
+    assert.deepEqual(lastEvents, []);
+    assert.equal(revision, 2);
+    reset({ ...base, kind: 'tournament', spondId: 'spond-event', teams: [{ ...base.teams[0], lineup: undefined }] });
+    await accepted('details', { kind: 'match' }, 'PatchActivityDetails');
+    assert.equal(current.kind, 'match');
     reset({ ...base, kind: 'tournament', teams: [{ ...base.teams[0], lineup: undefined }] }); await accepted('addTeam', { id: 't2', name: 'Blue' }, 'AddTeam'); assert.equal(current.teams.length, 2);
     reset(); await accepted('teamDetails', { name: 'Blue', meetingTime: '08:45' }, 'PatchTeamDetails'); assert.equal(current.teams[0].name, 'Blue');
     reset(); await accepted('responsible', { responsiblePersonId: null }, 'SetResponsiblePerson'); assert.equal(current.teams[0].responsiblePersonId, undefined);
@@ -83,6 +102,10 @@ const main = async (): Promise<void> => {
     assert.deepEqual(history.items[0].changes.map(change => change.field), ['status', 'reason']);
 
     reset(); assert.equal((await call('details', { teams: [] })).statusCode, 400); assert.equal(writes, 0);
+    reset({ ...base, spondId: 'spond-event' }); assert.equal((await call('details', { name: 'Changed' })).statusCode, 400); assert.equal(writes, 0);
+    reset({ ...base, spondId: 'spond-event' }); assert.equal((await call('details', { opponentName: 'Changed' })).statusCode, 400); assert.equal(writes, 0);
+    reset({ ...base, kind: 'tournament', teams: [{ ...base.teams[0], lineup: undefined }, { ...base.teams[0], id: 't2', lineup: undefined }] });
+    assert.equal((await call('details', { kind: 'match' })).statusCode, 400); assert.equal(writes, 0);
     reset(); assert.equal((await call('addTeam', { id: 't2', name: 'Blue' })).statusCode, 400); assert.equal(writes, 0);
     reset(); assert.equal((await call('teamDetails', { name: 'Blue' }, { teamId: 'missing' })).statusCode, 404); assert.equal(writes, 0);
     reset(); assert.equal((await call('teamDetails', { selectedPlayers: [] })).statusCode, 400); assert.equal(writes, 0);
@@ -100,6 +123,7 @@ const main = async (): Promise<void> => {
     console.log('Activity intent endpoint tests passed');
   } finally {
     for (const name of names) (dataStore as any)[name] = original[name];
+    (activityEventStore as any).getByIdempotencyKey = originalGetByIdempotencyKey;
   }
 };
 void main();
