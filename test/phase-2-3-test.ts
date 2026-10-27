@@ -201,7 +201,7 @@ const testGuardianDeclineReconcilesSelection = async (): Promise<void> => {
     kind: 'match',
     status: 'active',
     name: 'Saturday match',
-    startsAt: '2026-10-10T12:30:00.000Z',
+    startsAt: '2099-10-10T12:30:00.000Z',
     minPlayersPerTeam: 7,
     maxPlayersPerTeam: 11,
     teams: [{

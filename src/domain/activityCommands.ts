@@ -19,7 +19,18 @@ export type ActivityCommand =
   | { type: 'ReplaceTeams'; teams: Team[] }
   | { type: 'PublishSelection'; selectionSentAt: string }
   | { type: 'RecordAttendance'; attendance: ActivityAttendance }
-  | { type: 'RemoveAttendance'; personId: string };
+  | { type: 'RemoveAttendance'; personId: string }
+  | { type: 'PatchActivityDetails'; changes: Partial<Activity> }
+  | { type: 'AddTeam'; team: Team }
+  | { type: 'PatchTeamDetails'; teamId: string; changes: Partial<Team> }
+  | { type: 'SetResponsiblePerson'; teamId: string; responsiblePersonId: string | null }
+  | { type: 'SetFormation'; teamId: string; formationId: string | null }
+  | { type: 'SetShirts'; teamId: string; shirtSetId: string; assignments: NonNullable<Team['shirtAssignments']> }
+  | { type: 'SetLineup'; teamId: string; periods: NonNullable<Team['lineup']> }
+  | { type: 'ChangeSelection'; teamId: string; add: string[]; remove: Array<{ playerId: string; reason?: string }> }
+  | { type: 'AddInvitations'; invitations: ActivityInvitation[] }
+  | { type: 'RemoveInvitation'; playerId: string }
+  | { type: 'PatchAttendance'; changes: Array<{ personId: string; status: ActivityAttendance['status'] | null; reason?: string }> };
 
 export class ActivityCommandError extends Error {
   constructor(message: string) {
@@ -64,10 +75,73 @@ export function decideActivityCommand(
         requireExisting(current, command.type);
         if (!current.attendance?.some(item => item.personId === command.personId)) return [];
         return [event('AttendanceRemoved', { personId: command.personId })];
+      case 'PatchActivityDetails':
+        requireExisting(current, command.type);
+        return diffActivity(current, { ...current, ...command.changes });
+      case 'AddTeam':
+        requireExisting(current, command.type);
+        return diffActivity(current, { ...current, teams: [...current.teams, command.team] });
+      case 'PatchTeamDetails':
+        requireExisting(current, command.type);
+        return diffActivity(current, changeTeam(current, command.teamId, team => ({ ...team, ...command.changes })));
+      case 'SetResponsiblePerson':
+        requireExisting(current, command.type);
+        return diffActivity(current, changeTeam(current, command.teamId, team => ({ ...team, responsiblePersonId: command.responsiblePersonId ?? undefined })));
+      case 'SetFormation':
+        requireExisting(current, command.type);
+        return diffActivity(current, changeTeam(current, command.teamId, team => ({ ...team, formationId: command.formationId ?? undefined })));
+      case 'SetShirts':
+        requireExisting(current, command.type);
+        return diffActivity(current, changeTeam(current, command.teamId, team => ({ ...team, shirtSetId: command.shirtSetId, shirtAssignments: command.assignments })));
+      case 'SetLineup':
+        requireExisting(current, command.type);
+        return diffActivity(current, changeTeam(current, command.teamId, team => ({ ...team, lineup: command.periods })));
+      case 'ChangeSelection': {
+        requireExisting(current, command.type);
+        const changes = diffActivity(current, changeTeam(current, command.teamId, team => ({
+          ...team,
+          selectedPlayers: [...team.selectedPlayers.filter(id => !command.remove.some(item => item.playerId === id)), ...command.add],
+          lineup: team.lineup?.map(period => ({ ...period, assignments: period.assignments.filter(item => !command.remove.some(removed => removed.playerId === item.playerId)) }))
+        })));
+        return changes.map(change => {
+          if (change.type !== 'PlayerUnselected') return change;
+          const data = change.data as { teamId: string; playerId: string };
+          const reason = command.remove.find(item => item.playerId === data.playerId)?.reason;
+          return { ...change, data: { ...data, ...(reason ? { reason, removedAt: new Date().toISOString() } : {}) } };
+        });
+      }
+      case 'AddInvitations':
+        requireExisting(current, command.type);
+        return diffActivity(current, { ...current, invitations: [...current.invitations, ...command.invitations] });
+      case 'RemoveInvitation': {
+        requireExisting(current, command.type);
+        const invitation = current.invitations.find(item => item.playerId === command.playerId);
+        if (!invitation) throw new ActivityCommandError(`Invitation not found for player ${command.playerId}`);
+        const invitations = current.invitations.filter(item => item.id !== invitation.id);
+        const teams = current.teams.map(team => ({ ...team,
+          selectedPlayers: team.selectedPlayers.filter(id => id !== command.playerId),
+          lineup: team.lineup?.map(period => ({ ...period, assignments: period.assignments.filter(item => item.playerId !== command.playerId) }))
+        }));
+        return diffActivity(current, { ...current, invitations, teams });
+      }
+      case 'PatchAttendance': {
+        requireExisting(current, command.type);
+        const attendance = new Map((current.attendance ?? []).map(item => [item.personId, item]));
+        for (const change of command.changes) {
+          if (change.status === null) attendance.delete(change.personId);
+          else attendance.set(change.personId, { personId: change.personId, status: change.status, ...(change.reason === undefined ? {} : { reason: change.reason }) });
+        }
+        return diffActivity(current, { ...current, attendance: [...attendance.values()] });
+      }
     }
   })();
 
   return events.map((item, ordinal) => ({ ...item, ordinal }));
+}
+
+function changeTeam(current: Activity, teamId: string, change: (team: Team) => Team): Activity {
+  if (!current.teams.some(team => team.id === teamId)) throw new ActivityCommandError(`Team not found: ${teamId}`);
+  return { ...current, teams: current.teams.map(team => team.id === teamId ? change(team) : team) };
 }
 
 function diffActivity(current: Activity, next: Activity): DomainEvent[] {
@@ -216,7 +290,7 @@ function event<TType extends ActivityEventType>(
   type: TType,
   data: ActivityEventPayloads[TType]
 ): DomainEvent<TType, ActivityEventPayloads[TType]> {
-  return { ordinal: 0, type, schemaVersion: 1, data };
+  return { ordinal: 0, type, schemaVersion: type === 'AttendanceRecorded' ? 2 : 1, data };
 }
 
 function requireExisting(activity: Activity | null, commandType: string): asserts activity is Activity {

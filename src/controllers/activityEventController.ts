@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
 import { activityEventStore } from '../data/activityEventStore';
 import type { ActivityEventType } from '../types/activityEvents';
+import { buildActivityHistory } from '../domain/activityHistory';
+import { mongoConnection } from '../database/connection';
 
 const activityEventTypes: ActivityEventType[] = [
   'ActivityCreated', 'ActivityImported', 'ActivityDetailsChanged', 'ActivityDeleted',
@@ -38,5 +40,25 @@ export const getActivityAuditEvents = async (req: Request, res: Response): Promi
     }
     console.error('Error fetching Activity audit events:', error);
     res.status(500).json({ error: 'Failed to fetch Activity audit events' });
+  }
+};
+
+export const getActivityHistory = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const commits = await activityEventStore.getStream({ squadId: req.params.groupId, activityId: req.params.id });
+    if (commits.length === 0) {
+      res.status(404).json({ error: 'Activity history not found' });
+      return;
+    }
+    const members = await mongoConnection.getMembersCollection().find({ groupId: req.params.groupId }).toArray();
+    const names = new Map<string, string>();
+    for (const member of members) {
+      const name = [member.firstName, member.lastName].filter(Boolean).join(' ');
+      if (name) names.set(member._id, name);
+    }
+    res.json(buildActivityHistory(commits, names));
+  } catch (error) {
+    console.error('Error fetching Activity history:', error);
+    res.status(500).json({ error: 'Failed to fetch Activity history' });
   }
 };

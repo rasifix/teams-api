@@ -95,7 +95,7 @@ export interface ActivityEventPayloads {
   TeamChanged: Team;
   TeamRemoved: { teamId: string };
   PlayerSelected: { teamId: string; playerId: string };
-  PlayerUnselected: { teamId: string; playerId: string };
+  PlayerUnselected: { teamId: string; playerId: string; reason?: string; removedAt?: string };
   LineupChanged: { teamId: string; lineup?: TeamLineupPeriod[] };
   SelectionPublished: { selectionSentAt: string };
   AttendanceRecorded: ActivityAttendance;

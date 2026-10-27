@@ -62,10 +62,10 @@ const baseActivity = (overrides: Partial<Activity> = {}): Activity => ({
 
 const testAttendance = async (): Promise<void> => {
   let stored: Activity | undefined;
-  const activity = baseActivity();
+  const activity = baseActivity({ attendance: [{ personId: 'member-1', status: 'excused', reason: 'old reason' }] });
   const req = {
     params: { groupId: activity.squadId, id: activity.id },
-    body: { attendance: [{ personId: 'member-1', status: 'present' }, { personId: 'member-2', status: 'excused' }] },
+    body: { attendance: [{ personId: 'member-2', status: 'excused' }] },
     groupAccess: { memberId: 'coach-1', roles: ['trainer'] }
   };
   const res = createMockResponse();
@@ -80,6 +80,7 @@ const testAttendance = async (): Promise<void> => {
   }, async () => updateActivityAttendance(req as any, res as any));
   assert(res.statusCode === 200, 'Trainer should record attendance after the activity starts');
   assert(stored?.attendance?.length === 2, 'Bulk attendance should upsert all supplied members');
+  assert(stored?.attendance?.[0].reason === 'old reason', 'Updating another attendance row preserves the existing reason');
   assert(stored?.invitations.length === 0, 'Attendance must be independent from invitations');
   assert(stored?.teams.length === 1 && stored.teams[0].id === 'team-1', 'Attendance must be independent from team selection');
 
@@ -107,7 +108,7 @@ const testAttendance = async (): Promise<void> => {
 
 const testNewFieldsStayOutOfLegacyView = (): void => {
   const activity = baseActivity({
-    attendance: [{ personId: 'member-1', status: 'present' }]
+    attendance: [{ personId: 'member-1', status: 'excused', reason: 'sick' }]
   });
   const document = {
     _id: activity.id,
@@ -116,7 +117,8 @@ const testNewFieldsStayOutOfLegacyView = (): void => {
     updatedAt: new Date()
   } as EventDocument;
   const activityView = eventDocumentToActivity(document);
-  assert(activityView.attendance?.[0].status === 'present', 'Attendance should round-trip');
+  assert(activityView.attendance?.[0].status === 'excused', 'Attendance should round-trip');
+  assert(activityView.attendance?.[0].reason === 'sick', 'Attendance reason should round-trip');
   const legacyView = eventDocumentToLegacyEvent(document);
   assert(!('attendance' in legacyView), 'Legacy event payload must not expose Phase 4–6 fields');
 };

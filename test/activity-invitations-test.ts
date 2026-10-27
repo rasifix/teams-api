@@ -10,7 +10,7 @@ const original = {
 };
 const activity: Activity = {
   id: 'activity-1', spondId: 'spond-1', squadId: 'squad-1', kind: 'match', status: 'active', name: 'Match',
-  startsAt: '2026-10-10T12:30:00.000Z', minPlayersPerTeam: 1, maxPlayersPerTeam: 11,
+  startsAt: '2099-10-10T12:30:00.000Z', minPlayersPerTeam: 1, maxPlayersPerTeam: 11,
   invitations: [], teams: [{ id: 'team-1', name: 'Blue', strength: 2, selectedPlayers: [] }]
 };
 const response = () => ({

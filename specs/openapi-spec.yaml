@@ -400,6 +400,7 @@ paths:
                 $ref: '#/components/schemas/Error'
     put:
       operationId: updateGroupActivity
+      deprecated: true
       summary: Update an activity
       tags:
         - Activities
@@ -490,6 +491,7 @@ paths:
   /api/squads/{squadId}/activities/{id}/invitations:
     put:
       operationId: updateGroupActivityInvitations
+      deprecated: true
       summary: Set the complete activity invitation list
       tags:
         - Activities
@@ -531,6 +533,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    post:
+      operationId: addActivityInvitations
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddActivityInvitationsCommand' }
+      responses:
+        '200':
+          description: Complete updated Activity
+          headers:
+            ETag: { $ref: '#/components/headers/ActivityETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { description: Invalid command }
+        '404': { description: Activity or team not found }
+        '409': { description: Revision or idempotency conflict }
   /api/squads/{squadId}/activities/{id}/invitations/{playerId}:
     put:
       operationId: updateGroupActivityInvitation
@@ -574,9 +601,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    delete:
+      operationId: removeActivityInvitation
+      description: Removing an invitation that would change selection is allowed only before the Activity starts and before attendance is recorded.
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+        - { name: playerId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
+      responses:
+        '200':
+          description: Complete updated Activity
+          headers:
+            ETag: { $ref: '#/components/headers/ActivityETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { description: Invalid command }
+        '404': { description: Activity or team not found }
+        '409': { description: Revision or idempotency conflict }
   /api/squads/{squadId}/activities/{id}/selection:
     put:
       operationId: updateGroupActivitySelection
+      deprecated: true
       summary: Update activity team selections
       tags:
         - Activities
@@ -680,6 +730,7 @@ paths:
                   $ref: '#/components/schemas/Team'
     put:
       operationId: updateGroupActivityTeams
+      deprecated: true
       summary: Replace teams for an activity
       tags:
         - Activities
@@ -717,9 +768,35 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Team'
+    post:
+      operationId: addActivityTeam
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AddActivityTeam' }
+      responses:
+        '200':
+          description: Complete updated Activity
+          headers:
+            ETag: { $ref: '#/components/headers/ActivityETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { description: Invalid command }
+        '404': { description: Activity or team not found }
+        '409': { description: Revision or idempotency conflict }
   /api/squads/{squadId}/activities/{id}/attendance:
     put:
       operationId: updateGroupActivityAttendance
+      deprecated: true
       summary: Bulk upsert activity attendance
       description: Admins and trainers may record attendance only after the activity starts. Attendance is independent of invitations and selection.
       tags: [Activities]
@@ -763,6 +840,32 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    patch:
+      operationId: patchActivityAttendance
+      description: Attendance can be recorded only after the Activity starts, for selected players.
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityAttendanceChangesCommand' }
+      responses:
+        '200':
+          description: Complete updated Activity
+          headers:
+            ETag: { $ref: '#/components/headers/ActivityETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { description: Invalid command }
+        '404': { description: Activity or team not found }
+        '409': { description: Revision or idempotency conflict }
   /api/squads/{squadId}/activities/{id}/attendance/{personId}:
     put:
       operationId: updateGroupActivityAttendanceForPerson
@@ -3149,6 +3252,127 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/squads/{squadId}/activities/{id}/history:
+    get:
+      operationId: getActivityHistory
+      summary: Get enriched Activity history, newest commit first
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      description: Squad administrators only. Deleted Activities remain readable while their event stream exists.
+      parameters:
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+      responses:
+        '200':
+          description: One item per commit, with changes in event ordinal order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityHistoryPage' }
+        '404': { description: Activity event stream not found }
+  /api/squads/{squadId}/activities/{id}/details:
+    patch:
+      operationId: patchActivityDetails
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters: &activityCommandParameters
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityDetailsPatch' }
+      responses: &activityCommandResponses
+        '200':
+          description: Complete updated Activity
+          headers:
+            ETag: { $ref: '#/components/headers/ActivityETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { description: Invalid command }
+        '404': { description: Activity or team not found }
+        '409': { description: Revision or idempotency conflict }
+  /api/squads/{squadId}/activities/{id}/teams/{teamId}/details:
+    patch:
+      operationId: patchActivityTeamDetails
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters: &activityTeamCommandParameters
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+        - $ref: '#/components/parameters/ActivityTeamId'
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityTeamDetailsPatch' }
+      responses: *activityCommandResponses
+  /api/squads/{squadId}/activities/{id}/teams/{teamId}/responsible-person:
+    put:
+      operationId: setActivityTeamResponsiblePerson
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters: *activityTeamCommandParameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityResponsiblePersonCommand' }
+      responses: *activityCommandResponses
+  /api/squads/{squadId}/activities/{id}/teams/{teamId}/formation:
+    put:
+      operationId: setActivityTeamFormation
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters: *activityTeamCommandParameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityFormationCommand' }
+      responses: *activityCommandResponses
+  /api/squads/{squadId}/activities/{id}/teams/{teamId}/shirts:
+    put:
+      operationId: setActivityTeamShirts
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters: *activityTeamCommandParameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityShirtsCommand' }
+      responses: *activityCommandResponses
+  /api/squads/{squadId}/activities/{id}/teams/{teamId}/lineup:
+    put:
+      operationId: setActivityTeamLineup
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters: *activityTeamCommandParameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivityLineupCommand' }
+      responses: *activityCommandResponses
+  /api/squads/{squadId}/activities/{id}/teams/{teamId}/selection-changes:
+    post:
+      operationId: changeActivityTeamSelection
+      description: Selection can change only before the Activity starts and before attendance is recorded.
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters: *activityTeamCommandParameters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ActivitySelectionChangesCommand' }
+      responses: *activityCommandResponses
 components:
   securitySchemes:
     bearerAuth:
@@ -3157,6 +3381,9 @@ components:
       bearerFormat: JWT
       description: JWT token obtained from /auth/login or /auth/register
   parameters:
+    ActivitySquadId: { name: squadId, in: path, required: true, schema: { type: string } }
+    ActivityPathId: { name: id, in: path, required: true, schema: { type: string } }
+    ActivityTeamId: { name: teamId, in: path, required: true, schema: { type: string } }
     ActivityIfMatch:
       name: If-Match
       in: header
@@ -3180,6 +3407,214 @@ components:
         type: string
         pattern: '^"activity-revision-[0-9]+"$'
   schemas:
+    ActivityHistoryPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityHistoryItem' }
+    ActivityHistoryItem:
+      type: object
+      required: [id, revision, recordedAt, actor, changes]
+      properties:
+        id: { type: string }
+        revision: { type: integer }
+        recordedAt: { type: string, format: date-time }
+        actor: { $ref: '#/components/schemas/ActivityHistoryActor' }
+        changes:
+          type: array
+          items: { $ref: '#/components/schemas/ActivityHistoryChange' }
+    ActivityHistoryActor:
+      type: object
+      required: [type, memberId, displayName]
+      properties:
+        type: { type: string, enum: [user, system] }
+        memberId: { type: string, nullable: true }
+        displayName: { type: string, nullable: true }
+    ActivityHistorySubject:
+      type: object
+      required: [type, id, displayName]
+      properties:
+        type: { type: string, enum: [activity, team, player, person] }
+        id: { type: string }
+        displayName: { type: string, nullable: true }
+    ActivityHistoryChange:
+      oneOf:
+        - { $ref: '#/components/schemas/ActivityHistoryFieldChange' }
+        - { $ref: '#/components/schemas/ActivityHistorySelectionChange' }
+        - { $ref: '#/components/schemas/ActivityHistoryLineupChange' }
+        - { $ref: '#/components/schemas/ActivityHistoryUnsupportedChange' }
+        - { $ref: '#/components/schemas/ActivityHistorySimpleChange' }
+    ActivityHistoryFieldChange:
+      type: object
+      required: [type, subject, field, previous, current]
+      properties:
+        type: { type: string, enum: [activity.detailsChanged, team.detailsChanged, invitation.responseChanged, attendance.changed] }
+        subject: { $ref: '#/components/schemas/ActivityHistorySubject' }
+        field: { type: string }
+        previous: { nullable: true }
+        current: { nullable: true }
+    ActivityHistorySimpleChange:
+      type: object
+      required: [type, subject]
+      properties:
+        type: { type: string, enum: [activity.created, activity.imported, activity.deleted, team.added, team.removed, invitation.added, invitation.removed, selection.markedSent, attendance.removed] }
+        subject: { $ref: '#/components/schemas/ActivityHistorySubject' }
+        previous: { nullable: true }
+        current: { nullable: true }
+    ActivityHistorySelectionChange:
+      type: object
+      required: [type, subject, context]
+      properties:
+        type: { type: string, enum: [selection.playerAdded, selection.playerRemoved] }
+        subject: { $ref: '#/components/schemas/ActivityHistorySubject' }
+        context: { $ref: '#/components/schemas/ActivitySelectionHistoryContext' }
+    ActivityHistoryLineupChange:
+      type: object
+      required: [type, subject, context]
+      properties:
+        type: { type: string, enum: [lineup.changed] }
+        subject: { $ref: '#/components/schemas/ActivityHistorySubject' }
+        context: { $ref: '#/components/schemas/ActivityLineupHistoryContext' }
+    ActivityHistoryUnsupportedChange:
+      type: object
+      required: [type, subject, context]
+      properties:
+        type: { type: string, enum: [event.unsupported] }
+        subject: { $ref: '#/components/schemas/ActivityHistorySubject' }
+        context: { $ref: '#/components/schemas/ActivityUnsupportedHistoryContext' }
+    ActivitySelectionHistoryContext:
+      type: object
+      required: [teamId, teamName]
+      properties:
+        teamId: { type: string }
+        teamName: { type: string, nullable: true }
+        reason: { type: string }
+        removedAt: { type: string, format: date-time }
+    ActivityLineupHistoryContext:
+      type: object
+      required: [periods, assignmentChanges]
+      properties:
+        periods: { type: array, items: { type: integer } }
+        assignmentChanges: { type: integer }
+    ActivityUnsupportedHistoryContext:
+      type: object
+      required: [eventType, schemaVersion]
+      properties:
+        eventType: { type: string }
+        schemaVersion: { type: integer }
+    ActivityDetailsPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        kind: { $ref: '#/components/schemas/ActivityKind' }
+        name: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time, nullable: true }
+        location: { type: string, nullable: true }
+        opponentName: { type: string, nullable: true }
+        matchFormatId: { type: string, nullable: true }
+        minPlayersPerTeam: { type: integer, minimum: 1 }
+        maxPlayersPerTeam: { type: integer, minimum: 1 }
+    AddActivityTeam:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        strength: { type: integer, minimum: 1, maximum: 3 }
+        startTime: { type: string, pattern: '^\\d{2}:\\d{2}$' }
+    ActivityTeamDetailsPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string }
+        strength: { type: integer, minimum: 1, maximum: 3 }
+        startTime: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        meetingTime: { type: string, nullable: true }
+        meetingLocation: { type: string, nullable: true }
+    ActivityResponsiblePersonCommand:
+      type: object
+      additionalProperties: false
+      required: [responsiblePersonId]
+      properties:
+        responsiblePersonId: { type: string, nullable: true }
+    ActivityFormationCommand:
+      type: object
+      additionalProperties: false
+      required: [formationId]
+      properties:
+        formationId: { type: string, nullable: true }
+    ActivityShirtsCommand:
+      type: object
+      additionalProperties: false
+      required: [shirtSetId, assignments]
+      properties:
+        shirtSetId: { type: string }
+        assignments:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [playerId, shirtNumber]
+            properties:
+              playerId: { type: string }
+              shirtNumber: { type: integer }
+    ActivityLineupCommand:
+      type: object
+      additionalProperties: false
+      required: [periods]
+      properties:
+        periods:
+          type: array
+          items: { $ref: '#/components/schemas/TeamLineupPeriod' }
+    ActivitySelectionChangesCommand:
+      type: object
+      additionalProperties: false
+      required: [add, remove]
+      properties:
+        add: { type: array, items: { type: string } }
+        remove:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [playerId]
+            properties:
+              playerId: { type: string }
+              reason: { type: string }
+    AddActivityInvitationsCommand:
+      type: object
+      additionalProperties: false
+      required: [players]
+      properties:
+        players:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [playerId, response]
+            properties:
+              playerId: { type: string }
+              response: { type: string, enum: [open, accepted, declined] }
+    ActivityAttendanceChangesCommand:
+      type: object
+      additionalProperties: false
+      required: [changes]
+      properties:
+        changes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [personId, status]
+            properties:
+              personId: { type: string }
+              status: { type: string, enum: [present, absent, excused], nullable: true }
+              reason: { type: string, minLength: 1 }
     SpondCredentials:
       type: object
       additionalProperties: false
@@ -4235,6 +4670,8 @@ components:
           type: string
         status:
           $ref: '#/components/schemas/AttendanceStatus'
+        reason:
+          type: string
       required: [personId, status]
     TrainingUnit:
       type: object

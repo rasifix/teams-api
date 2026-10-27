@@ -11,6 +11,7 @@ import {
 import { GroupAuthRequest } from '../middleware/groupAuth';
 import { dataStore } from '../data/store';
 import { getNextSequence } from '../utils/sequence';
+import { attendanceTimingError, selectionTimingError } from '../domain/activitySelectionPolicy';
 import {
   ActivityIdempotencyConflictError,
   ActivityPreconditionError,
@@ -18,7 +19,7 @@ import {
   type ActivityWriteContext
 } from '../domain/activityCommandService';
 
-const writeContextFromRequest = (req: Request): ActivityWriteContext => {
+export const writeContextFromRequest = (req: Request): ActivityWriteContext => {
   const readHeader = (name: string): string | undefined => {
     if (typeof req.header === 'function') return req.header(name) ?? undefined;
     if (typeof req.get === 'function') return req.get(name) ?? undefined;
@@ -45,11 +46,11 @@ const writeContextFromRequest = (req: Request): ActivityWriteContext => {
   };
 };
 
-const setActivityEtag = (res: Response, revision: number): void => {
+export const setActivityEtag = (res: Response, revision: number): void => {
   res.setHeader('ETag', `"activity-revision-${revision}"`);
 };
 
-const handleActivityWriteError = (error: unknown, res: Response): boolean => {
+export const handleActivityWriteError = (error: unknown, res: Response): boolean => {
   if (error instanceof ActivityRevisionConflictError) {
     res.status(409).json({
       error: 'Activity was changed by another request',
@@ -88,7 +89,7 @@ const isGuardianOnly = (req: Request): boolean => {
   return roles.includes('guardian') && !roles.includes('admin') && !roles.includes('trainer');
 };
 
-const validateTeams = (
+export const validateTeams = (
   kind: ActivityKind,
   teamsValue: unknown,
   invitations: ActivityInvitation[],
@@ -156,7 +157,7 @@ const validateTeams = (
   return { teams };
 };
 
-const validateActivity = (value: Record<string, unknown>, existing?: Activity): { activity?: Activity; error?: string } => {
+export const validateActivity = (value: Record<string, unknown>, existing?: Activity): { activity?: Activity; error?: string } => {
   const kind = value.kind ?? existing?.kind;
   if (!isActivityKind(kind)) {
     return { error: 'kind must be match or tournament' };
@@ -351,6 +352,8 @@ export const updateActivity = async (req: Request, res: Response): Promise<void>
       res.status(400).json({ error: validation.error ?? 'Invalid activity' });
       return;
     }
+    const selectionError = selectionTimingError(existing, validation.activity);
+    if (selectionError) { res.status(400).json({ error: selectionError }); return; }
     const updated = await dataStore.updateActivity(validation.activity, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
@@ -492,6 +495,8 @@ export const updateActivityInvitation = async (req: Request, res: Response): Pro
       res.status(400).json({ error: teams.error });
       return;
     }
+    const selectionError = selectionTimingError(activity, { ...activity, teams: teams.teams! });
+    if (selectionError) { res.status(400).json({ error: selectionError }); return; }
     const updated = await dataStore.updateActivity({
       ...activity,
       invitations: result.invitations,
@@ -501,6 +506,7 @@ export const updateActivityInvitation = async (req: Request, res: Response): Pro
       res.status(404).json({ error: 'Activity not found' });
       return;
     }
+    setActivityEtag(res, await dataStore.getActivityRevision(updated.squadId, updated.id));
     res.json(updated);
   } catch (error) {
     if (handleActivityWriteError(error, res)) return;
@@ -538,6 +544,8 @@ export const updateActivityInvitations = async (req: Request, res: Response): Pr
       res.status(400).json({ error: validation.error ?? 'Invalid activity' });
       return;
     }
+    const selectionError = selectionTimingError(activity, { ...activity, teams: validation.activity.teams });
+    if (selectionError) { res.status(400).json({ error: selectionError }); return; }
     const updated = await dataStore.updateActivity({ ...activity, invitations, teams: validation.activity.teams }, writeContextFromRequest(req));
     if (!updated) {
       res.status(404).json({ error: 'Activity not found' });
@@ -562,17 +570,24 @@ const mergeAttendance = (
   if (!Array.isArray(incoming)) {
     return { error: 'attendance must be an array' };
   }
-  const records = new Map(current.map(record => [record.personId, record.status]));
-  for (const record of incoming as Array<{ personId?: unknown; status?: unknown }>) {
+  const records = new Map(current.map(record => [record.personId, { ...record }]));
+  for (const record of incoming as Array<{ personId?: unknown; status?: unknown; reason?: unknown }>) {
     if (!record || typeof record !== 'object' || typeof record.personId !== 'string' || !record.personId.trim()) {
       return { error: 'each attendance record must include a non-empty personId' };
     }
     if (!isAttendanceStatus(record.status)) {
       return { error: `attendance status for ${record.personId} must be present, absent, or excused` };
     }
-    records.set(record.personId, record.status);
+    if (record.reason !== undefined && (typeof record.reason !== 'string' || !record.reason.trim())) {
+      return { error: `attendance reason for ${record.personId} must be a non-empty string` };
+    }
+    records.set(record.personId, {
+      personId: record.personId,
+      status: record.status,
+      ...(record.reason !== undefined ? { reason: record.reason } : {})
+    });
   }
-  return { attendance: Array.from(records, ([personId, status]) => ({ personId, status })) };
+  return { attendance: [...records.values()] };
 };
 
 const updateAttendance = async (
@@ -583,8 +598,9 @@ const updateAttendance = async (
   const activity = await getActivityOr404(req, res);
   if (!activity) return;
   if (!requireActiveActivity(activity, res)) return;
-  if (Date.parse(activity.startsAt) >= Date.now()) {
-    res.status(400).json({ error: 'Attendance can only be recorded after the activity starts' });
+  const timingError = attendanceTimingError(activity);
+  if (timingError) {
+    res.status(400).json({ error: timingError });
     return;
   }
   const result = mergeAttendance(activity.attendance, incoming);
@@ -665,6 +681,8 @@ export const updateActivityTeams = async (req: Request, res: Response): Promise<
       res.status(400).json({ error: teams.error });
       return;
     }
+    const selectionError = selectionTimingError(activity, { ...activity, teams: teams.teams });
+    if (selectionError) { res.status(400).json({ error: selectionError }); return; }
     const updated = await dataStore.updateActivity(
       { ...activity, teams: teams.teams },
       writeContextFromRequest(req)
@@ -692,6 +710,8 @@ export const updateActivitySelection = async (req: Request, res: Response): Prom
       res.status(400).json({ error: teams.error });
       return;
     }
+    const selectionError = selectionTimingError(activity, { ...activity, teams: teams.teams });
+    if (selectionError) { res.status(400).json({ error: selectionError }); return; }
     const updated = await dataStore.updateActivity(
       { ...activity, teams: teams.teams },
       writeContextFromRequest(req)

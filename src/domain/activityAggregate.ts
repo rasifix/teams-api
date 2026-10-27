@@ -30,8 +30,8 @@ export class ActivityReplayError extends Error {
 }
 
 export class UnsupportedActivityEventError extends ActivityReplayError {
-  constructor(type: string) {
-    super(`Activity event type is not supported by the current aggregate: ${type}`);
+  constructor(type: string, schemaVersion?: number) {
+    super(`Activity event type or version is not supported by the current aggregate: ${type}${schemaVersion === undefined ? '' : ` v${schemaVersion}`}`);
     this.name = 'UnsupportedActivityEventError';
   }
 }
@@ -75,11 +75,14 @@ export function replayActivityEvents(
   };
 }
 
-function applyActivityEvent(
+export function applyActivityEvent(
   activity: Activity | null,
   deleted: boolean,
   event: ActivityDomainEvent
 ): { activity: Activity | null; deleted: boolean } {
+  if (event.schemaVersion !== 1 && !(event.type === 'AttendanceRecorded' && event.schemaVersion === 2)) {
+    throw new UnsupportedActivityEventError(event.type, event.schemaVersion);
+  }
   if (event.type === 'ActivityCreated' || event.type === 'ActivityImported') {
     if (activity || deleted) {
       throw new ActivityReplayError(`${event.type} cannot be applied to an existing Activity`);

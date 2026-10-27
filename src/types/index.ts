@@ -151,6 +151,7 @@ export type AttendanceStatus = 'present' | 'absent' | 'excused';
 export interface ActivityAttendance {
   personId: string;
   status: AttendanceStatus;
+  reason?: string;
 }
 
 export interface TrainingUnit {

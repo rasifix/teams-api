@@ -177,6 +177,7 @@ export interface EventDocument extends BaseDocument {
   attendance?: Array<{
     personId: string;
     status: 'present' | 'absent' | 'excused';
+    reason?: string;
   }>;
   teams: TeamEmbedded[];
   invitations: InvitationEmbedded[];

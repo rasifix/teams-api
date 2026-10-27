@@ -1,5 +1,7 @@
 import { mongoConnection } from '../database/connection';
 import { executeActivityCommand, isActivityEventSourcingEnabled, systemActivityWriteContext, type ActivityWriteContext } from '../domain/activityCommandService';
+import { decideActivityCommand, type ActivityCommand } from '../domain/activityCommands';
+import { applyActivityEvent } from '../domain/activityAggregate';
 import { activityReconciler } from '../domain/activityReconciler';
 import { activityEventStore } from './activityEventStore';
 import { activityProjectionStore } from './activityProjectionStore';
@@ -1000,6 +1002,14 @@ class DataStore {
       { returnDocument: 'after' }
     );
     return result ? eventDocumentToActivity(result) : null;
+  }
+
+  async executeActivityIntent(current: Activity, command: ActivityCommand, context: ActivityWriteContext): Promise<Activity | null> {
+    if (isActivityEventSourcingEnabled()) return executeActivityCommand(current, command, context);
+    const events = decideActivityCommand(current, command);
+    let activity: Activity | null = current;
+    for (const event of events) activity = applyActivityEvent(activity, false, event as import('../types/activityEvents').ActivityDomainEvent).activity;
+    return activity ? this.updateActivity(activity, context) : null;
   }
 
   async deleteActivity(
