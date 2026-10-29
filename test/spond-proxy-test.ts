@@ -42,7 +42,7 @@ const groupsResponse = (): Response => jsonResponse([{
   }, {
     id: 'trainer-1', firstName: 'Pat', lastName: 'Coach', guardians: [], roles: ['role-coach']
   }, {
-    id: 'admin-1', firstName: 'Alex', lastName: 'Admin', guardians: []
+    id: 'admin-1', firstName: 'Alex', lastName: 'Admin', guardians: [], roles: ['role-coach']
   }],
   admins: [{ id: 'admin-1' }],
   roles: [{ id: 'role-coach', name: 'Coach' }]
@@ -80,8 +80,9 @@ const testSnapshotNormalization = async (): Promise<void> => {
       '2027-01-01T00:00:00.000Z'
     );
     assert(snapshot.group.members[0].birthDate === '2014-01-02', 'birth date must be normalized');
-    assert(snapshot.group.members.length === 2, 'trainer members must be retained for trainer synchronization while administrators are excluded');
+    assert(snapshot.group.members.length === 3, 'administrator-only entries must be excluded while administrators with trainer roles remain available for trainer synchronization');
     assert(snapshot.group.members.some(member => member.id === 'trainer-1' && member.roles.includes('Coach')), 'trainer role names must be normalized and retained');
+    assert(snapshot.group.members.some(member => member.id === 'admin-1' && member.roles.includes('Coach')), 'administrator members with trainer roles must be retained');
     assert(snapshot.activities[0].responses[0].response === 'accepted', 'accepted response must be preserved');
     assert(snapshot.activities[0].responses[1].response === 'open', 'waiting-list response must map to open');
     assert(snapshot.activities[0].responses[2].response === 'open', 'unconfirmed response must map to open');

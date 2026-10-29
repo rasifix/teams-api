@@ -356,13 +356,13 @@ const normalizeGroup = (value: unknown): SpondInternalGroup => {
   const rolesById = roleLookup(group);
   const subGroups = normalizeSubGroups(group.subGroups);
   const rawMembers = Array.isArray(group.members) ? group.members : [];
+  const members = rawMembers.map(member => normalizeMember(member, rolesById));
   return {
     id: requiredString(group.id, 'group.id'),
     name: requiredString(group.name, 'group.name'),
     subGroups,
-    members: rawMembers
-      .map(member => normalizeMember(member, rolesById))
-      .filter(member => !administrators.has(member.id))
+    members: members.filter(member => !administrators.has(member.id)
+      || member.roles.some(role => /(^|\s)(coach|trainer)(\s|$)/i.test(role)))
   };
 };
 
