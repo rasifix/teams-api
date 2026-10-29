@@ -12,7 +12,7 @@ info:
 servers:
   - url: https://api.teams.com
     description: Production server
-# Authentication is optional for most endpoints, but required for some
+# Authentication is specified per operation.
 security: []
 paths:
   /api/birthday-calendars/{token}.ics:
@@ -37,7 +37,11 @@ paths:
           content:
             text/calendar:
               schema: { type: string }
-        '404': { description: Calendar not found or revoked }
+        '404':
+          description: Calendar not found or revoked
+          content:
+            text/html:
+              schema: { type: string }
   /api/squads/{squadId}/birthday-calendar:
     get:
       operationId: getBirthdayCalendarSubscription
@@ -74,8 +78,16 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        '200': { description: Existing subscription URL }
-        '201': { description: Subscription URL created }
+        '200':
+          description: Existing subscription URL
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BirthdayCalendarSubscription' }
+        '201':
+          description: Subscription URL created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BirthdayCalendarSubscription' }
         '403': { description: Admin or trainer access required }
     delete:
       operationId: revokeBirthdayCalendarSubscription
@@ -248,20 +260,6 @@ paths:
           required: true
           schema:
             type: string
-        - name: kind
-          in: query
-          schema:
-            $ref: '#/components/schemas/ActivityKind'
-        - name: startsAfter
-          in: query
-          schema:
-            type: string
-            format: date-time
-        - name: startsBefore
-          in: query
-          schema:
-            type: string
-            format: date-time
       responses:
         '200':
           description: Activities in the group
@@ -271,12 +269,6 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Activity'
-        '400':
-          description: Invalid filters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
     post:
       operationId: createGroupActivity
       summary: Create a match or tournament activity
@@ -301,6 +293,8 @@ paths:
       responses:
         '201':
           description: Activity created
+          headers:
+            ETag: { $ref: '#/components/headers/ActivityETag' }
           content:
             application/json:
               schema:
@@ -488,6 +482,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /api/squads/{squadId}/activities/{id}/status:
+    put:
+      operationId: updateActivityStatus
+      summary: Cancel or restore an Activity
+      description: Spond-linked Activities receive their status from Spond and cannot be changed here.
+      tags: [Activities]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ActivitySquadId'
+        - $ref: '#/components/parameters/ActivityPathId'
+        - $ref: '#/components/parameters/ActivityIfMatch'
+        - $ref: '#/components/parameters/ActivityIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/ActivityStatus' }
+      responses:
+        '200':
+          description: Complete updated Activity
+          headers:
+            ETag: { $ref: '#/components/headers/ActivityETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Activity' }
+        '400': { description: Invalid status or Spond-linked Activity }
+        '404': { description: Activity not found }
+        '409': { description: Revision or idempotency conflict }
   /api/squads/{squadId}/activities/{id}/invitations:
     put:
       operationId: updateGroupActivityInvitations
@@ -701,33 +727,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
   /api/squads/{squadId}/activities/{id}/teams:
-    get:
-      operationId: getGroupActivityTeams
-      summary: Get teams for an activity
-      tags:
-        - Activities
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Activity teams
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Team'
     put:
       operationId: updateGroupActivityTeams
       deprecated: true
@@ -866,54 +865,6 @@ paths:
         '400': { description: Invalid command }
         '404': { description: Activity or team not found }
         '409': { description: Revision or idempotency conflict }
-  /api/squads/{squadId}/activities/{id}/attendance/{personId}:
-    put:
-      operationId: updateGroupActivityAttendanceForPerson
-      summary: Set attendance for one squad member
-      tags: [Activities]
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: squadId
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: personId
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [status]
-              properties:
-                status:
-                  $ref: '#/components/schemas/AttendanceStatus'
-      responses:
-        '200':
-          description: Updated attendance
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ActivityAttendance'
-        '400':
-          description: Activity has not started or attendance is invalid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
   /api/squads/{squadId}/match-formats:
     get:
       operationId: getSquadMatchFormats
@@ -1106,7 +1057,7 @@ paths:
                   example: user@example.com
                 password:
                   type: string
-                  minLength: 16
+                  minLength: 6
                   example: mySecurePassword123
                 firstName:
                   type: string
@@ -1361,19 +1312,72 @@ paths:
                     example: "Teams API is running"
                   database:
                     type: object
+                    required: [status, database, collections]
                     properties:
-                      connected:
-                        type: boolean
+                      status:
+                        type: string
+                        enum: [healthy]
+                      database:
+                        type: string
                       collections:
-                        type: array
-                        items:
-                          type: string
+                        type: integer
+                  activityEventSourcing:
+                    type: object
+                    required: [enabled, metrics]
+                    properties:
+                      enabled: { type: boolean }
+                      metrics:
+                        $ref: '#/components/schemas/ActivityEventSourcingMetrics'
         '503':
           description: Service unavailable - database unhealthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                type: object
+                required: [status, message, error]
+                properties:
+                  status: { type: string, enum: [error] }
+                  message: { type: string }
+                  error: { type: string }
+  /metrics:
+    get:
+      operationId: getActivityEventSourcingMetrics
+      summary: Process-local Activity event sourcing metrics
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Prometheus text exposition
+          content:
+            text/plain:
+              schema: { type: string }
+  /internal/migrations/activity-events:
+    post:
+      operationId: runActivityEventMigration
+      summary: Migrate Activity projections to event streams
+      description: Internal migration endpoint. Activity writes must be paused before calling it.
+      tags: [Internal]
+      security: []
+      parameters:
+        - name: X-Migration-Token
+          in: header
+          required: true
+          schema: { type: string }
+        - name: X-Confirm-Activity-Writes-Paused
+          in: header
+          required: true
+          schema: { type: string, enum: ['yes'] }
+      responses:
+        '200':
+          description: Migration completed with no mismatches
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ActivityEventMigrationResult' }
+        '400': { description: Activity writes pause was not confirmed }
+        '401': { description: Invalid migration token }
+        '409': { description: Migration in progress or mismatches detected }
+        '500': { description: Migration failed }
+        '503': { description: Migration endpoint is not configured }
   /api/squads:
     get:
       operationId: getAllGroups
@@ -1410,6 +1414,8 @@ paths:
       description: Create a new group
       tags:
         - Squads
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -1442,6 +1448,8 @@ paths:
       description: Retrieve a specific group by ID
       tags:
         - Squads
+      security:
+        - bearerAuth: []
       parameters:
         - name: squadId
           in: path
@@ -1473,6 +1481,8 @@ paths:
       description: Update a specific group by ID
       tags:
         - Squads
+      security:
+        - bearerAuth: []
       parameters:
         - name: squadId
           in: path
@@ -1516,6 +1526,8 @@ paths:
       description: Delete a specific group by ID
       tags:
         - Squads
+      security:
+        - bearerAuth: []
       parameters:
         - name: squadId
           in: path
@@ -1541,7 +1553,7 @@ paths:
     get:
       operationId: getAllMembers
       summary: Get all members in a squad
-      description: Retrieve all members for a specific group in a single response (players and trainers). Guardians can read this endpoint, but sensitive player fields are hidden.
+      description: Without a roles filter, returns players and trainers together. With roles=player or roles=trainer, returns the matching array. Guardians can read this endpoint, but sensitive player fields are hidden.
       tags:
         - Members
       security:
@@ -1552,22 +1564,36 @@ paths:
           required: true
           schema:
             type: string
+        - name: roles
+          in: query
+          schema:
+            type: string
+            enum: [player, trainer]
       responses:
         '200':
           description: Successfully retrieved members
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  players:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Player'
-                  trainers:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Trainer'
+                anyOf:
+                  - type: object
+                    required: [players, trainers]
+                    properties:
+                      players:
+                        type: array
+                        items: { $ref: '#/components/schemas/Player' }
+                      trainers:
+                        type: array
+                        items: { $ref: '#/components/schemas/Trainer' }
+                  - type: array
+                    items: { $ref: '#/components/schemas/Player' }
+                  - type: array
+                    items: { $ref: '#/components/schemas/Trainer' }
+        '400':
+          description: Invalid roles filter
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401':
           description: Not authenticated
           content:
@@ -2001,6 +2027,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
   /api/squads/{squadId}/members/{memberId}/evaluations:
+    parameters:
+      - name: squadId
+        in: path
+        required: true
+        schema: { type: string }
+      - name: memberId
+        in: path
+        required: true
+        schema: { type: string }
     get:
       operationId: getAllEvaluationsForMember
       summary: Get all evaluations for a member
@@ -3407,6 +3442,48 @@ components:
         type: string
         pattern: '^"activity-revision-[0-9]+"$'
   schemas:
+    BirthdayCalendarSubscription:
+      type: object
+      required: [subscriptionUrl]
+      properties:
+        subscriptionUrl: { type: string, format: uri }
+    ActivityEventSourcingMetrics:
+      type: object
+      required: [commandsAppended, commandConflicts, projectionRepairs, replayFailures, reconciliationFailures]
+      properties:
+        commandsAppended: { type: integer, minimum: 0 }
+        commandConflicts: { type: integer, minimum: 0 }
+        projectionRepairs: { type: integer, minimum: 0 }
+        replayFailures: { type: integer, minimum: 0 }
+        reconciliationFailures: { type: integer, minimum: 0 }
+    ActivityEventMigrationResult:
+      type: object
+      required: [scanned, imported, alreadyMigrated, skipped, verified, mismatches]
+      properties:
+        scanned: { type: integer, minimum: 0 }
+        imported: { type: integer, minimum: 0 }
+        alreadyMigrated: { type: integer, minimum: 0 }
+        skipped: { type: integer, minimum: 0 }
+        verified: { type: integer, minimum: 0 }
+        mismatches:
+          type: array
+          items:
+            type: object
+            required: [squadId, activityId, revision, reason, differences]
+            properties:
+              squadId: { type: string }
+              activityId: { type: string }
+              revision: { type: integer }
+              reason: { type: string }
+              differences:
+                type: array
+                items:
+                  type: object
+                  required: [path]
+                  properties:
+                    path: { type: string }
+                    expected: {}
+                    actual: {}
     ActivityHistoryPage:
       type: object
       required: [items]
@@ -4665,7 +4742,10 @@ components:
         - status
     ActivityKind:
       type: string
-      enum: [match, tournament, training, social]
+      enum: [match, tournament]
+    ActivityStatus:
+      type: string
+      enum: [active, cancelled]
     AttendanceStatus:
       type: string
       enum: [present, absent, excused]
@@ -4679,31 +4759,6 @@ components:
         reason:
           type: string
       required: [personId, status]
-    TrainingUnit:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        plannedPlayerIds:
-          type: array
-          items:
-            type: string
-          description: Every planned player must have accepted an activity invitation.
-      required: [id, plannedPlayerIds]
-    TrainingGroup:
-      type: object
-      properties:
-        id:
-          type: string
-        name:
-          type: string
-        units:
-          type: array
-          items:
-            $ref: '#/components/schemas/TrainingUnit'
-      required: [id, units]
     ActivityInvitation:
       type: object
       properties:
@@ -4737,10 +4792,15 @@ components:
       properties:
         id:
           type: string
+        spondId:
+          type: string
+          nullable: true
         squadId:
           type: string
         kind:
           $ref: '#/components/schemas/ActivityKind'
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
         name:
           type: string
         startsAt:
@@ -4778,24 +4838,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ActivityAttendance'
-        trainerIds:
-          type: array
-          minItems: 1
-          items:
-            type: string
-          description: Required for training activities.
-        groups:
-          type: array
-          items:
-            $ref: '#/components/schemas/TrainingGroup'
-      required: [id, squadId, kind, name, startsAt, teams, invitations]
+      required: [id, squadId, kind, status, name, startsAt, teams, invitations]
     CreateActivityRequest:
       type: object
       properties:
         kind:
-          type: string
-          enum: [match, tournament, training, social]
-          description: Training requires trainerIds; social activities have no teams or player limits.
+          $ref: '#/components/schemas/ActivityKind'
         name:
           type: string
         startsAt:
@@ -4822,27 +4870,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Team'
-          description: Match requires exactly one team; tournament requires at least one; training/social must omit teams or pass an empty array.
+          description: Match requires exactly one team; tournament requires at least one.
         invitations:
           type: array
           items:
             $ref: '#/components/schemas/ActivityInvitation'
-        trainerIds:
-          type: array
-          minItems: 1
-          items:
-            type: string
-        groups:
-          type: array
-          items:
-            $ref: '#/components/schemas/TrainingGroup'
-      required: [kind, name, startsAt]
+      required: [kind, name, startsAt, minPlayersPerTeam, maxPlayersPerTeam, teams]
     UpdateActivityRequest:
       type: object
       properties:
         kind:
-          type: string
-          enum: [match, tournament, training, social]
+          $ref: '#/components/schemas/ActivityKind'
         name:
           type: string
         startsAt:
@@ -4869,15 +4907,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Team'
-        trainerIds:
-          type: array
-          minItems: 1
-          items:
-            type: string
-        groups:
-          type: array
-          items:
-            $ref: '#/components/schemas/TrainingGroup'
         invitations:
           type: array
           items:
@@ -4908,14 +4937,14 @@ components:
           default: 2
         startTime:
           type: string
-          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+          pattern: '^\d{2}:\d{2}$'
           example: "14:30"
         location:
           type: string
           description: Optional location for the team (overrides event location)
         meetingTime:
           type: string
-          pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+          pattern: '^\d{2}:\d{2}$'
           example: "13:45"
           description: Time when the team meets before the match
         meetingLocation:
@@ -4925,13 +4954,11 @@ components:
           type: array
           items:
             type: string
-        trainerId:
+        responsiblePersonId:
           type: string
-          nullable: true
-        responsiblePersonIds:
-          type: array
-          items:
-            type: string
+        status:
+          type: string
+          enum: [new, selected]
         shirtSetId:
           type: string
           nullable: true
@@ -4957,7 +4984,6 @@ components:
         - id
         - name
         - strength
-        - startTime
         - selectedPlayers
     Shirt:
       type: object
