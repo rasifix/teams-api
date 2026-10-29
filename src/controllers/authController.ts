@@ -71,18 +71,21 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
     
     // Create user
+    const verificationToken = crypto.randomBytes(32).toString('hex');
     const newUser: User = {
       id: await getNextSequence('users'),
       email: email.toLowerCase(),
       password: hashedPassword,
       firstName,
-      lastName
+      lastName,
+      emailVerified: false,
+      verificationTokenHash: crypto.createHash('sha256').update(verificationToken).digest('hex'),
+      verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     };
     
     const createdUser = await dataStore.createUser(newUser);
     
-    // Generate JWT token
-    const token = generateToken(createdUser);
+    await emailService.sendAccountVerificationEmail({ toEmail: createdUser.email, verificationToken });
     
     // Return user info (without password) and token
     res.status(201).json({
@@ -93,7 +96,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         lastName: createdUser.lastName,
         createdAt: createdUser.createdAt
       },
-      token
+      message: 'Registration successful. Check your email to activate your account.'
     });
   } catch (error) {
     console.error('Error registering user:', error);
@@ -122,6 +125,11 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
+
+    if (user.emailVerified === false) {
+      res.status(403).json({ error: 'Please verify your email before logging in' });
+      return;
+    }
     
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.password);
@@ -148,6 +156,26 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     console.error('Error logging in user:', error);
     res.status(500).json({ error: 'Failed to login' });
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.query;
+    if (typeof token !== 'string' || !token) {
+      res.status(400).json({ error: 'Verification token is required' });
+      return;
+    }
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const verified = await dataStore.verifyUserEmail(tokenHash);
+    if (!verified) {
+      res.status(400).json({ error: 'Verification token is invalid, expired, or already used' });
+      return;
+    }
+    res.json({ message: 'Email verified. You can now log in.' });
+  } catch (error) {
+    console.error('Error verifying email:', error);
+    res.status(500).json({ error: 'Failed to verify email' });
   }
 };
 

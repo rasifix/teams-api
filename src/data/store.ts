@@ -1315,6 +1315,7 @@ class DataStore {
       password: userDoc.password,
       firstName: userDoc.firstName,
       lastName: userDoc.lastName,
+      emailVerified: userDoc.emailVerified !== false,
       createdAt: userDoc.createdAt.toISOString(),
       updatedAt: userDoc.updatedAt.toISOString()
     };
@@ -1332,6 +1333,7 @@ class DataStore {
       password: userDoc.password,
       firstName: userDoc.firstName,
       lastName: userDoc.lastName,
+      emailVerified: userDoc.emailVerified !== false,
       createdAt: userDoc.createdAt.toISOString(),
       updatedAt: userDoc.updatedAt.toISOString()
     };
@@ -1347,6 +1349,9 @@ class DataStore {
       password: user.password,
       firstName: user.firstName,
       lastName: user.lastName,
+      emailVerified: user.emailVerified ?? false,
+      verificationTokenHash: user.verificationTokenHash,
+      verificationTokenExpiresAt: user.verificationTokenExpiresAt ? new Date(user.verificationTokenExpiresAt) : undefined,
       createdAt: now,
       updatedAt: now
     };
@@ -1359,9 +1364,19 @@ class DataStore {
       password: newDoc.password,
       firstName: newDoc.firstName,
       lastName: newDoc.lastName,
+      emailVerified: newDoc.emailVerified,
       createdAt: newDoc.createdAt.toISOString(),
       updatedAt: newDoc.updatedAt.toISOString()
     };
+  }
+
+  async verifyUserEmail(tokenHash: string): Promise<boolean> {
+    const usersCollection = mongoConnection.getUsersCollection();
+    const result = await usersCollection.updateOne(
+      { verificationTokenHash: tokenHash, verificationTokenExpiresAt: { $gt: new Date() }, emailVerified: false },
+      { $set: { emailVerified: true, updatedAt: new Date() }, $unset: { verificationTokenHash: '', verificationTokenExpiresAt: '' } }
+    );
+    return result.modifiedCount > 0;
   }
 
   // Password Reset operations

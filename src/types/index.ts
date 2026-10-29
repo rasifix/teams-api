@@ -242,6 +242,9 @@ export interface User {
   password: string; // Hashed password
   firstName?: string;
   lastName?: string;
+  emailVerified?: boolean;
+  verificationTokenHash?: string;
+  verificationTokenExpiresAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }

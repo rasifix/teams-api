@@ -1041,7 +1041,7 @@ paths:
     post:
       operationId: registerUser
       summary: Register a new user
-      description: Create a new user account with email and password
+      description: Create a new user account and send an email verification link. Login is available after verification.
       tags:
         - Authentication
       requestBody:
@@ -1070,7 +1070,7 @@ paths:
                 - password
       responses:
         '201':
-          description: User registered successfully
+          description: Registration created; verification email sent
           content:
             application/json:
               schema:
@@ -1078,9 +1078,9 @@ paths:
                 properties:
                   user:
                     $ref: '#/components/schemas/UserResponse'
-                  token:
+                  message:
                     type: string
-                    description: JWT authentication token
+                    example: Registration successful. Check your email to activate your account.
         '400':
           description: Invalid request data
           content:
@@ -1154,6 +1154,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /auth/verify-email:
+    get:
+      operationId: verifyEmail
+      summary: Verify a new account's email address
+      tags:
+        - Authentication
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Email verified; user can log in
+        '400':
+          description: Missing, invalid, expired, or already used token
   /auth/me:
     get:
       operationId: getCurrentUser

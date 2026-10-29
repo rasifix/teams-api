@@ -6,6 +6,7 @@ const router = Router();
 
 // POST /api/auth/register - Register new user
 router.post('/register', authController.register);
+router.get('/verify-email', authController.verifyEmail);
 
 // POST /api/auth/login - Login user
 router.post('/login', authController.login);

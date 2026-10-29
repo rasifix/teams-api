@@ -32,6 +32,20 @@ export interface SendPasswordResetEmailParams {
   resetToken: string;
 }
 
+export interface SendAccountVerificationEmailParams { toEmail: string; verificationToken: string; }
+
+export const sendAccountVerificationEmail = async (params: SendAccountVerificationEmailParams): Promise<void> => {
+  const { senderEmail, senderName, frontendUrl } = getBrevoConfig();
+  const verificationUrl = `${frontendUrl}/verify-email?token=${encodeURIComponent(params.verificationToken)}`;
+  const email = new brevo.SendSmtpEmail();
+  email.sender = { email: senderEmail, name: senderName };
+  email.to = [{ email: params.toEmail }];
+  email.subject = 'Verify your Teams API account';
+  email.htmlContent = `<p>Thanks for registering. Verify your email to activate your account:</p><p><a href="${verificationUrl}">Activate account</a></p><p>This link expires in 24 hours.</p>`;
+  email.textContent = `Verify your Teams API account by visiting: ${verificationUrl}\nThis link expires in 24 hours.`;
+  await getApiInstance().sendTransacEmail(email);
+};
+
 export const sendPasswordResetEmail = async (
   params: SendPasswordResetEmailParams
 ): Promise<void> => {
@@ -119,5 +133,6 @@ This is an automated email. Please do not reply to this message.
 };
 
 export const emailService = {
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  sendAccountVerificationEmail
 };

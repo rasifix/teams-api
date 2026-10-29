@@ -255,6 +255,9 @@ export interface UserDocument extends BaseDocument {
   password: string; // Hashed password
   firstName?: string;
   lastName?: string;
+  emailVerified?: boolean;
+  verificationTokenHash?: string;
+  verificationTokenExpiresAt?: Date;
 }
 
 // Password Reset Collection
