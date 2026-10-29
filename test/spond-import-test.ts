@@ -1,5 +1,6 @@
 import { importSpondSnapshot } from '../src/controllers/spondImportController';
 import { dataStore } from '../src/data/store';
+import { mongoConnection } from '../src/database/connection';
 import type { Activity, Player } from '../src/types';
 
 const assert = (condition: unknown, message: string): void => {
@@ -32,6 +33,7 @@ const validBody = {
     sourceReadAt: '2026-10-10T10:00:00.000Z'
   },
   members: [{ action: 'link', spondMemberId: 'sm-1', memberId: 'p-1' }],
+  trainers: [],
   activities: []
 };
 
@@ -47,18 +49,28 @@ const run = async (): Promise<void> => {
     updatePlayer: dataStore.updatePlayer,
     getActivityBySpondId: dataStore.getActivityBySpondId,
     getActivityById: dataStore.getActivityById,
-    updateActivity: dataStore.updateActivity
+    updateActivity: dataStore.updateActivity,
+    getTrainerBySpondId: dataStore.getTrainerBySpondId,
+    getTrainerById: dataStore.getTrainerById,
+    createTrainer: dataStore.createTrainer,
+    updateTrainer: dataStore.updateTrainer,
+    addMemberRole: dataStore.addMemberRole
   };
+  const originalGetDb = mongoConnection.getDb;
   const player: Player = {
     id: 'p-1', groupId: '5', roles: ['player'], firstName: 'Ada', lastName: 'Lovelace',
     birthDate: '2014-01-02', level: 3, status: 'active'
   };
   let linkedSpondId = '';
   try {
+    (mongoConnection as any).getDb = () => ({
+      collection: () => ({ findOneAndUpdate: async () => ({ sequence_value: 123 }) }),
+    });
     dataStore.getGroupById = async () => ({ id: '5', name: 'Local U12' });
     dataStore.updateGroup = async (_id, updates) => ({ id: '5', name: 'Local U12', ...updates });
     dataStore.getPlayerBySpondId = async () => undefined;
     dataStore.getPlayerById = async () => player;
+    dataStore.getTrainerBySpondId = async () => undefined;
     dataStore.updatePlayer = async (_id, updates) => {
       linkedSpondId = String(updates.spondId);
       return { ...player, ...updates };
@@ -68,6 +80,46 @@ const run = async (): Promise<void> => {
     assert(success.status === 200, 'valid link-only import must succeed');
     assert(linkedSpondId === 'sm-1', 'link import must persist the Spond member id');
     assert((success.response as { linked: number }).linked === 1, 'link result must be counted');
+
+    const trainerSourceBody = structuredClone(validBody);
+    trainerSourceBody.snapshot.group.members.push({
+      id: 'sm-trainer', firstName: 'Pat', lastName: 'Coach', roles: ['coach'], guardians: [],
+    });
+    trainerSourceBody.members = [{ action: 'skip', spondMemberId: 'sm-trainer' }];
+    trainerSourceBody.trainers = [{ action: 'create-trainer', spondMemberId: 'sm-trainer' }];
+    let createdTrainer: Record<string, unknown> | undefined;
+    dataStore.getTrainerBySpondId = async () => undefined;
+    dataStore.getPlayerBySpondId = async () => undefined;
+    dataStore.createTrainer = async value => { createdTrainer = value as unknown as Record<string, unknown>; return value; };
+    const trainerImport = await call(trainerSourceBody);
+    assert(trainerImport.status === 200, 'valid trainer creation must succeed');
+    assert(createdTrainer?.spondId === 'sm-trainer'
+      && Array.isArray(createdTrainer.roles) && createdTrainer.roles.includes('trainer'),
+    'created trainer must retain its Spond ID and trainer role');
+    assert((trainerImport.response as { created: number }).created === 1, 'created trainer must be counted');
+
+    const dualRoleBody = structuredClone(trainerSourceBody);
+    dualRoleBody.members = [{
+      action: 'create-player', spondMemberId: 'sm-trainer', birthDate: '2014-02-03', level: 2, status: 'active', guardianIds: [],
+    }];
+    dualRoleBody.trainers = [{ action: 'skip', spondMemberId: 'sm-trainer' }];
+    let playerLookupCount = 0;
+    let promotedRole = '';
+    dataStore.getTrainerBySpondId = async () => createdTrainer as unknown as import('../src/types').Trainer;
+    dataStore.getPlayerBySpondId = async () => {
+      playerLookupCount += 1;
+      return playerLookupCount === 1 ? undefined : player;
+    };
+    dataStore.addMemberRole = async (_id, role) => { promotedRole = role; return true; };
+    const dualRoleImport = await call(dualRoleBody);
+    assert(dualRoleImport.status === 200, 'the same Spond person may gain a player role without duplicating the member record');
+    assert(promotedRole === 'player', 'player sync must add the player role to the linked trainer record');
+    assert((dualRoleImport.response as { updated: number }).updated === 1, 'promoted trainer/player must be updated as a player');
+
+    const invalidTrainerBody = structuredClone(validBody);
+    invalidTrainerBody.trainers = [{ action: 'create-trainer', spondMemberId: 'sm-1' }];
+    const invalidTrainer = await call(invalidTrainerBody);
+    assert(invalidTrainer.status === 400, 'a non-trainer Spond member must not be imported as a trainer');
 
     dataStore.getPlayerById = async () => ({ ...player, spondId: 'sm-1' });
     const changedBirthDateBody = structuredClone(validBody);
@@ -104,6 +156,7 @@ const run = async (): Promise<void> => {
     assert((secondActivityImport.response as { unchanged: number }).unchanged === 2, 'unchanged Spond activity should be reported unchanged');
     assert(activityUpdates === 1, 'unchanged Spond invitations must not trigger another activity update');
   } finally {
+    (mongoConnection as any).getDb = originalGetDb;
     dataStore.getGroupById = original.getGroupById;
     dataStore.updateGroup = original.updateGroup;
     dataStore.getPlayerBySpondId = original.getPlayerBySpondId;
@@ -112,6 +165,11 @@ const run = async (): Promise<void> => {
     dataStore.getActivityBySpondId = original.getActivityBySpondId;
     dataStore.getActivityById = original.getActivityById;
     dataStore.updateActivity = original.updateActivity;
+    dataStore.getTrainerBySpondId = original.getTrainerBySpondId;
+    dataStore.getTrainerById = original.getTrainerById;
+    dataStore.createTrainer = original.createTrainer;
+    dataStore.updateTrainer = original.updateTrainer;
+    dataStore.addMemberRole = original.addMemberRole;
   }
   console.log('Spond import tests passed');
 };

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { dataStore } from '../data/store';
-import { Activity, ActivityKind, ActivityInvitation, Player, PlayerStatus, Team } from '../types';
+import { Activity, ActivityKind, ActivityInvitation, GroupRole, Player, PlayerStatus, Team, Trainer } from '../types';
 import { getNextSequence } from '../utils/sequence';
 import { GroupAuthRequest } from '../middleware/groupAuth';
 import type { ActivityWriteContext } from '../domain/activityCommandService';
@@ -9,6 +9,10 @@ type RecordValue = Record<string, unknown>;
 type MemberDecision =
   | { action: 'link'; spondMemberId: string; memberId: string }
   | { action: 'create-player'; spondMemberId: string; birthDate: string; level: number; status: PlayerStatus; guardianIds: string[] }
+  | { action: 'skip'; spondMemberId: string };
+type TrainerDecision =
+  | { action: 'link'; spondMemberId: string; memberId: string }
+  | { action: 'create-trainer'; spondMemberId: string }
   | { action: 'skip'; spondMemberId: string };
 type ActivityDecision =
   | { action: 'link'; spondEventId: string; activityId: string }
@@ -42,6 +46,12 @@ const validateActivityDecision = (value: unknown): value is ActivityDecision => 
     && (value.teams === undefined || Array.isArray(value.teams));
 };
 
+const validateTrainerDecision = (value: unknown): value is TrainerDecision => {
+  if (!isRecord(value) || !nonEmpty(value.action) || !nonEmpty(value.spondMemberId)) return false;
+  if (value.action === 'skip' || value.action === 'create-trainer') return true;
+  return value.action === 'link' && nonEmpty(value.memberId);
+};
+
 const validatePayload = (value: unknown): { body?: RecordValue; error?: string } => {
   if (!isRecord(value) || !nonEmpty(value.importId) || !nonEmpty(value.spondGroupId) || !validDate(value.from) || !validDate(value.to)) {
     return { error: 'Invalid import metadata' };
@@ -51,6 +61,7 @@ const validatePayload = (value: unknown): { body?: RecordValue; error?: string }
     return { error: 'Invalid or mismatched snapshot' };
   }
   if (!Array.isArray(value.members) || !value.members.every(validateMemberDecision)
+    || !Array.isArray(value.trainers) || !value.trainers.every(validateTrainerDecision)
     || !Array.isArray(value.activities) || !value.activities.every(validateActivityDecision)) {
     return { error: 'Invalid import decisions' };
   }
@@ -117,6 +128,7 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
   const sourceMembers = snapshotGroup.members as unknown[];
   const sourceEvents = snapshot.activities as unknown[];
   const memberDecisions = body.members as MemberDecision[];
+  const trainerDecisions = body.trainers as TrainerDecision[];
   const activityDecisions = body.activities as ActivityDecision[];
   const activityWriteContext = activityWriteContextFromRequest(req as GroupAuthRequest);
   const result = { importId: body.importId as string, created: 0, linked: 0, updated: 0, unchanged: 0, skipped: 0, warnings: [] as string[] };
@@ -145,13 +157,26 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
         return;
       }
       const existingExternal = await dataStore.getPlayerBySpondId(groupId, decision.spondMemberId);
+      const existingTrainer = !existingExternal
+        ? await dataStore.getTrainerBySpondId(groupId, decision.spondMemberId)
+        : undefined;
+      if (existingTrainer) {
+        if (decision.action === 'link' && existingTrainer.id !== decision.memberId) {
+          res.status(409).json({ error: 'SPOND_MEMBER_ALREADY_LINKED' });
+          return;
+        }
+        if (!(await dataStore.addMemberRole(existingTrainer.id, 'player'))) throw new Error('Failed to add player role');
+      }
+      const resolvedExternal = existingExternal ?? (existingTrainer
+        ? await dataStore.getPlayerBySpondId(groupId, decision.spondMemberId)
+        : undefined);
       if (decision.action === 'link') {
         const local = await dataStore.getPlayerById(decision.memberId);
         if (!local || local.groupId !== groupId) {
           res.status(400).json({ error: 'SPOND_LINK_TARGET_INVALID' });
           return;
         }
-        if (existingExternal && existingExternal.id !== local.id) {
+        if (resolvedExternal && resolvedExternal.id !== local.id) {
           res.status(409).json({ error: 'SPOND_MEMBER_ALREADY_LINKED' });
           return;
         }
@@ -174,8 +199,8 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
         continue;
       }
 
-      if (existingExternal) {
-        const updated = await dataStore.updatePlayer(existingExternal.id, {
+      if (resolvedExternal) {
+        const updated = await dataStore.updatePlayer(resolvedExternal.id, {
           firstName: source.firstName,
           lastName: source.lastName,
           birthDate: decision.birthDate,
@@ -214,6 +239,68 @@ export const importSpondSnapshot = async (req: Request, res: Response): Promise<
           result.created += 1;
         }
         await dataStore.addGuardianLink(groupId, guardian.id, player.id);
+      }
+    }
+
+    for (const decision of trainerDecisions) {
+      if (decision.action === 'skip') {
+        result.skipped += 1;
+        continue;
+      }
+      const source = sourceMember(sourceMembers, decision.spondMemberId);
+      if (!source || !nonEmpty(source.firstName) || !nonEmpty(source.lastName)) {
+        res.status(400).json({ error: 'SPOND_MEMBER_NOT_IN_SNAPSHOT' });
+        return;
+      }
+      const roles = Array.isArray(source.roles) ? source.roles.filter((role): role is string => typeof role === 'string') : [];
+      if (roles.some(role => /^(admin|administrator)$/i.test(role))
+        || !roles.some(role => /(^|\s)(coach|trainer)(\s|$)/i.test(role))) {
+        res.status(400).json({ error: 'SPOND_MEMBER_NOT_TRAINER' });
+        return;
+      }
+
+      const existingBySpondId = await dataStore.getTrainerBySpondId(groupId, decision.spondMemberId);
+      const existingPlayer = await dataStore.getPlayerBySpondId(groupId, decision.spondMemberId);
+      let target: Trainer | undefined;
+      if (decision.action === 'link') {
+        target = await dataStore.getTrainerById(decision.memberId);
+        if (!target || target.groupId !== groupId || !target.roles?.some(role => role === 'trainer' || role === 'admin')) {
+          res.status(400).json({ error: 'SPOND_LINK_TARGET_INVALID' });
+          return;
+        }
+        if ((existingBySpondId && existingBySpondId.id !== target.id)
+          || (existingPlayer && existingPlayer.id !== target.id)
+          || (target.spondId && target.spondId !== decision.spondMemberId)) {
+          res.status(409).json({ error: 'SPOND_MEMBER_ALREADY_LINKED' });
+          return;
+        }
+      } else {
+        target = existingBySpondId;
+        if (!target && existingPlayer) {
+          if (!(await dataStore.addMemberRole(existingPlayer.id, 'trainer'))) throw new Error('Failed to add trainer role');
+          target = await dataStore.getTrainerBySpondId(groupId, decision.spondMemberId);
+        }
+      }
+
+      if (target) {
+        const wasLinked = target.spondId === decision.spondMemberId;
+        const nameChanged = normalized(target.firstName ?? '') !== normalized(source.firstName)
+          || normalized(target.lastName ?? '') !== normalized(source.lastName);
+        const updated = await dataStore.updateTrainer(target.id, {
+          spondId: decision.spondMemberId,
+          firstName: source.firstName,
+          lastName: source.lastName,
+          roles: Array.from(new Set<GroupRole>([...(target.roles ?? []), 'trainer']))
+        });
+        if (!updated) throw new Error('Failed to update trainer');
+        result[wasLinked ? (nameChanged ? 'updated' : 'unchanged') : 'linked'] += 1;
+      } else {
+        await dataStore.createTrainer({
+          id: await getNextSequence('members'), groupId, roles: ['trainer'], spondId: decision.spondMemberId,
+          firstName: source.firstName, lastName: source.lastName,
+          email: nonEmpty(source.email) ? source.email.toLowerCase() : undefined
+        });
+        result.created += 1;
       }
     }
 

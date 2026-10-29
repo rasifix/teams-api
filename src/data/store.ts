@@ -1071,6 +1071,14 @@ class DataStore {
     return doc ? personDocumentToTrainer(doc) ?? undefined : undefined;
   }
 
+  async addMemberRole(id: string, role: GroupRole): Promise<boolean> {
+    const result = await mongoConnection.getMembersCollection().updateOne(
+      { _id: id },
+      { $addToSet: { roles: role }, $set: { updatedAt: new Date() } }
+    );
+    return result.matchedCount > 0;
+  }
+
   async createTrainer(trainer: Trainer): Promise<Trainer> {
     const membersCollection = mongoConnection.getMembersCollection();
     const roles: GroupRole[] = trainer.roles && trainer.roles.length > 0

@@ -80,7 +80,8 @@ const testSnapshotNormalization = async (): Promise<void> => {
       '2027-01-01T00:00:00.000Z'
     );
     assert(snapshot.group.members[0].birthDate === '2014-01-02', 'birth date must be normalized');
-    assert(snapshot.group.members.length === 1, 'trainers and administrators must be excluded from player snapshots');
+    assert(snapshot.group.members.length === 2, 'trainer members must be retained for trainer synchronization while administrators are excluded');
+    assert(snapshot.group.members.some(member => member.id === 'trainer-1' && member.roles.includes('Coach')), 'trainer role names must be normalized and retained');
     assert(snapshot.activities[0].responses[0].response === 'accepted', 'accepted response must be preserved');
     assert(snapshot.activities[0].responses[1].response === 'open', 'waiting-list response must map to open');
     assert(snapshot.activities[0].responses[2].response === 'open', 'unconfirmed response must map to open');
@@ -247,12 +248,12 @@ const testSubgroupSnapshotBySubgroupIdDirectly = async (): Promise<void> => {
     assert(snapshot.group.name === 'E1 Blau', 'snapshot group name must be the subgroup name');
 
     // Verify member filtering
-    assert(snapshot.group.members.length === 2, 'only members assigned to subgroup-1 must be included');
+    assert(snapshot.group.members.length === 3, 'members and trainers assigned to subgroup-1 must be included');
     const memberIds = snapshot.group.members.map(m => m.id);
     assert(memberIds.includes('member-1'), 'member-1 must be included');
     assert(memberIds.includes('member-3'), 'member-3 must be included');
     assert(!memberIds.includes('member-2'), 'member-2 belonging only to subgroup-2 must be excluded');
-    assert(!memberIds.includes('trainer-1'), 'trainer must be excluded');
+    assert(memberIds.includes('trainer-1'), 'trainer assigned to subgroup-1 must be included');
 
     // Verify null guardians handling did not crash
     assert(Array.isArray(snapshot.group.members[0].guardians) && snapshot.group.members[0].guardians.length === 0, 'null guardians must normalize to empty array');

@@ -3787,6 +3787,9 @@ components:
           type: string
         lastName:
           type: string
+        email:
+          type: string
+          format: email
         birthDate:
           type: string
           format: date
@@ -3886,6 +3889,24 @@ components:
             action: { type: string, enum: [skip] }
             spondMemberId: { type: string }
           required: [action, spondMemberId]
+    SpondTrainerDecision:
+      oneOf:
+        - type: object
+          properties:
+            action: { type: string, enum: [link] }
+            spondMemberId: { type: string }
+            memberId: { type: string }
+          required: [action, spondMemberId, memberId]
+        - type: object
+          properties:
+            action: { type: string, enum: [create-trainer] }
+            spondMemberId: { type: string }
+          required: [action, spondMemberId]
+        - type: object
+          properties:
+            action: { type: string, enum: [skip] }
+            spondMemberId: { type: string }
+          required: [action, spondMemberId]
     SpondActivityDecision:
       oneOf:
         - type: object
@@ -3936,11 +3957,15 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SpondMemberDecision'
+        trainers:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpondTrainerDecision'
         activities:
           type: array
           items:
             $ref: '#/components/schemas/SpondActivityDecision'
-      required: [importId, spondGroupId, from, to, snapshot, members, activities]
+      required: [importId, spondGroupId, from, to, snapshot, members, trainers, activities]
     SpondImportResult:
       type: object
       properties:

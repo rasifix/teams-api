@@ -30,6 +30,7 @@ export interface SpondMemberSnapshot {
   id: string;
   firstName: string;
   lastName: string;
+  email?: string;
   birthDate?: string;
   guardians: SpondGuardianSnapshot[];
   roles: string[];
@@ -192,8 +193,6 @@ const adminIds = (group: UnknownRecord): Set<string> => {
   }));
 };
 
-const isTrainerRole = (role: string): boolean => /(^|\s)(admin(istrator)?|coach|trainer)(\s|$)/i.test(role);
-
 const stringArray = (value: unknown): string[] | undefined => {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || value.some(entry => typeof entry !== 'string')) {
@@ -290,6 +289,7 @@ const normalizeMember = (value: unknown, rolesById: Map<string, string>): SpondI
     id,
     firstName,
     lastName,
+    email: optionalString(member.email) ?? optionalString(profile.email),
     birthDate: optionalString(member.dateOfBirth) ?? optionalString(member.birthDate) ?? optionalString(profile.dateOfBirth) ?? optionalString(profile.birthDate),
     guardians: rawGuardians.flatMap(g => {
       try {
@@ -362,7 +362,7 @@ const normalizeGroup = (value: unknown): SpondInternalGroup => {
     subGroups,
     members: rawMembers
       .map(member => normalizeMember(member, rolesById))
-      .filter(member => !administrators.has(member.id) && !member.roles.some(isTrainerRole))
+      .filter(member => !administrators.has(member.id))
   };
 };
 
